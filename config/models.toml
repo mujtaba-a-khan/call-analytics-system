@@ -1,0 +1,55 @@
+# Model Configuration
+# Settings for speech-to-text and language models
+
+[whisper]
+# Whisper model configuration for speech-to-text
+model_size = "small.en"  # Options: tiny, base, small, medium, large
+compute_type = "int8"    # Options: int8, float16, float32
+device = "auto"          # Options: auto, cpu, cuda
+num_workers = 1
+beam_size = 1
+temperature = 0.0
+vad_filter = false       # Voice activity detection
+
+[llm]
+# Local LLM configuration
+provider = "ollama"      # Options: ollama, none
+model_name = "llama3:instruct"
+endpoint = "http://localhost:11434"
+temperature = 0.2
+max_tokens = 256
+timeout_seconds = 30
+
+# Prompt templates for different tasks
+[llm.prompts]
+summarize = """
+Summarize the following call transcript in 2-3 sentences:
+{transcript}
+
+Summary:"""
+
+extract_intent = """
+Analyze this call transcript and identify the primary intent:
+{transcript}
+
+Intent:"""
+
+answer_question = """
+Based on the call data provided, answer the following question:
+Context: {context}
+Question: {question}
+
+Answer:"""
+
+[embeddings]
+# Embedding model configuration
+provider = "sentence-transformers"  # Options: sentence-transformers, ollama, hash
+model_name = "all-MiniLM-L6-v2"
+dimension = 384
+normalize = true
+batch_size = 64
+
+# Ollama embedding settings (if using ollama provider)
+[embeddings.ollama]
+model = "nomic-embed-text"
+endpoint = "http://localhost:11434/api/embeddings"

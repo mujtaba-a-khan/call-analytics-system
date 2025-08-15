@@ -1,0 +1,97 @@
+# Main Application Configuration
+# This file contains all the primary settings for the call analytics system
+
+[general]
+# Application name shown in the UI
+app_name = "Call Analytics System"
+# Timezone for date/time operations
+timezone = "America/New_York"
+# Enable debug mode for development
+debug = false
+# Maximum file upload size in MB
+max_upload_size_mb = 500
+
+[paths]
+# Directory paths for data storage
+data_dir = "data"
+uploads_dir = "data/uploads"
+processed_dir = "data/processed"
+cache_dir = "data/cache"
+vectorstore_dir = "data/vectorstore"
+models_dir = "models"
+
+[audio]
+# Supported audio file formats
+supported_formats = ["wav", "mp3", "m4a", "flac", "ogg"]
+# Maximum audio duration in minutes per file
+max_duration_minutes = 60
+# Audio normalization settings
+sample_rate = 16000
+channels = 1  # Mono
+bit_depth = 16
+
+[csv]
+# CSV processing settings
+encoding = "utf-8"
+# Required columns for CSV import
+required_columns = [
+    "call_id",
+    "start_time",
+    "duration_seconds",
+    "transcript"
+]
+# Optional columns that can be included
+optional_columns = [
+    "agent_id",
+    "campaign",
+    "customer_name",
+    "product_name",
+    "amount",
+    "order_id"
+]
+
+[processing]
+# Minimum transcript length in tokens
+min_transcript_tokens = 20
+# Short call threshold in seconds
+short_call_threshold_seconds = 10
+# Batch processing size
+batch_size = 10
+
+[ui]
+# UI configuration
+theme = "dark"
+# Number of rows per page in tables
+page_size = 25
+# Chart color scheme
+colors = {
+    connected = "#16A34A",
+    disconnected = "#9CA3AF",
+    inquiry = "#3B82F6",
+    billing_sales = "#14B8A6",
+    support = "#F59E0B",
+    complaint = "#EF4444",
+    resolved = "#16A34A",
+    callback = "#8B5CF6",
+    refund = "#F59E0B",
+    sale_close = "#14B8A6",
+    unknown = "#6B7280"
+}
+
+[cache]
+# Cache configuration
+enabled = true
+# Cache TTL in hours
+ttl_hours = 24
+# Maximum cache size in MB
+max_size_mb = 1000
+
+[logging]
+# Logging configuration
+level = "INFO"
+# Log file path
+file = "data/app.log"
+# Maximum log file size in MB
+max_size_mb = 10
+# Number of backup files to keep
+backup_count = 5

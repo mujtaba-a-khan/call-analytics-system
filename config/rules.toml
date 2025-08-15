@@ -1,0 +1,196 @@
+# Call Labeling Rules Configuration
+# Define rules for automatic call categorization and labeling
+
+[connection]
+# Rules for determining if a call was connected
+# Minimum duration in seconds to consider a call connected
+min_duration_seconds = 30
+
+# Minimum number of words in transcript for connected call
+min_transcript_words = 40
+
+# Keywords that indicate a disconnected call
+disconnection_keywords = [
+    "voicemail",
+    "leave a message",
+    "unavailable",
+    "call back later",
+    "no one available",
+    "mailbox",
+    "beep after the tone"
+]
+
+# Keywords that indicate a successful connection
+connection_keywords = [
+    "speaking",
+    "how can I help",
+    "thank you for calling",
+    "good morning",
+    "good afternoon",
+    "my name is"
+]
+
+[call_types]
+# Keywords for categorizing call types
+# Each category is a list of keywords/phrases to search for
+
+inquiry = [
+    "information",
+    "question about",
+    "wondering",
+    "could you tell me",
+    "want to know",
+    "curious about",
+    "details about",
+    "explain",
+    "how does",
+    "what is"
+]
+
+billing_sales = [
+    "invoice",
+    "bill",
+    "payment",
+    "charge",
+    "price",
+    "cost",
+    "purchase",
+    "buy",
+    "order",
+    "subscription",
+    "upgrade",
+    "discount",
+    "refund",
+    "credit"
+]
+
+support = [
+    "not working",
+    "broken",
+    "error",
+    "problem",
+    "issue",
+    "trouble",
+    "help with",
+    "fix",
+    "technical",
+    "doesn't work",
+    "crashed",
+    "failed",
+    "bug"
+]
+
+complaint = [
+    "complaint",
+    "unhappy",
+    "disappointed",
+    "poor service",
+    "unacceptable",
+    "frustrated",
+    "angry",
+    "escalate",
+    "manager",
+    "supervisor",
+    "terrible",
+    "worst"
+]
+
+[outcomes]
+# Keywords for determining call outcomes
+
+resolved = [
+    "resolved",
+    "fixed",
+    "solved",
+    "sorted out",
+    "taken care of",
+    "all set",
+    "working now",
+    "happy to help",
+    "glad we could",
+    "anything else"
+]
+
+callback = [
+    "call you back",
+    "callback",
+    "follow up",
+    "get back to you",
+    "return your call",
+    "schedule another call",
+    "speak again",
+    "reach out later"
+]
+
+refund = [
+    "refund processed",
+    "money back",
+    "credit issued",
+    "reimbursement",
+    "return approved",
+    "refund your",
+    "credited to your account"
+]
+
+sale_close = [
+    "purchase complete",
+    "order placed",
+    "payment received",
+    "transaction successful",
+    "thank you for your order",
+    "confirmation number",
+    "receipt sent",
+    "subscription activated"
+]
+
+unresolved = [
+    "still not working",
+    "problem persists",
+    "need to escalate",
+    "couldn't resolve",
+    "ongoing issue",
+    "will investigate",
+    "need more time"
+]
+
+[scoring]
+# Scoring weights for different factors
+# Higher weight means more importance
+
+keyword_weight = 1.0
+phrase_weight = 2.0
+exact_match_weight = 3.0
+
+# Minimum confidence score to apply a label
+min_confidence_score = 0.6
+
+# Enable fuzzy matching for keywords
+fuzzy_matching = true
+fuzzy_threshold = 0.85
+
+[priorities]
+# Priority order for labels when multiple matches occur
+# Lower number = higher priority
+
+call_type_priority = [
+    "complaint",      # 1 - Highest priority
+    "support",        # 2
+    "billing_sales",  # 3
+    "inquiry"         # 4 - Lowest priority
+]
+
+outcome_priority = [
+    "unresolved",     # 1 - Highest priority
+    "refund",         # 2
+    "callback",       # 3
+    "sale_close",     # 4
+    "resolved"        # 5 - Lowest priority
+]
+
+[custom_rules]
+# Custom regex patterns for specific scenarios
+# Format: name = "regex_pattern"
+
+urgent_complaint = "(?i)(extremely|very|really)\\s+(unhappy|disappointed|frustrated)"
+vip_customer = "(?i)(premium|vip|gold|platinum)\\s+(member|customer|client)"
+technical_escalation = "(?i)(critical|severe|major)\\s+(bug|issue|problem)"

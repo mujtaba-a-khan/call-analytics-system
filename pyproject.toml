@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "call-analytics-system"
+version = "1.0.0"
+description = "Professional call analytics system with local LLM and semantic search"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [{ name = "Mujtaba Khan", email = "mmak.edu.de@gmail.com" }]
+
+# Main application dependencies
+dependencies = [
+    # Core framework
+    "streamlit>=1.35.0",
+    
+    # Data processing
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "pydantic>=2.7.0",
+    
+    # Configuration management
+    "toml>=0.10.2",
+    "pyyaml>=6.0",
+    
+    # Audio processing
+    "faster-whisper>=1.0.0",
+    "pydub>=0.25.1",
+    "ffmpeg-python>=0.2.0",
+    
+    # Vector database
+    "chromadb>=0.5.0",
+    
+    # Local LLM support
+    "ollama>=0.3.0",
+    
+    # Visualization
+    "plotly>=5.22.0",
+    "matplotlib>=3.8.0",
+    
+    # ML and embeddings
+    "sentence-transformers>=3.0.0",
+    "torch>=2.3.0",
+    
+    # Utilities
+    "python-dateutil>=2.9.0",
+    "pytz>=2024.1",
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=8.2.0",
+    "pytest-cov>=5.0.0",
+    "black>=24.4.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "pre-commit>=3.7.0",
+]
+
+# Documentation dependencies
+docs = [
+    "sphinx>=7.3.0",
+    "sphinx-rtd-theme>=2.0.0",
+]
+
+[project.scripts]
+# CLI commands for easy execution
+call-analytics = "src.ui.app:main"
+rebuild-index = "scripts.rebuild_index:main"
+download-models = "scripts.download_models:main"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "scripts*", "config*"]
+exclude = ["tests*", "docs*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E203", "W503"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+strict_optional = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=src --cov-report=html --cov-report=term"
