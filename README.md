@@ -143,6 +143,7 @@ call-analytics-system/
 │       ├── __init__.py
 │       ├── text_processing.py     # Text utilities
 │       ├── file_handlers.py       # File I/O utilities
+│       ├── formatters.py          # Formatting Utilities
 │       ├── validators.py          # Data validation
 │       └── logger.py              # Logging configuration
 │
