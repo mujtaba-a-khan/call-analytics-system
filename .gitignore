@@ -1,6 +1,7 @@
 # Project-specific artifacts
 models/
 data/
+tests/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
