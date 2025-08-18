@@ -3,40 +3,58 @@ Main Streamlit Application
 
 Entry point for the Call Analytics System user interface.
 Provides file upload, processing, analysis, and Q&A capabilities.
+Compatible with Python 3.13+
 """
 
-import streamlit as st
-import pandas as pd
-import toml
-from pathlib import Path
-from datetime import datetime, timedelta
-import logging
 import sys
+import os
+import logging
+import argparse
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+import traceback
+from datetime import datetime, timedelta
+
+# Ensure we're using Python 3.13+
+if sys.version_info < (3, 13):
+    print(f"Error: Python 3.13 or higher is required. Current version: {sys.version}")
+    sys.exit(1)
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import our modules
-from core.data_schema import CallDataFrame, CallRecord
-from core.audio_processor import AudioProcessor
-from ml.whisper_stt import WhisperSTT
-from vectordb.chroma_client import ChromaClient
-from analysis.filters import DataFilter
-from analysis.aggregations import CallMetrics
-
-# Configure logging
+# Configure logging before any other imports
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('logs/app.log', mode='a', encoding='utf-8')
+    ]
 )
 logger = logging.getLogger(__name__)
 
-# Page configuration
+# Import with error handling
+try:
+    import streamlit as st
+    import pandas as pd
+    import toml
+except ImportError as e:
+    logger.error(f"Failed to import required package: {e}")
+    print(f"Error: Missing required package. Please install dependencies: pip install -e .")
+    sys.exit(1)
+
+# Page configuration - must be first Streamlit command
 st.set_page_config(
     page_title="Call Analytics System",
     page_icon="📞",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/mujtaba-a-khan/call-analytics-system',
+        'Report a bug': 'https://github.com/mujtaba-a-khan/call-analytics-system/issues',
+        'About': 'Call Analytics System v1.0.0 - Professional call center analytics'
+    }
 )
 
 
@@ -48,575 +66,404 @@ class CallAnalyticsApp:
     
     def __init__(self):
         """Initialize the application with configuration"""
-        self.config = self.load_configuration()
-        self.initialize_session_state()
-        self.setup_components()
+        try:
+            self.config = self.load_configuration()
+            self.initialize_session_state()
+            self.setup_components()
+            logger.info("Application initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize application: {e}")
+            st.error(f"Failed to initialize application: {str(e)}")
+            raise
     
-    def load_configuration(self) -> dict:
+    def load_configuration(self) -> Dict[str, Any]:
         """
         Load configuration from TOML files.
         
         Returns:
-            Merged configuration dictionary
+            Dict[str, Any]: Merged configuration dictionary
         """
-        config_dir = Path("config")
         config = {}
+        config_dir = Path(__file__).parent.parent.parent / 'config'
         
-        # Load all configuration files
+        # Load all TOML files in config directory
         config_files = ['app.toml', 'models.toml', 'vectorstore.toml', 'rules.toml']
         
         for config_file in config_files:
-            file_path = config_dir / config_file
-            if file_path.exists():
+            config_path = config_dir / config_file
+            if config_path.exists():
                 try:
-                    with open(file_path, 'r') as f:
+                    with open(config_path, 'r', encoding='utf-8') as f:
                         file_config = toml.load(f)
                         config.update(file_config)
                         logger.info(f"Loaded configuration from {config_file}")
                 except Exception as e:
-                    logger.error(f"Failed to load {config_file}: {e}")
+                    logger.warning(f"Failed to load {config_file}: {e}")
+            else:
+                logger.warning(f"Configuration file not found: {config_file}")
+        
+        # Set defaults if config is empty
+        if not config:
+            logger.warning("No configuration files found, using defaults")
+            config = self.get_default_config()
         
         return config
     
-    def initialize_session_state(self):
-        """Initialize Streamlit session state variables"""
-        # Data storage
-        if 'calls_df' not in st.session_state:
-            st.session_state.calls_df = pd.DataFrame()
+    def get_default_config(self) -> Dict[str, Any]:
+        """
+        Get default configuration if config files are missing.
         
-        if 'processed_files' not in st.session_state:
-            st.session_state.processed_files = set()
-        
-        # UI state
-        if 'selected_call' not in st.session_state:
-            st.session_state.selected_call = None
-        
-        if 'filter_settings' not in st.session_state:
-            st.session_state.filter_settings = {}
-        
-        # Processing flags
-        if 'processing_complete' not in st.session_state:
-            st.session_state.processing_complete = False
+        Returns:
+            Dict[str, Any]: Default configuration
+        """
+        return {
+            'app': {
+                'name': 'Call Analytics System',
+                'version': '1.0.0',
+                'debug': False,
+                'cache_enabled': True,
+                'max_upload_size_mb': 500
+            },
+            'paths': {
+                'data': 'data',
+                'models': 'models',
+                'logs': 'logs',
+                'exports': 'data/exports',
+                'vector_db': 'data/vector_db'
+            },
+            'whisper': {
+                'enabled': True,
+                'model_size': 'small',
+                'device': 'cpu',
+                'compute_type': 'int8'
+            },
+            'vectordb': {
+                'enabled': True,
+                'persist_directory': 'data/vector_db',
+                'collection_name': 'call_transcripts'
+            },
+            'ollama': {
+                'enabled': False,
+                'model': 'llama3',
+                'api_base': 'http://localhost:11434'
+            }
+        }
     
-    def setup_components(self):
-        """Initialize application components"""
+    def initialize_session_state(self) -> None:
+        """Initialize Streamlit session state variables"""
+        if 'initialized' not in st.session_state:
+            st.session_state.initialized = True
+            st.session_state.data = None
+            st.session_state.filtered_data = None
+            st.session_state.vector_store = None
+            st.session_state.search_results = []
+            st.session_state.current_page = 'Dashboard'
+            st.session_state.processing = False
+            st.session_state.upload_history = []
+            st.session_state.filter_state = {}
+            st.session_state.qa_history = []
+            logger.info("Session state initialized")
+    
+    def setup_components(self) -> None:
+        """
+        Setup application components with lazy loading.
+        Components are only initialized when needed.
+        """
         try:
-            # Audio processor
-            self.audio_processor = AudioProcessor(self.config.get('audio', {}))
+            # Create required directories
+            for path_key, path_value in self.config.get('paths', {}).items():
+                Path(path_value).mkdir(parents=True, exist_ok=True)
             
-            # Speech-to-text engine
-            self.stt_engine = WhisperSTT(self.config.get('whisper', {}))
-            
-            # Vector database client
-            self.vector_db = ChromaClient(self.config.get('vectorstore', {}))
-            
-            logger.info("All components initialized successfully")
+            # Components will be initialized on-demand when pages are accessed
+            self.components_ready = True
+            logger.info("Components setup completed")
             
         except Exception as e:
-            logger.error(f"Failed to initialize components: {e}")
-            st.error(f"System initialization failed: {e}")
+            logger.error(f"Failed to setup components: {e}")
+            self.components_ready = False
+            raise
     
-    def render_sidebar(self):
-        """Render the sidebar with filters and settings"""
+    def render_sidebar(self) -> str:
+        """
+        Render the sidebar navigation.
+        
+        Returns:
+            str: Selected page name
+        """
         with st.sidebar:
             st.title("📞 Call Analytics")
-            st.markdown("---")
+            st.divider()
             
-            # Date range filter
-            st.subheader("🗓️ Date Range")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                start_date = st.date_input(
-                    "From",
-                    value=datetime.now() - timedelta(days=30),
-                    key="filter_start_date"
-                )
-            
-            with col2:
-                end_date = st.date_input(
-                    "To",
-                    value=datetime.now(),
-                    key="filter_end_date"
-                )
-            
-            # Call type filter
-            st.subheader("📋 Call Type")
-            call_types = ["All", "Inquiry", "Billing/Sales", "Support", "Complaint"]
-            selected_type = st.selectbox(
-                "Select type",
-                call_types,
-                key="filter_call_type"
-            )
-            
-            # Outcome filter
-            st.subheader("✅ Outcome")
-            outcomes = ["All", "Resolved", "Callback", "Refund", "Sale-close"]
-            selected_outcome = st.selectbox(
-                "Select outcome",
-                outcomes,
-                key="filter_outcome"
-            )
-            
-            # Agent filter
-            if not st.session_state.calls_df.empty and 'agent_id' in st.session_state.calls_df.columns:
-                st.subheader("👤 Agent")
-                agents = ["All"] + sorted(st.session_state.calls_df['agent_id'].dropna().unique().tolist())
-                selected_agent = st.selectbox(
-                    "Select agent",
-                    agents,
-                    key="filter_agent"
-                )
-            
-            # Apply filters button
-            st.markdown("---")
-            if st.button("🔍 Apply Filters", use_container_width=True):
-                self.apply_filters()
-            
-            # Settings section
-            st.markdown("---")
-            st.subheader("⚙️ Settings")
-            
-            # Connection threshold
-            connection_threshold = st.slider(
-                "Connection threshold (seconds)",
-                min_value=10,
-                max_value=60,
-                value=30,
-                help="Minimum duration to consider a call as connected"
-            )
-            
-            # Show/hide unknown values
-            show_unknowns = st.checkbox(
-                "Show unknown values",
-                value=False,
-                help="Include calls with unknown type or outcome"
-            )
-            
-            # Export options
-            st.markdown("---")
-            st.subheader("💾 Export")
-            
-            if not st.session_state.calls_df.empty:
-                csv_data = st.session_state.calls_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv_data,
-                    file_name=f"call_analytics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-    
-    def render_upload_section(self):
-        """Render the file upload section"""
-        st.header("📤 Upload Files")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("🎵 Audio Files")
-            audio_files = st.file_uploader(
-                "Upload audio files",
-                type=['wav', 'mp3', 'm4a', 'flac'],
-                accept_multiple_files=True,
-                help="Supported formats: WAV, MP3, M4A, FLAC"
-            )
-            
-            if audio_files:
-                st.info(f"📁 {len(audio_files)} audio file(s) selected")
-        
-        with col2:
-            st.subheader("📄 CSV Files")
-            csv_files = st.file_uploader(
-                "Upload CSV files",
-                type=['csv'],
-                accept_multiple_files=True,
-                help="CSV should contain: call_id, start_time, duration_seconds, transcript"
-            )
-            
-            if csv_files:
-                st.info(f"📁 {len(csv_files)} CSV file(s) selected")
-        
-        # Process button
-        if st.button("⚡ Process Files", type="primary", use_container_width=True):
-            self.process_uploaded_files(audio_files, csv_files)
-    
-    def process_uploaded_files(self, audio_files, csv_files):
-        """
-        Process uploaded audio and CSV files.
-        
-        Args:
-            audio_files: List of uploaded audio files
-            csv_files: List of uploaded CSV files
-        """
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        all_records = []
-        total_files = len(audio_files or []) + len(csv_files or [])
-        processed = 0
-        
-        # Process audio files
-        if audio_files:
-            status_text.text("🎵 Processing audio files...")
-            
-            for audio_file in audio_files:
-                # Skip if already processed
-                if audio_file.name in st.session_state.processed_files:
-                    processed += 1
-                    progress_bar.progress(processed / total_files)
-                    continue
-                
-                try:
-                    # Save uploaded file temporarily
-                    temp_path = Path(f"data/uploads/{audio_file.name}")
-                    temp_path.parent.mkdir(parents=True, exist_ok=True)
-                    
-                    with open(temp_path, 'wb') as f:
-                        f.write(audio_file.read())
-                    
-                    # Process audio
-                    processed_audio, duration = self.audio_processor.process_audio_file(temp_path)
-                    
-                    # Transcribe
-                    transcription = self.stt_engine.transcribe(processed_audio)
-                    
-                    # Create call record
-                    record = CallRecord(
-                        call_id=audio_file.name.split('.')[0],
-                        start_time=datetime.now(),
-                        duration_seconds=duration,
-                        transcript=transcription.transcript
-                    )
-                    
-                    all_records.append(record)
-                    st.session_state.processed_files.add(audio_file.name)
-                    
-                except Exception as e:
-                    st.error(f"Failed to process {audio_file.name}: {e}")
-                
-                processed += 1
-                progress_bar.progress(processed / total_files)
-        
-        # Process CSV files
-        if csv_files:
-            status_text.text("📄 Processing CSV files...")
-            
-            for csv_file in csv_files:
-                if csv_file.name in st.session_state.processed_files:
-                    processed += 1
-                    progress_bar.progress(processed / total_files)
-                    continue
-                
-                try:
-                    # Read CSV
-                    df = pd.read_csv(csv_file)
-                    
-                    # Convert to records
-                    for _, row in df.iterrows():
-                        record = CallRecord(
-                            call_id=row.get('call_id', f"csv_{processed}"),
-                            start_time=pd.to_datetime(row.get('start_time', datetime.now())),
-                            duration_seconds=float(row.get('duration_seconds', 0)),
-                            transcript=row.get('transcript', ''),
-                            agent_id=row.get('agent_id'),
-                            campaign=row.get('campaign'),
-                            customer_name=row.get('customer_name'),
-                            product_name=row.get('product_name'),
-                            amount=row.get('amount')
-                        )
-                        all_records.append(record)
-                    
-                    st.session_state.processed_files.add(csv_file.name)
-                    
-                except Exception as e:
-                    st.error(f"Failed to process {csv_file.name}: {e}")
-                
-                processed += 1
-                progress_bar.progress(processed / total_files)
-        
-        # Update session state with new records
-        if all_records:
-            new_df = pd.DataFrame([r.dict() for r in all_records])
-            
-            if st.session_state.calls_df.empty:
-                st.session_state.calls_df = new_df
-            else:
-                st.session_state.calls_df = pd.concat(
-                    [st.session_state.calls_df, new_df],
-                    ignore_index=True
-                )
-            
-            # Add to vector database
-            self.index_calls_in_vectordb(all_records)
-            
-            status_text.text(f"✅ Successfully processed {len(all_records)} calls")
-            st.session_state.processing_complete = True
-        else:
-            status_text.text("⚠️ No new files to process")
-        
-        progress_bar.empty()
-    
-    def index_calls_in_vectordb(self, records: list):
-        """
-        Index call records in the vector database.
-        
-        Args:
-            records: List of CallRecord objects
-        """
-        documents = []
-        ids = []
-        metadatas = []
-        
-        for record in records:
-            # Prepare document text
-            doc_text = f"{record.transcript}"
-            
-            # Prepare metadata
-            metadata = {
-                'call_id': record.call_id,
-                'start_time': record.start_time.isoformat(),
-                'duration': record.duration_seconds,
-                'agent_id': record.agent_id or '',
-                'campaign': record.campaign or ''
+            # Navigation
+            pages = {
+                "Dashboard": "📊",
+                "Upload Data": "📤",
+                "Analysis": "🔍",
+                "Q&A Interface": "💬",
+                "Settings": "⚙️"
             }
             
-            documents.append(doc_text)
-            ids.append(record.call_id)
-            metadatas.append(metadata)
-        
-        # Add to vector database
-        self.vector_db.add_documents(documents, ids, metadatas)
-        logger.info(f"Indexed {len(records)} calls in vector database")
+            selected_page = st.radio(
+                "Navigation",
+                options=list(pages.keys()),
+                format_func=lambda x: f"{pages[x]} {x}",
+                index=list(pages.keys()).index(st.session_state.current_page),
+                label_visibility="collapsed"
+            )
+            
+            st.session_state.current_page = selected_page
+            
+            # System status
+            st.divider()
+            st.caption("System Status")
+            
+            # Show component status
+            status_items = []
+            
+            # Check data status
+            if st.session_state.data is not None:
+                row_count = len(st.session_state.data)
+                status_items.append(f"✅ {row_count:,} records loaded")
+            else:
+                status_items.append("⚠️ No data loaded")
+            
+            # Check vector store status
+            if st.session_state.vector_store is not None:
+                status_items.append("✅ Vector store ready")
+            else:
+                status_items.append("⚠️ Vector store not initialized")
+            
+            # Check Whisper status
+            if self.config.get('whisper', {}).get('enabled', False):
+                status_items.append("✅ Whisper STT available")
+            else:
+                status_items.append("ℹ️ Whisper STT disabled")
+            
+            # Check Ollama status
+            if self.config.get('ollama', {}).get('enabled', False):
+                status_items.append("✅ Ollama LLM available")
+            else:
+                status_items.append("ℹ️ Ollama LLM disabled")
+            
+            for item in status_items:
+                st.caption(item)
+            
+            # Footer
+            st.divider()
+            st.caption(f"v{self.config.get('app', {}).get('version', '1.0.0')}")
+            st.caption(f"Python {sys.version_info.major}.{sys.version_info.minor}")
+            
+            return selected_page
     
-    def render_dashboard(self):
-        """Render the main dashboard with metrics and visualizations"""
-        st.header("📊 Dashboard")
+    def render_page(self, page_name: str) -> None:
+        """
+        Render the selected page with lazy loading.
         
-        if st.session_state.calls_df.empty:
-            st.info("No data available. Please upload files to begin analysis.")
-            return
+        Args:
+            page_name: Name of the page to render
+        """
+        try:
+            if page_name == "Dashboard":
+                self.render_dashboard()
+            elif page_name == "Upload Data":
+                self.render_upload()
+            elif page_name == "Analysis":
+                self.render_analysis()
+            elif page_name == "Q&A Interface":
+                self.render_qa_interface()
+            elif page_name == "Settings":
+                self.render_settings()
+            else:
+                st.error(f"Unknown page: {page_name}")
+                
+        except ImportError as e:
+            st.error(f"Failed to load page components: {str(e)}")
+            st.info("Please ensure all dependencies are installed: pip install -e .")
+            logger.error(f"Import error rendering {page_name}: {e}")
+            
+        except Exception as e:
+            st.error(f"Error rendering page: {str(e)}")
+            logger.error(f"Error rendering {page_name}: {e}\n{traceback.format_exc()}")
+    
+    def render_dashboard(self) -> None:
+        """Render the dashboard page with lazy loading"""
+        try:
+            from ui.pages.dashboard import render_dashboard_page
+            render_dashboard_page(
+                data=st.session_state.data,
+                config=self.config
+            )
+        except ImportError:
+            # Fallback to basic dashboard
+            st.header("📊 Dashboard")
+            st.info("Advanced dashboard components are being loaded...")
+            
+            if st.session_state.data is not None:
+                st.subheader("Data Overview")
+                st.write(f"Total Records: {len(st.session_state.data):,}")
+                st.dataframe(st.session_state.data.head(10))
+            else:
+                st.warning("No data loaded. Please upload data first.")
+    
+    def render_upload(self) -> None:
+        """Render the upload page with lazy loading"""
+        try:
+            from ui.pages.upload import render_upload_page
+            from core.storage_manager import StorageManager
+            
+            storage_manager = StorageManager(
+                base_path=Path(self.config['paths']['data'])
+            )
+            render_upload_page(
+                storage_manager=storage_manager,
+                config=self.config
+            )
+        except ImportError as e:
+            # Fallback to basic upload
+            st.header("📤 Upload Data")
+            st.info("Upload components are being loaded...")
+            
+            uploaded_file = st.file_uploader(
+                "Choose a CSV file",
+                type=['csv'],
+                help="Upload a CSV file containing call transcripts"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    df = pd.read_csv(uploaded_file)
+                    st.session_state.data = df
+                    st.success(f"Loaded {len(df):,} records")
+                    st.dataframe(df.head())
+                except Exception as e:
+                    st.error(f"Error loading file: {str(e)}")
+    
+    def render_analysis(self) -> None:
+        """Render the analysis page with lazy loading"""
+        try:
+            from ui.pages.analysis import render_analysis_page
+            render_analysis_page(
+                data=st.session_state.data,
+                vector_store=st.session_state.vector_store,
+                config=self.config
+            )
+        except ImportError:
+            # Fallback to basic analysis
+            st.header("🔍 Analysis")
+            st.info("Analysis components are being loaded...")
+            
+            if st.session_state.data is not None:
+                st.subheader("Basic Statistics")
+                st.write(st.session_state.data.describe())
+            else:
+                st.warning("No data loaded for analysis.")
+    
+    def render_qa_interface(self) -> None:
+        """Render the Q&A interface with lazy loading"""
+        try:
+            from ui.pages.qa_interface import render_qa_interface
+            render_qa_interface(
+                data=st.session_state.data,
+                vector_store=st.session_state.vector_store,
+                config=self.config
+            )
+        except ImportError:
+            # Fallback to basic Q&A
+            st.header("💬 Q&A Interface")
+            st.info("Q&A components are being loaded...")
+            
+            query = st.text_input("Ask a question about your data:")
+            if query and st.button("Submit"):
+                st.info("Processing your question...")
+                # Basic keyword search fallback
+                if st.session_state.data is not None and 'transcript' in st.session_state.data.columns:
+                    results = st.session_state.data[
+                        st.session_state.data['transcript'].str.contains(
+                            query, case=False, na=False
+                        )
+                    ]
+                    if not results.empty:
+                        st.write(f"Found {len(results)} matching records")
+                        st.dataframe(results.head())
+                    else:
+                        st.write("No matching records found")
+                else:
+                    st.warning("No data available for search")
+    
+    def render_settings(self) -> None:
+        """Render the settings page"""
+        st.header("⚙️ Settings")
         
-        # Calculate metrics
-        metrics = CallMetrics(st.session_state.calls_df)
-        stats = metrics.calculate_statistics()
+        # Display current configuration
+        st.subheader("Current Configuration")
         
-        # Display key metrics
-        col1, col2, col3, col4 = st.columns(4)
+        with st.expander("Application Settings"):
+            st.json(self.config.get('app', {}))
+        
+        with st.expander("Model Settings"):
+            st.json(self.config.get('whisper', {}))
+            st.json(self.config.get('ollama', {}))
+        
+        with st.expander("Storage Settings"):
+            st.json(self.config.get('paths', {}))
+            st.json(self.config.get('vectordb', {}))
+        
+        # System information
+        st.subheader("System Information")
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric(
-                "Total Calls",
-                stats['total_calls'],
-                delta=None
-            )
+            st.metric("Python Version", f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
         
         with col2:
-            st.metric(
-                "Connected %",
-                f"{stats['connected_percentage']:.1f}%",
-                delta=None
-            )
+            st.metric("Streamlit Version", st.__version__)
         
         with col3:
-            st.metric(
-                "Avg Duration",
-                f"{stats['duration_statistics']['mean']:.1f}s",
-                delta=None
-            )
+            import platform
+            st.metric("Platform", platform.system())
         
-        with col4:
-            st.metric(
-                "Unique Agents",
-                stats['unique_agents'],
-                delta=None
-            )
-        
-        # Charts section
-        st.subheader("📈 Analytics")
-        
-        tab1, tab2, tab3 = st.tabs(["Call Types", "Outcomes", "Timeline"])
-        
-        with tab1:
-            # Call type distribution chart
-            type_chart = metrics.get_type_distribution_chart()
-            st.plotly_chart(type_chart, use_container_width=True)
-        
-        with tab2:
-            # Outcome distribution chart
-            outcome_chart = metrics.get_outcome_distribution_chart()
-            st.plotly_chart(outcome_chart, use_container_width=True)
-        
-        with tab3:
-            # Timeline chart
-            timeline_chart = metrics.get_timeline_chart()
-            st.plotly_chart(timeline_chart, use_container_width=True)
+        # Clear cache button
+        if st.button("Clear Cache", type="secondary"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("Cache cleared successfully")
+            st.rerun()
     
-    def render_calls_table(self):
-        """Render the calls data table"""
-        st.header("📋 Call Records")
-        
-        if st.session_state.calls_df.empty:
-            st.info("No call records to display.")
-            return
-        
-        # Search box
-        search_query = st.text_input(
-            "🔍 Search calls",
-            placeholder="Search by transcript, agent, campaign..."
-        )
-        
-        # Filter dataframe based on search
-        display_df = st.session_state.calls_df.copy()
-        
-        if search_query:
-            mask = display_df.apply(
-                lambda row: search_query.lower() in str(row).lower(),
-                axis=1
-            )
-            display_df = display_df[mask]
-        
-        # Display table
-        st.dataframe(
-            display_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "start_time": st.column_config.DatetimeColumn(
-                    "Start Time",
-                    format="DD/MM/YYYY HH:mm"
-                ),
-                "duration_seconds": st.column_config.NumberColumn(
-                    "Duration (s)",
-                    format="%.1f"
-                ),
-                "amount": st.column_config.NumberColumn(
-                    "Amount",
-                    format="$%.2f"
-                )
-            }
-        )
-        
-        st.caption(f"Showing {len(display_df)} of {len(st.session_state.calls_df)} records")
-    
-    def render_qa_interface(self):
-        """Render the Q&A interface for natural language queries"""
-        st.header("❓ Q&A Interface")
-        
-        if st.session_state.calls_df.empty:
-            st.info("No data available for Q&A. Please upload files first.")
-            return
-        
-        # Question input
-        question = st.text_area(
-            "Ask a question about your call data",
-            placeholder="e.g., What were the main complaints last week?",
-            height=100
-        )
-        
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            use_semantic = st.checkbox(
-                "Use semantic search",
-                value=True,
-                help="Enable semantic search for more accurate results"
-            )
-        
-        with col2:
-            top_k = st.number_input(
-                "Results",
-                min_value=1,
-                max_value=20,
-                value=5,
-                help="Number of results to return"
-            )
-        
-        if st.button("🔍 Search", type="primary", use_container_width=True):
-            self.process_qa_query(question, use_semantic, top_k)
-    
-    def process_qa_query(self, question: str, use_semantic: bool, top_k: int):
-        """
-        Process a natural language query.
-        
-        Args:
-            question: User's question
-            use_semantic: Whether to use semantic search
-            top_k: Number of results to return
-        """
-        if not question:
-            st.warning("Please enter a question.")
-            return
-        
-        with st.spinner("Searching..."):
-            if use_semantic:
-                # Semantic search using vector database
-                results = self.vector_db.search(question, top_k=top_k)
-                
-                if results:
-                    st.success(f"Found {len(results)} relevant calls")
-                    
-                    # Display results
-                    for idx, result in enumerate(results, 1):
-                        with st.expander(f"Result {idx} - Call {result['id']} (Score: {result['score']:.2f})"):
-                            st.write(f"**Transcript:** {result['document'][:500]}...")
-                            
-                            if result['metadata']:
-                                st.write("**Metadata:**")
-                                for key, value in result['metadata'].items():
-                                    st.write(f"- {key}: {value}")
-                else:
-                    st.info("No relevant results found.")
-            else:
-                # Simple keyword search
-                mask = st.session_state.calls_df['transcript'].str.contains(
-                    question,
-                    case=False,
-                    na=False
-                )
-                results_df = st.session_state.calls_df[mask].head(top_k)
-                
-                if not results_df.empty:
-                    st.success(f"Found {len(results_df)} matching calls")
-                    st.dataframe(results_df[['call_id', 'start_time', 'transcript']])
-                else:
-                    st.info("No matching calls found.")
-    
-    def apply_filters(self):
-        """Apply the selected filters to the data"""
-        # This would implement the actual filtering logic
-        st.success("Filters applied successfully!")
-    
-    def run(self):
-        """Run the main application"""
-        # Render sidebar
-        self.render_sidebar()
-        
-        # Main content area
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📤 Upload",
-            "📊 Dashboard",
-            "📋 Call Records",
-            "❓ Q&A"
-        ])
-        
-        with tab1:
-            self.render_upload_section()
-        
-        with tab2:
-            self.render_dashboard()
-        
-        with tab3:
-            self.render_calls_table()
-        
-        with tab4:
-            self.render_qa_interface()
+    def run(self) -> None:
+        """Main application loop"""
+        try:
+            # Render sidebar and get selected page
+            selected_page = self.render_sidebar()
+            
+            # Render selected page
+            self.render_page(selected_page)
+            
+        except Exception as e:
+            logger.error(f"Application error: {e}\n{traceback.format_exc()}")
+            st.error("An unexpected error occurred. Please check the logs.")
+            
+            if st.checkbox("Show error details"):
+                st.exception(e)
 
 
 def main():
     """Main entry point for the application"""
-    app = CallAnalyticsApp()
-    app.run()
+    try:
+        # Create logs directory if it doesn't exist
+        Path('logs').mkdir(exist_ok=True)
+        
+        # Initialize and run application
+        app = CallAnalyticsApp()
+        app.run()
+        
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
+        sys.exit(0)
+        
+    except Exception as e:
+        logger.critical(f"Critical application error: {e}\n{traceback.format_exc()}")
+        st.error(f"Critical error: {str(e)}")
+        st.stop()
 
 
 if __name__ == "__main__":
