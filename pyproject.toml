@@ -55,6 +55,9 @@ dependencies = [
     "torch>=2.3.0,<3.0.0",
     "transformers>=4.40.0,<5.0.0",
     "accelerate>=0.30.0,<1.0.0",
+
+    # NL date parsing
+    "dateparser>=1.2.0",  
     
     # Utilities
     "python-dateutil>=2.9.0,<3.0.0",
@@ -110,8 +113,6 @@ setup-environment = "scripts.setup_environment:main"
 
 [project.urls]
 "Homepage" = "https://github.com/mujtaba-a-khan/call-analytics-system"
-"Bug Tracker" = "https://github.com/mujtaba-a-khan/call-analytics-system/issues"
-"Documentation" = "https://github.com/mujtaba-a-khan/call-analytics-system/wiki"
 
 [tool.setuptools]
 package-dir = { "" = "." }

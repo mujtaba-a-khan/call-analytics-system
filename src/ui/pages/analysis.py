@@ -6,31 +6,36 @@ custom queries, semantic search, and advanced filtering capabilities
 with export functionality.
 """
 
+import sys
 import logging
-from typing import Dict, List, Optional, Any, Tuple
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple
+from io import BytesIO
+
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 # Import components
-from ..components import (
+from src.ui.components import (
     FilterState, DateRangeFilter, MultiSelectFilter,
     SearchFilter, RangeSliderFilter, QuickFilters,
-    DataTable, ComparisonTable,
-    TimeSeriesChart, DistributionChart,
-    save_filter_preset, load_filter_preset
+    DataTable, ComparisonTable, load_filter_preset,
+    save_filter_preset, TimeSeriesChart, AgentPerformanceTable,
+    DistributionChart
 )
 
 # Import analysis modules
-from ...analysis.semantic_search import SemanticSearchEngine
-from ...analysis.query_interpreter import QueryInterpreter
-from ...analysis.aggregations import MetricsCalculator
-from ...analysis.filters import AdvancedFilters
-from ...core.storage_manager import StorageManager
+from src.analysis.semantic_search import SemanticSearchEngine
+from src.analysis.query_interpreter import QueryInterpreter
+from src.analysis.aggregations import CallMetrics
+from src.analysis.filters import DataFilter
+from src.core.storage_manager import StorageManager
+
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -52,8 +57,8 @@ class AnalysisPage:
         """
         self.storage_manager = storage_manager
         self.vector_store = vector_store
-        self.metrics_calculator = MetricsCalculator()
-        self.advanced_filters = AdvancedFilters()
+        self.metrics_calculator = CallMetrics
+        self.advanced_filters = DataFilter #Advancefilter
         
         # Initialize semantic search if vector store available
         if vector_store:

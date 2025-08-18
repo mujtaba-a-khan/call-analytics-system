@@ -6,26 +6,30 @@ providing an overview of call metrics, performance indicators, and
 real-time analytics with interactive visualizations.
 """
 
+import sys
+import time
 import logging
-from typing import Dict, List, Optional, Any
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 import plotly.graph_objects as go
 from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 # Import components
-from ..components import (
+from src.ui.components import (
     KPIDashboard, MetricsGrid, MetricValue,
     TimeSeriesChart, DistributionChart, PerformanceChart,
-    DateRangeFilter, FilterState,
-    CallRecordsTable, AgentPerformanceTable
+    DateRangeFilter, FilterState, TrendChart, AgentPerformanceTable,
+    CallRecordsTable
 )
 
 # Import core modules
-from ...core.storage_manager import StorageManager
-from ...analysis.aggregations import MetricsCalculator
+from src.core.storage_manager import StorageManager
+from src.analysis.aggregations import MetricsCalculator
 
 # Configure module logger
 logger = logging.getLogger(__name__)

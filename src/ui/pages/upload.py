@@ -6,6 +6,7 @@ from various sources including CSV files, audio recordings, and
 batch processing with progress tracking and validation.
 """
 
+import sys
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 import streamlit as st
@@ -17,14 +18,16 @@ import tempfile
 import shutil
 from io import BytesIO
 
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+
 # Import core modules
-from ...core.csv_processor import CSVProcessor, CSVExporter
-from ...core.audio_processor import AudioProcessor
-from ...core.storage_manager import StorageManager
-from ...ml.whisper_stt import WhisperSTT
+from src.core.csv_processor import CSVProcessor, CSVExporter
+from src.core.audio_processor import AudioProcessor
+from src.core.storage_manager import StorageManager
+from src.ml.whisper_stt import WhisperSTT
 
 # Import components
-from ..components import (
+from src.ui.components import (
     MetricValue, MetricsGrid,
     DataTable, ProgressIndicator
 )

@@ -6,6 +6,7 @@ to interact with the system using natural language queries, leveraging
 local LLMs for intelligent responses about call data and analytics.
 """
 
+import sys
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 import streamlit as st
@@ -14,17 +15,20 @@ import json
 from datetime import datetime
 import time
 from pathlib import Path
+from datetime import datetime, timedelta
+
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 # Import components
-from ..components import (
+from src.ui.components import (
     MetricValue, MetricsGrid,
-    DataTable, CallRecordsTable
+    DataTable, CallRecordsTable,
 )
 
 # Import analysis modules
-from ...analysis.semantic_search import SemanticSearchEngine
-from ...analysis.query_interpreter import QueryInterpreter
-from ...core.storage_manager import StorageManager
+from src.analysis.semantic_search import SemanticSearchEngine
+from src.analysis.query_interpreter import QueryInterpreter
+from src.core.storage_manager import StorageManager
 
 # Configure module logger
 logger = logging.getLogger(__name__)

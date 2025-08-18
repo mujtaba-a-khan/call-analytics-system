@@ -347,6 +347,7 @@ wandb/
 ################################################################################
 
 # Streamlit
+.streamlit
 .streamlit/secrets.toml
 .streamlit/*.local.toml
 
@@ -518,3 +519,4 @@ TODO.local.md
 # Keep configuration templates
 !config/
 !config/*.toml
+.env.example
