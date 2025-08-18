@@ -5,44 +5,10 @@ This package contains the core business logic and data processing modules
 including audio processing, data schema, storage management, and labeling.
 """
 
-# Import data schema
-from .data_schema import (
-    CallRecord,
-    AudioFile,
-    TranscriptionResult,
-    AnalyticsMetrics,
-    ValidationError
-)
+# Package version
+__version__ = '1.0.0'
 
-# Import audio processor
-from .audio_processor import (
-    AudioProcessor,
-    AudioFormat,
-    AudioMetadata
-)
-
-# Import CSV processor
-from .csv_processor import (
-    CSVProcessor,
-    CSVExporter
-)
-
-# Import labeling engine
-from .labeling_engine import (
-    LabelingEngine,
-    CallLabeler,
-    LabelingRule,
-    RuleCondition
-)
-
-# Import storage manager
-from .storage_manager import (
-    StorageManager,
-    DataStore,
-    StorageBackend
-)
-
-# Define package exports
+# Define available exports - these will be loaded on demand
 __all__ = [
     # Data schema
     'CallRecord',
@@ -72,5 +38,35 @@ __all__ = [
     'StorageBackend'
 ]
 
-# Package version
-__version__ = '1.0.0'
+
+def __getattr__(name):
+    """
+    Lazy loading implementation for core modules.
+    Only imports modules when they are actually accessed.
+    """
+    # Data schema imports
+    if name in ['CallRecord', 'AudioFile', 'TranscriptionResult', 'AnalyticsMetrics', 'ValidationError']:
+        from . import data_schema
+        return getattr(data_schema, name)
+    
+    # Audio processor imports
+    elif name in ['AudioProcessor', 'AudioFormat', 'AudioMetadata']:
+        from . import audio_processor
+        return getattr(audio_processor, name)
+    
+    # CSV processor imports
+    elif name in ['CSVProcessor', 'CSVExporter']:
+        from . import csv_processor
+        return getattr(csv_processor, name)
+    
+    # Labeling engine imports
+    elif name in ['LabelingEngine', 'CallLabeler', 'LabelingRule', 'RuleCondition']:
+        from . import labeling_engine
+        return getattr(labeling_engine, name)
+    
+    # Storage manager imports
+    elif name in ['StorageManager', 'DataStore', 'StorageBackend']:
+        from . import storage_manager
+        return getattr(storage_manager, name)
+    
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
