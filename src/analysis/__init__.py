@@ -1,92 +1,31 @@
 """
 Analysis Package for Call Analytics System
 
-This package provides advanced analytics, search, and filtering capabilities
-for call data including metrics calculation, semantic search, and natural
-language query interpretation.
+This package contains analysis, aggregation, and search functionality.
 """
 
-# Import aggregations module
-from .aggregations import (
-    MetricsCalculator,
-    CallMetrics,
-    AgentMetrics,
-    CampaignMetrics,
-    TimeSeriesMetrics
-)
-
-# Import filters module
-from .filters import (
-    AdvancedFilters,
-    FilterCriteria,
-    FilterOperator,
-    DateRangeFilter,
-    NumericRangeFilter
-)
-
-# Import semantic search module
-from .semantic_search import (
-    SemanticSearchEngine,
-    SearchConfig,
-    SearchResult,
-    SimilarityScorer
-)
-
-# Import query interpreter module
-from .query_interpreter import (
-    QueryInterpreter,
-    QueryIntent,
-    EntityExtractor,
-    NaturalLanguageProcessor
-)
-
-# Define package exports
-__all__ = [
-    # Aggregations
-    'MetricsCalculator',
-    'CallMetrics',
-    'AgentMetrics',
-    'CampaignMetrics',
-    'TimeSeriesMetrics',
-    
-    # Filters
-    'AdvancedFilters',
-    'FilterCriteria',
-    'FilterOperator',
-    'DateRangeFilter',
-    'NumericRangeFilter',
-    
-    # Semantic Search
-    'SemanticSearchEngine',
-    'SearchConfig',
-    'SearchResult',
-    'SimilarityScorer',
-    
-    # Query Interpreter
-    'QueryInterpreter',
-    'QueryIntent',
-    'EntityExtractor',
-    'NaturalLanguageProcessor'
-]
-
-# Package version
 __version__ = '1.0.0'
 
-def get_analysis_capabilities():
-    """
-    Get information about available analysis capabilities.
+__all__ = [
+    'MetricsCalculator',
+    'SemanticSearchEngine',
+    'QueryInterpreter',
+    'AdvancedFilters'
+]
+
+def __getattr__(name):
+    """Lazy loading for analysis modules"""
+    if name == 'MetricsCalculator':
+        from .aggregations import MetricsCalculator
+        return MetricsCalculator
+    elif name == 'SemanticSearchEngine':
+        from .semantic_search import SemanticSearchEngine
+        return SemanticSearchEngine
+    elif name == 'QueryInterpreter':
+        from .query_interpreter import QueryInterpreter
+        return QueryInterpreter
+    elif name == 'AdvancedFilters':
+        from .filters import AdvancedFilters
+        return AdvancedFilters
     
-    Returns:
-        Dictionary of capability information
-    """
-    capabilities = {
-        'metrics_calculation': True,
-        'advanced_filtering': True,
-        'semantic_search': True,
-        'natural_language_queries': True,
-        'time_series_analysis': True,
-        'cohort_analysis': True,
-        'predictive_analytics': False  # Future feature
-    }
-    
-    return capabilities
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

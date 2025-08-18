@@ -1,96 +1,44 @@
 """
 Machine Learning Package for Call Analytics System
 
-This package contains machine learning models and processing modules
-including speech-to-text, embeddings generation, and LLM integration.
+This package contains ML models and inference engines.
 """
 
-# Import Whisper STT
-from .whisper_stt import (
-    WhisperSTT,
-    TranscriptionConfig,
-    TranscriptionResult
-)
-
-# Import embeddings
-from .embeddings import (
-    EmbeddingStrategy,
-    SentenceTransformerEmbedding,
-    OllamaEmbedding,
-    HashEmbedding,
-    EmbeddingManager
-)
-
-# Import LLM client (if available)
-try:
-    from .llm_client import (
-        LLMClient,
-        OllamaClient,
-        LLMConfig,
-        LLMResponse
-    )
-    LLM_AVAILABLE = True
-except ImportError:
-    LLM_AVAILABLE = False
-    LLMClient = None
-    OllamaClient = None
-    LLMConfig = None
-    LLMResponse = None
-
-# Define package exports
-__all__ = [
-    # STT
-    'WhisperSTT',
-    'TranscriptionConfig',
-    'TranscriptionResult',
-    
-    # Embeddings
-    'EmbeddingStrategy',
-    'SentenceTransformerEmbedding',
-    'OllamaEmbedding',
-    'HashEmbedding',
-    'EmbeddingManager',
-]
-
-# Add LLM exports if available
-if LLM_AVAILABLE:
-    __all__.extend([
-        'LLMClient',
-        'OllamaClient',
-        'LLMConfig',
-        'LLMResponse'
-    ])
-
-# Package version
 __version__ = '1.0.0'
 
-# Package info
 def get_ml_capabilities():
     """
-    Get information about available ML capabilities.
+    Check available ML capabilities.
     
     Returns:
-        Dictionary of capability status
+        Dict[str, bool]: Available capabilities
     """
-    capabilities = {
-        'whisper_stt': True,
-        'embeddings': True,
-        'llm': LLM_AVAILABLE
-    }
+    capabilities = {}
     
-    # Check for specific models
+    # Check Whisper
     try:
-        import torch
-        capabilities['pytorch'] = True
+        import whisper
+        capabilities['whisper'] = True
     except ImportError:
-        capabilities['pytorch'] = False
+        capabilities['whisper'] = False
     
+    # Check sentence transformers
     try:
         import sentence_transformers
         capabilities['sentence_transformers'] = True
     except ImportError:
         capabilities['sentence_transformers'] = False
     
+    # Check Torch
+    try:
+        import torch
+        capabilities['torch'] = True
+        capabilities['cuda'] = torch.cuda.is_available()
+    except ImportError:
+        capabilities['torch'] = False
+        capabilities['cuda'] = False
+    
+    # Check Ollama
     try:
         import ollama
         capabilities['ollama'] = True
@@ -98,3 +46,19 @@ def get_ml_capabilities():
         capabilities['ollama'] = False
     
     return capabilities
+
+__all__ = ['get_ml_capabilities']
+
+def __getattr__(name):
+    """Lazy loading for ML modules"""
+    if name == 'WhisperSTT':
+        from .whisper_stt import WhisperSTT
+        return WhisperSTT
+    elif name == 'EmbeddingManager':
+        from .embeddings import EmbeddingManager
+        return EmbeddingManager
+    elif name == 'LLMInterface':
+        from .llm_interface import LLMInterface
+        return LLMInterface
+    
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
