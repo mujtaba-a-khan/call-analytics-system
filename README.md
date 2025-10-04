@@ -67,8 +67,10 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
    # For documentation
    pip install -e ".[docs]"
    ```
-5. **Download Whisper model**
+5. **Run Scripts to Setup Enviroment**
    ```bash
+   python scripts/setup_enviroment.py
+
    python scripts/download_models.py
    ```
 6. **Run the application**

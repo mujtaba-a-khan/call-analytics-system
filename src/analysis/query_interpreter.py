@@ -254,17 +254,100 @@ class QueryInterpreter:
             end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
             return (start_date, end_date)
         
-        # Try to parse with dateparser for more complex date expressions
-        try:
-            parsed_date = dateparser.parse(query, settings={'TIMEZONE': 'UTC'})
-            if parsed_date:
-                # Assume single date means that day
-                start_date = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_date = parsed_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        # Try to parse explicit numeric day (e.g., 2025-11-11 or 11/11/2025)
+        numeric_day_patterns = [
+            (re.compile(r'\b(\d{4})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])\b'), 'ymd'),
+            (re.compile(r'\b(0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])[-/](\d{4})\b'), 'mdy')
+        ]
+        for pattern, fmt in numeric_day_patterns:
+            match = pattern.search(query)
+            if match:
+                groups = list(map(int, match.groups()))
+                if fmt == 'ymd':
+                    year, month, day = groups
+                else:
+                    month, day, year = groups
+                try:
+                    start_date = datetime(year, month, day, 0, 0, 0)
+                    end_date = datetime(year, month, day, 23, 59, 59, 999999)
+                    return (start_date, end_date)
+                except ValueError:
+                    pass
+
+        # Month name (full or abbreviated) + year (e.g., "november 2025" or "nov 2025")
+        month_name_map = {
+            'jan': 1, 'january': 1,
+            'feb': 2, 'february': 2,
+            'mar': 3, 'march': 3,
+            'apr': 4, 'april': 4,
+            'may': 5,
+            'jun': 6, 'june': 6,
+            'jul': 7, 'july': 7,
+            'aug': 8, 'august': 8,
+            'sep': 9, 'sept': 9, 'september': 9,
+            'oct': 10, 'october': 10,
+            'nov': 11, 'november': 11,
+            'dec': 12, 'december': 12
+        }
+        month_words_pattern = re.compile(r'\b(' + '|'.join(month_name_map.keys()) + r')\b\s*(\d{4})', re.IGNORECASE)
+        month_words_match = month_words_pattern.search(query)
+        if month_words_match:
+            month_word, year = month_words_match.groups()
+            month_index = month_name_map[month_word.lower()]
+            year = int(year)
+            start_date = datetime(year, month_index, 1)
+            if month_index == 12:
+                next_month = datetime(year + 1, 1, 1)
+            else:
+                next_month = datetime(year, month_index + 1, 1)
+            end_date = next_month - timedelta(microseconds=1)
+            return (start_date, end_date)
+
+        # Numeric month/year formats (e.g., 2025-11 or 11/2025)
+        numeric_month_patterns = [
+            (re.compile(r'\b(\d{4})[-/](0?[1-9]|1[0-2])\b'), 'ym'),
+            (re.compile(r'\b(0?[1-9]|1[0-2])[-/](\d{4})\b'), 'my')
+        ]
+        for pattern, fmt in numeric_month_patterns:
+            match = pattern.search(query)
+            if match:
+                year, month = match.groups()
+                if fmt == 'my':
+                    month, year = year, month
+                year, month = int(year), int(month)
+                start_date = datetime(year, month, 1)
+                if month == 12:
+                    next_month = datetime(year + 1, 1, 1)
+                else:
+                    next_month = datetime(year, month + 1, 1)
+                end_date = next_month - timedelta(microseconds=1)
                 return (start_date, end_date)
-        except:
-            pass
-        
+
+        # Try to parse remaining date expressions with dateparser
+        try:
+            settings = {'TIMEZONE': 'UTC', 'PREFER_DAY_OF_MONTH': 'first'}
+            parsed_date = dateparser.parse(query, settings=settings)
+            if parsed_date:
+                month_keywords = ['january', 'february', 'march', 'april', 'may', 'june',
+                                   'july', 'august', 'september', 'october', 'november', 'december']
+                contains_month = any(keyword in query for keyword in month_keywords)
+                day_pattern = re.compile(r'\b(0?[1-9]|[12][0-9]|3[01])\b')
+                has_explicit_day = bool(day_pattern.search(query))
+
+                if contains_month and not has_explicit_day:
+                    start_date = parsed_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    if start_date.month == 12:
+                        next_month = start_date.replace(year=start_date.year + 1, month=1)
+                    else:
+                        next_month = start_date.replace(month=start_date.month + 1)
+                    end_date = next_month - timedelta(microseconds=1)
+                else:
+                    start_date = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                    end_date = parsed_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                return (start_date, end_date)
+        except Exception as e:
+            logger.debug(f"dateparser failed for query '{query}': {e}")
+
         return None
     
     def _extract_filters(self, query: str) -> Dict[str, Any]:

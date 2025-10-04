@@ -32,8 +32,8 @@ from src.ui.components import (
 # Import analysis modules
 from src.analysis.semantic_search import SemanticSearchEngine
 from src.analysis.query_interpreter import QueryInterpreter
-from src.analysis.aggregations import CallMetrics
-from src.analysis.filters import DataFilter
+from src.analysis.aggregations import MetricsCalculator
+from src.analysis.filters import AdvancedFilters
 from src.core.storage_manager import StorageManager
 
 
@@ -57,8 +57,8 @@ class AnalysisPage:
         """
         self.storage_manager = storage_manager
         self.vector_store = vector_store
-        self.metrics_calculator = CallMetrics
-        self.advanced_filters = DataFilter #Advancefilter
+        self.metrics_calculator = MetricsCalculator
+        self.advanced_filters = AdvancedFilters
         
         # Initialize semantic search if vector store available
         if vector_store:

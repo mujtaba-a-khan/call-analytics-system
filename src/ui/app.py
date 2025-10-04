@@ -57,6 +57,16 @@ st.set_page_config(
     }
 )
 
+# Hide Streamlit's default multipage sidebar navigation
+st.markdown(
+    """
+    <style>
+    div[data-testid="stSidebarNav"] { display: none; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 
 class CallAnalyticsApp:
     """
@@ -83,35 +93,29 @@ class CallAnalyticsApp:
         Returns:
             Dict[str, Any]: Merged configuration dictionary
         """
-        config = {}
-        config_dir = Path(__file__).parent.parent.parent / 'config'
+        config = self.get_default_config()
         
-        # Load all TOML files in config directory
-        config_files = ['app.toml', 'models.toml', 'vectorstore.toml', 'rules.toml']
-        
-        for config_file in config_files:
-            config_path = config_dir / config_file
-            if config_path.exists():
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        file_config = toml.load(f)
-                        config.update(file_config)
-                        logger.info(f"Loaded configuration from {config_file}")
-                except Exception as e:
-                    logger.warning(f"Failed to load {config_file}: {e}")
-            else:
-                logger.warning(f"Configuration file not found: {config_file}")
-        
-        # Set defaults if config is empty
-        if not config:
-            logger.warning("No configuration files found, using defaults")
-            config = self.get_default_config()
+        # Try to load configuration files
+        config_dir = Path('config')
+        if config_dir.exists():
+            config_files = ['app.toml', 'models.toml', 'vectorstore.toml']
+            
+            for config_file in config_files:
+                config_path = config_dir / config_file
+                if config_path.exists():
+                    try:
+                        with open(config_path, 'r') as f:
+                            file_config = toml.load(f)
+                            config.update(file_config)
+                            logger.info(f"Loaded configuration from {config_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to load {config_file}: {e}")
         
         return config
     
     def get_default_config(self) -> Dict[str, Any]:
         """
-        Get default configuration if config files are missing.
+        Get default configuration.
         
         Returns:
             Dict[str, Any]: Default configuration
@@ -143,8 +147,8 @@ class CallAnalyticsApp:
                 'collection_name': 'call_transcripts'
             },
             'ollama': {
-                'enabled': False,
-                'model': 'llama3',
+                'enabled': True,
+                'model': 'llama3:8b',
                 'api_base': 'http://localhost:11434'
             }
         }
@@ -156,6 +160,8 @@ class CallAnalyticsApp:
             st.session_state.data = None
             st.session_state.filtered_data = None
             st.session_state.vector_store = None
+            st.session_state.storage_manager = None
+            st.session_state.llm_client = None
             st.session_state.search_results = []
             st.session_state.current_page = 'Dashboard'
             st.session_state.processing = False
@@ -173,6 +179,44 @@ class CallAnalyticsApp:
             # Create required directories
             for path_key, path_value in self.config.get('paths', {}).items():
                 Path(path_value).mkdir(parents=True, exist_ok=True)
+            
+            # Initialize storage manager if not already done
+            if st.session_state.storage_manager is None:
+                from core.storage_manager import StorageManager
+                st.session_state.storage_manager = StorageManager(
+                    base_path=Path(self.config['paths']['data'])
+                )
+                logger.info("Storage manager initialized")
+            from vectordb.chroma_client import ChromaClient
+            if st.session_state.vector_store is None:
+                vector_cfg = self.config.get('vectorstore', {})
+                st.session_state.vector_store = ChromaClient(vector_cfg)
+
+            # Initialize LLM client if enabled
+            if st.session_state.llm_client is None and self.config.get('ollama', {}).get('enabled', False):
+                try:
+                    from ml.llm_interface import LocalLLMInterface
+
+                    llm_config = dict(self.config.get('llm', {}))
+                    ollama_cfg = self.config.get('ollama', {})
+
+                    provider = llm_config.get('provider', 'ollama')
+                    llm_config['provider'] = provider
+
+                    model_name = llm_config.pop('model', None) or llm_config.get('model_name') or ollama_cfg.get('model', 'llama3')
+                    llm_config['model_name'] = model_name
+
+                    llm_config.setdefault('endpoint', ollama_cfg.get('api_base', 'http://localhost:11434'))
+                    llm_config.setdefault('temperature', ollama_cfg.get('temperature', 0.7))
+                    llm_config.setdefault('max_tokens', ollama_cfg.get('max_tokens', 1024))
+
+                    st.session_state.llm_client = LocalLLMInterface(llm_config)
+
+                    if not st.session_state.llm_client.is_available:
+                        logger.warning("LLM client initialized but service is unavailable")
+                except Exception as llm_error:
+                    logger.warning(f"Failed to initialize LLM client: {llm_error}")
+
             
             # Components will be initialized on-demand when pages are accessed
             self.components_ready = True
@@ -193,7 +237,6 @@ class CallAnalyticsApp:
         with st.sidebar:
             st.title("📞 Call Analytics")
             st.divider()
-            
             # Navigation
             pages = {
                 "Dashboard": "📊",
@@ -202,7 +245,7 @@ class CallAnalyticsApp:
                 "Q&A Interface": "💬",
                 "Settings": "⚙️"
             }
-            
+
             selected_page = st.radio(
                 "Navigation",
                 options=list(pages.keys()),
@@ -210,7 +253,7 @@ class CallAnalyticsApp:
                 index=list(pages.keys()).index(st.session_state.current_page),
                 label_visibility="collapsed"
             )
-            
+
             st.session_state.current_page = selected_page
             
             # System status
@@ -219,10 +262,15 @@ class CallAnalyticsApp:
             
             # Show component status
             status_items = []
-            
+
             # Check data status
-            if st.session_state.data is not None:
-                row_count = len(st.session_state.data)
+            row_count = 0
+            try:
+                row_count = st.session_state.storage_manager.get_record_count()
+            except Exception as count_error:
+                logger.warning(f"Unable to determine record count: {count_error}")
+
+            if row_count > 0:
                 status_items.append(f"✅ {row_count:,} records loaded")
             else:
                 status_items.append("⚠️ No data loaded")
@@ -289,9 +337,10 @@ class CallAnalyticsApp:
         """Render the dashboard page with lazy loading"""
         try:
             from ui.pages.dashboard import render_dashboard_page
+            
+            # Pass storage manager instead of data
             render_dashboard_page(
-                data=st.session_state.data,
-                config=self.config
+                storage_manager=st.session_state.storage_manager
             )
         except ImportError:
             # Fallback to basic dashboard
@@ -309,13 +358,9 @@ class CallAnalyticsApp:
         """Render the upload page with lazy loading"""
         try:
             from ui.pages.upload import render_upload_page
-            from core.storage_manager import StorageManager
             
-            storage_manager = StorageManager(
-                base_path=Path(self.config['paths']['data'])
-            )
             render_upload_page(
-                storage_manager=storage_manager,
+                storage_manager=st.session_state.storage_manager,
                 config=self.config
             )
         except ImportError as e:
@@ -342,10 +387,10 @@ class CallAnalyticsApp:
         """Render the analysis page with lazy loading"""
         try:
             from ui.pages.analysis import render_analysis_page
+            
             render_analysis_page(
-                data=st.session_state.data,
-                vector_store=st.session_state.vector_store,
-                config=self.config
+                storage_manager=st.session_state.storage_manager,
+                vector_store=st.session_state.vector_store
             )
         except ImportError:
             # Fallback to basic analysis
@@ -359,57 +404,38 @@ class CallAnalyticsApp:
                 st.warning("No data loaded for analysis.")
     
     def render_qa_interface(self) -> None:
-        """Render the Q&A interface with lazy loading"""
+        """Render the Q&A interface page with lazy loading"""
         try:
             from ui.pages.qa_interface import render_qa_interface
+
             render_qa_interface(
-                data=st.session_state.data,
+                storage_manager=st.session_state.storage_manager,
                 vector_store=st.session_state.vector_store,
-                config=self.config
+                llm_client=st.session_state.llm_client
             )
         except ImportError:
             # Fallback to basic Q&A
             st.header("💬 Q&A Interface")
             st.info("Q&A components are being loaded...")
             
-            query = st.text_input("Ask a question about your data:")
-            if query and st.button("Submit"):
-                st.info("Processing your question...")
-                # Basic keyword search fallback
-                if st.session_state.data is not None and 'transcript' in st.session_state.data.columns:
-                    results = st.session_state.data[
-                        st.session_state.data['transcript'].str.contains(
-                            query, case=False, na=False
-                        )
-                    ]
-                    if not results.empty:
-                        st.write(f"Found {len(results)} matching records")
-                        st.dataframe(results.head())
-                    else:
-                        st.write("No matching records found")
-                else:
-                    st.warning("No data available for search")
+            question = st.text_input("Ask a question about your data:")
+            if question:
+                st.info("Q&A functionality requires vector store and LLM setup.")
     
     def render_settings(self) -> None:
         """Render the settings page"""
         st.header("⚙️ Settings")
         
-        # Display current configuration
-        st.subheader("Current Configuration")
+        # Display configuration sections
+        st.subheader("Application Configuration")
         
-        with st.expander("Application Settings"):
-            st.json(self.config.get('app', {}))
-        
-        with st.expander("Model Settings"):
-            st.json(self.config.get('whisper', {}))
-            st.json(self.config.get('ollama', {}))
-        
-        with st.expander("Storage Settings"):
-            st.json(self.config.get('paths', {}))
-            st.json(self.config.get('vectordb', {}))
+        # Show current configuration
+        with st.expander("Current Configuration", expanded=False):
+            st.json(self.config)
         
         # System information
         st.subheader("System Information")
+        
         col1, col2, col3 = st.columns(3)
         
         with col1:

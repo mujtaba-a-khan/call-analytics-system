@@ -53,18 +53,23 @@ class UploadPage:
         self.storage_manager = storage_manager
         self.config = config
         self.csv_processor = CSVProcessor()
-        self.audio_processor = AudioProcessor(
-            output_dir=Path(config.get('paths', {}).get('processed_audio', 'data/processed'))
-        )
+        # Initialize audio processor with derived configuration
+        audio_config = dict(config.get('audio', {}))
+        paths_config = config.get('paths', {})
+        audio_config.setdefault('processed_dir', paths_config.get('processed_audio', 'data/processed'))
+        audio_config.setdefault('cache_dir', paths_config.get('cache', 'data/cache'))
+        self.audio_processor = AudioProcessor(audio_config)
         
         # Initialize STT if configured
-        whisper_config = config.get('whisper', {})
+        whisper_config = dict(config.get('whisper', {}))
         if whisper_config.get('enabled', True):
-            self.stt_engine = WhisperSTT(
-                model_size=whisper_config.get('model_size', 'small'),
-                device=whisper_config.get('device', 'cpu'),
-                compute_type=whisper_config.get('compute_type', 'int8')
+            # Ensure cache directory aligns with global paths configuration
+            paths_config = config.get('paths', {})
+            whisper_config.setdefault(
+                'cache_dir',
+                Path(paths_config.get('cache', 'data/cache')) / 'stt'
             )
+            self.stt_engine = WhisperSTT(whisper_config)
         else:
             self.stt_engine = None
     
@@ -393,11 +398,9 @@ class UploadPage:
         st.markdown("View and manage previously imported data")
         
         # Load import history
-        history = self.storage_manager.get_import_history()
+        history_df = self.storage_manager.get_import_history()
         
-        if history:
-            # Display history table
-            history_df = pd.DataFrame(history)
+        if not history_df.empty:
             
             # Format columns
             if 'timestamp' in history_df.columns:
@@ -429,18 +432,18 @@ class UploadPage:
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Imports", len(history))
+                st.metric("Total Imports", len(history_df))
             
             with col2:
-                total_records = sum(h.get('records_imported', 0) for h in history)
-                st.metric("Total Records", f"{total_records:,}")
+                total_records = history_df.get('records_imported', pd.Series(dtype=float)).fillna(0).sum()
+                st.metric("Total Records", f"{int(total_records):,}")
             
             with col3:
-                successful = sum(1 for h in history if h.get('status') == 'success')
+                successful = int((history_df.get('status') == 'success').sum()) if 'status' in history_df.columns else 0
                 st.metric("Successful", successful)
             
             with col4:
-                failed = sum(1 for h in history if h.get('status') == 'failed')
+                failed = int((history_df.get('status') == 'failed').sum()) if 'status' in history_df.columns else 0
                 st.metric("Failed", failed)
             
             # Management options
@@ -449,11 +452,22 @@ class UploadPage:
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("Clear Import History", type="secondary"):
-                    if st.confirm("Are you sure you want to clear the import history?"):
+                if st.button("Clear Import History", type="secondary", key="clear_history_btn"):
+                    st.session_state.show_clear_history_confirm = True
+
+            if st.session_state.get("show_clear_history_confirm"):
+                st.warning("Are you sure you want to clear the import history?")
+                confirm_col, cancel_col = st.columns(2)
+                with confirm_col:
+                    if st.button("Yes, clear", type="primary", key="confirm_clear_history_btn"):
                         self.storage_manager.clear_import_history()
+                        st.session_state.show_clear_history_confirm = False
                         st.success("Import history cleared")
                         st.rerun()
+                with cancel_col:
+                    if st.button("Cancel", key="cancel_clear_history_btn"):
+                        st.session_state.show_clear_history_confirm = False
+                        st.info("Import history not cleared")
             
             with col2:
                 if st.button("Export History", type="secondary"):
@@ -527,20 +541,39 @@ class UploadPage:
         try:
             progress_bar = st.progress(0)
             status_text = st.empty()
-            
+
+            # Estimate total rows for progress feedback
+            try:
+                encoding = self.csv_processor.detect_encoding(file_path)
+                with open(file_path, 'r', encoding=encoding, errors='ignore') as fh:
+                    processed_target = sum(1 for _ in fh) - 1  # subtract header
+                if processed_target <= 0:
+                    processed_target = 1
+            except Exception:
+                processed_target = 1000
+
             # Process CSV in batches
             total_processed = 0
             total_errors = 0
-            batch_records = []
-            
+
             def process_batch(records):
                 nonlocal total_processed
-                # Store records
-                self.storage_manager.store_call_records(records)
-                total_processed += len(records)
+                # Persist records incrementally
+                try:
+                    added = self.storage_manager.append_records(records, deduplicate=deduplicate)
+                except AttributeError:
+                    # Fallback for legacy interfaces
+                    if hasattr(self.storage_manager, 'load_all_records'):
+                        existing = self.storage_manager.load_all_records()
+                        combined = pd.concat([existing, records], ignore_index=True)
+                        self.storage_manager.save_dataframe(combined, 'call_records')
+                        added = len(records)
+                    else:
+                        raise
+                total_processed += added
                 
                 # Update progress
-                progress_bar.progress(min(total_processed / 1000, 1.0))
+                progress_bar.progress(min(total_processed / max(processed_target, 1), 1.0))
                 status_text.text(f"Processed {total_processed} records...")
             
             # Process file
@@ -573,7 +606,7 @@ class UploadPage:
                 st.success(f"Successfully imported {processed} records")
             
             # Update import history
-            self.storage_manager.add_import_history({
+            self.storage_manager.add_import_record({
                 'timestamp': datetime.now(),
                 'filename': file_path.name,
                 'file_type': 'CSV',
@@ -581,7 +614,15 @@ class UploadPage:
                 'errors': errors,
                 'status': 'success' if errors == 0 else 'partial'
             })
-            
+
+            # Update session data for immediate use in the UI
+            try:
+                loaded_df = self.storage_manager.load_all_records()
+                if loaded_df is not None:
+                    st.session_state.data = loaded_df
+            except Exception as load_error:
+                logger.warning(f"Unable to refresh session data after import: {load_error}")
+
         except Exception as e:
             logger.error(f"Error importing CSV: {e}")
             st.error(f"Import failed: {str(e)}")

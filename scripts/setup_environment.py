@@ -246,7 +246,7 @@ class EnvironmentSetup:
                 },
                 'llm': {
                     'provider': 'ollama',
-                    'model': 'llama3',
+                    'model': 'llama3:8b',
                     'temperature': 0.7,
                     'max_tokens': 2000
                 }

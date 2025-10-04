@@ -9,13 +9,13 @@ local LLMs for intelligent responses about call data and analytics.
 import sys
 import logging
 from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import asdict
 import streamlit as st
 import pandas as pd
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from pathlib import Path
-from datetime import datetime, timedelta
 
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
@@ -317,8 +317,36 @@ class QAInterface:
         with st.spinner("Thinking..."):
             try:
                 # Interpret query intent
-                intent = self.query_interpreter.interpret(query)
-                
+                intent_obj = self.query_interpreter.interpret(query)
+
+                # Convert intent dataclass to dictionary for downstream handlers
+                if hasattr(intent_obj, '__dataclass_fields__'):
+                    intent = asdict(intent_obj)
+                else:
+                    intent = dict(intent_obj)
+
+                action = intent.get('action', 'general') or 'general'
+
+                # Map action to response type
+                type_map = {
+                    'aggregate': 'metric',
+                    'filter': 'metric',
+                    'search': 'search',
+                    'compare': 'comparison',
+                    'analyze': 'analysis'
+                }
+                intent['type'] = type_map.get(action, 'general')
+
+                # Infer metric type from aggregations if available
+                if intent['type'] == 'metric':
+                    aggregations = intent.get('aggregations', []) or []
+                    metric = None
+                    if any(agg in aggregations for agg in ['count', 'sum']):
+                        metric = 'total_calls'
+                    if any(agg in aggregations for agg in ['average', 'avg']):
+                        metric = 'average_duration'
+                    intent['metric'] = metric or intent.get('metric', 'general')
+
                 # Generate response based on intent
                 response = self._generate_response(query, intent)
                 
@@ -398,12 +426,31 @@ class QAInterface:
             Updated response dictionary
         """
         # Extract time range from intent
-        time_range = intent.get('time_range', 'all')
+        time_range = intent.get('time_range')
         metric_type = intent.get('metric', 'general')
-        
+
         # Load appropriate data
-        data = self._load_data_for_timerange(time_range)
-        
+        if isinstance(time_range, (list, tuple)) and len(time_range) == 2:
+            start, end = time_range
+            if isinstance(start, str):
+                start = pd.to_datetime(start)
+            if isinstance(end, str):
+                end = pd.to_datetime(end)
+
+            if isinstance(start, pd.Timestamp):
+                start = start.to_pydatetime()
+            if isinstance(end, pd.Timestamp):
+                end = end.to_pydatetime()
+
+            if isinstance(start, datetime):
+                start = start.date()
+            if isinstance(end, datetime):
+                end = end.date()
+
+            data = self.storage_manager.load_call_records(start, end)
+        else:
+            data = self._load_data_for_timerange(time_range or 'all')
+
         if data.empty:
             response['content'] = "No data available for the specified time range."
             return response
@@ -663,9 +710,36 @@ class QAInterface:
         Returns:
             LLM-generated response
         """
-        # This would integrate with Ollama or other local LLM
-        # Placeholder implementation
-        return "LLM response would be generated here based on the query and context."
+        if not self.llm_client:
+            return "LLM client unavailable."
+
+        try:
+            system_prompt = (
+                "You are a helpful call analytics assistant. Respond with clear, concise"
+                " insights grounded in the provided call center data."
+            )
+
+            result = self.llm_client.generate(
+                prompt=query,
+                system_prompt=system_prompt
+            )
+
+            if result.success and result.text:
+                return result.text
+
+            error_msg = result.error or "LLM returned an empty response."
+            logger.warning(f"LLM response issue: {error_msg}")
+            return (
+                "I couldn't generate an AI-powered answer right now."
+                " Please verify the LLM service is running and try again."
+            )
+
+        except Exception as exc:
+            logger.error(f"Error generating LLM response: {exc}")
+            return (
+                "Something went wrong while contacting the LLM service."
+                " Please check the logs for details."
+            )
     
     def _get_system_capabilities(self) -> List[str]:
         """

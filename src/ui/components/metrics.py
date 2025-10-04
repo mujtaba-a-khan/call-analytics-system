@@ -100,7 +100,8 @@ class MetricCard:
     def render(cls,
                metric: MetricValue,
                container: Any = None,
-               use_column: bool = True) -> None:
+               use_column: bool = True,
+               label_visibility: str = 'visible') -> None:
         """
         Render a single metric card.
         
@@ -118,16 +119,20 @@ class MetricCard:
             col = container
         
         # Render metric with icon if provided
+        metric_label = metric.label or "Metric"
         if metric.icon:
-            col.markdown(f"{metric.icon} **{metric.label}**")
+            col.markdown(f"{metric.icon} **{metric_label}**")
         
         # Use Streamlit's metric component
+        display_label = metric_label
+        metric_label_visibility = 'hidden' if metric.icon else label_visibility
         col.metric(
-            label=metric.label if not metric.icon else "",
+            label=display_label,
             value=metric.format_value(),
             delta=metric.format_delta(),
             delta_color=metric.delta_color,
-            help=metric.help_text
+            help=metric.help_text,
+            label_visibility=metric_label_visibility
         )
 
 
@@ -142,7 +147,8 @@ class MetricsGrid:
                metrics: List[MetricValue],
                container: Any = None,
                columns: Optional[int] = None,
-               group_size: int = 4) -> None:
+               group_size: int = 4,
+               label_visibility: str = 'visible') -> None:
         """
         Render metrics in a grid layout.
         
@@ -164,7 +170,64 @@ class MetricsGrid:
         # Render metrics in columns
         for idx, metric in enumerate(metrics):
             col_idx = idx % columns
-            MetricCard.render(metric, cols[col_idx], use_column=False)
+            MetricCard.render(
+                metric,
+                cols[col_idx],
+                use_column=False,
+                label_visibility=label_visibility
+            )
+
+
+class ProgressIndicator:
+    """
+    Utility component for visualizing the progress of long-running tasks.
+
+    Provides a simple wrapper around Streamlit's progress bar with
+    convenience methods for updating the progress value and status text.
+    """
+
+    def __init__(self,
+                 label: str = "Processing...",
+                 total: int = 100,
+                 container: Any = None) -> None:
+        self.container = container or st
+        self.label = label
+        self.total = max(total, 1)
+        self.current = 0
+
+        self._status = self.container.empty()
+        self._progress_bar = self.container.progress(0)
+        self._status.write(label)
+
+    def update(self,
+               step: int = 1,
+               current: Optional[int] = None,
+               detail: Optional[str] = None) -> None:
+        """Increment or set the progress value and refresh the display."""
+        if current is not None:
+            self.current = max(0, min(current, self.total))
+        else:
+            self.current = max(0, min(self.current + step, self.total))
+
+        percent = int((self.current / self.total) * 100)
+        self._progress_bar.progress(percent)
+
+        if detail is not None:
+            self._status.write(detail)
+        else:
+            self._status.write(f"{self.label} ({percent}%)")
+
+    def complete(self, detail: Optional[str] = None) -> None:
+        """Mark the progress indicator as complete."""
+        self.current = self.total
+        self._progress_bar.progress(100)
+        self._status.success(detail or f"{self.label} completed")
+
+    def reset(self, detail: Optional[str] = None) -> None:
+        """Reset the indicator back to zero progress."""
+        self.current = 0
+        self._progress_bar.progress(0)
+        self._status.write(detail or self.label)
 
 
 class SummaryStats:
@@ -339,7 +402,7 @@ class KPIDashboard:
         ]
         
         # Render metrics grid
-        MetricsGrid.render(metrics, container)
+        MetricsGrid.render(metrics, container, label_visibility='visible')
     
     @classmethod
     def render_revenue_metrics(cls,
@@ -412,7 +475,7 @@ class KPIDashboard:
         ]
         
         # Render metrics grid
-        MetricsGrid.render(metrics, container)
+        MetricsGrid.render(metrics, container, label_visibility='visible')
 
 
 class PerformanceIndicator:
