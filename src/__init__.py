@@ -5,6 +5,11 @@ A comprehensive system for analyzing call center data with speech-to-text,
 semantic search, and advanced analytics capabilities.
 """
 
+import os
+
+# Disable Hugging Face tokenizer parallelism to avoid fork-related warnings.
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 # Package metadata
 __title__ = 'Call Analytics System'
 __version__ = '1.0.0'
