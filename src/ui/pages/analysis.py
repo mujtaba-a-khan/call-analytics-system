@@ -138,9 +138,10 @@ class AnalysisPage:
                 "Similarity threshold",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.7,
+                value=0.35,
                 step=0.05,
-                key="search_threshold"
+                key="search_threshold",
+                help="Lower values return more results; raise the slider when you want only the strongest matches."
             )
         
         # Search filters
@@ -500,12 +501,13 @@ class AnalysisPage:
         """
         try:
             with st.spinner("Searching..."):
+                filters_dict = filter_state.to_dict()
                 # Perform semantic search
                 results = self.search_engine.search(
                     query=query,
                     top_k=top_k,
                     threshold=threshold,
-                    filters=filter_state.to_dict()
+                    filters=filters_dict
                 )
                 
                 if results:
@@ -513,30 +515,58 @@ class AnalysisPage:
                     
                     # Display results
                     for idx, result in enumerate(results, 1):
-                        with st.expander(f"Result {idx} - Score: {result['score']:.3f}"):
-                            # Display call details
+                        score = result.get('score', 0.0)
+                        with st.expander(f"Result {idx} - Score: {score:.3f}"):
+                            metadata = result.get('metadata', {}) or {}
+                            call_id = metadata.get('call_id') or result.get('id', 'N/A')
+                            timestamp = metadata.get('timestamp') or metadata.get('start_time') or 'N/A'
+                            agent = metadata.get('agent_id', 'N/A')
+                            duration = metadata.get('duration')
+                            outcome = metadata.get('outcome', 'N/A')
+                            campaign = metadata.get('campaign', 'N/A')
+
                             col1, col2 = st.columns(2)
-                            
+
                             with col1:
-                                st.write(f"**Call ID:** {result['call_id']}")
-                                st.write(f"**Date:** {result['timestamp']}")
-                                st.write(f"**Agent:** {result['agent_id']}")
-                            
+                                st.write(f"**Call ID:** {call_id}")
+                                st.write(f"**Date:** {timestamp}")
+                                st.write(f"**Agent:** {agent}")
+
                             with col2:
-                                st.write(f"**Duration:** {result['duration']} seconds")
-                                st.write(f"**Outcome:** {result['outcome']}")
-                                st.write(f"**Campaign:** {result['campaign']}")
-                            
+                                if duration is not None:
+                                    try:
+                                        duration_value = f"{float(duration):.0f} seconds"
+                                    except (TypeError, ValueError):
+                                        duration_value = str(duration)
+                                else:
+                                    duration_value = "N/A"
+                                st.write(f"**Duration:** {duration_value}")
+                                st.write(f"**Outcome:** {outcome}")
+                                st.write(f"**Campaign:** {campaign}")
+
                             # Display matched content
                             st.write("**Matched Content:**")
-                            st.write(result.get('matched_text', 'N/A'))
+                            snippet = result.get('snippet') or result.get('document') or 'N/A'
+                            st.write(snippet)
                 else:
                     st.warning("No results found matching your query")
-                    
+                    if threshold > 0:
+                        fallback_results = self.search_engine.search(
+                            query=query,
+                            top_k=top_k,
+                            threshold=None,
+                            filters=filters_dict
+                        )
+                        if fallback_results:
+                            st.info(
+                                "Try lowering the similarity threshold – we found matches with lower scores,"
+                                " but they were filtered out."
+                            )
+                
         except Exception as e:
             logger.error(f"Error in semantic search: {e}")
             st.error(f"Search failed: {str(e)}")
-    
+
     def _apply_custom_filters(self, filter_state: FilterState) -> pd.DataFrame:
         """
         Apply custom filters and return filtered data.

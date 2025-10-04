@@ -520,7 +520,7 @@ class QAInterface:
         results = self.search_engine.search(
             query=search_terms,
             top_k=5,
-            threshold=0.7
+            threshold=0.35
         )
         
         if results:

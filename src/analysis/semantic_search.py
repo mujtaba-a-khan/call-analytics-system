@@ -6,6 +6,8 @@ to find relevant calls based on meaning rather than exact matches.
 """
 
 import logging
+import math
+from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -38,6 +40,7 @@ class SemanticSearchEngine:
               query: str,
               top_k: int = 10,
               filters: Optional[Dict[str, Any]] = None,
+              threshold: Optional[float] = None,
               rerank: bool = False) -> List[Dict[str, Any]]:
         """
         Perform semantic search for relevant calls.
@@ -46,6 +49,7 @@ class SemanticSearchEngine:
             query: Search query text
             top_k: Number of results to return
             filters: Optional metadata filters
+            threshold: Minimum similarity score (0-1) required for a result
             rerank: Whether to rerank results
         
         Returns:
@@ -57,16 +61,43 @@ class SemanticSearchEngine:
         
         try:
             # Get initial results from vector database
+            vector_filters = self._build_vector_filters(filters)
+
             results = self.vector_db.search(
                 query_text=query,
                 top_k=top_k * 3 if rerank else top_k,  # Get more candidates for reranking
-                filter_dict=filters
+                filter_dict=vector_filters
             )
-            
+
             # Apply reranking if requested
             if rerank and results:
                 results = self._rerank_results(query, results, top_k)
-            
+
+            # Apply post-retrieval filtering for fields not handled by vector DB
+            if filters:
+                results = self._apply_post_filters(results, filters)
+
+            # Apply similarity threshold filtering when requested
+            if threshold is not None:
+                try:
+                    threshold_value = float(threshold)
+                except (TypeError, ValueError):
+                    logger.warning("Invalid threshold '%s' provided; ignoring filter", threshold)
+                    threshold_value = None
+
+                if threshold_value is not None:
+                    before_count = len(results)
+                    results = [
+                        result for result in results
+                        if result.get('score', 0.0) >= threshold_value
+                    ]
+                    if before_count and len(results) < before_count:
+                        logger.debug(
+                            "Filtered %d results below threshold %.2f",
+                            before_count - len(results),
+                            threshold_value
+                        )
+
             # Enhance results with additional metadata
             results = self._enhance_results(results)
             
@@ -76,6 +107,109 @@ class SemanticSearchEngine:
         except Exception as e:
             logger.error(f"Semantic search failed: {e}")
             return []
+
+    def _build_vector_filters(self, filters: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Translate UI filters into Chroma-compatible where clauses."""
+        if not filters:
+            return None
+
+        clauses: List[Dict[str, Any]] = []
+
+        # Categorical filters
+        for field, key in [
+            ('selected_agents', 'agent_id'),
+            ('selected_campaigns', 'campaign'),
+            ('selected_outcomes', 'outcome'),
+            ('selected_types', 'call_type')
+        ]:
+            values = filters.get(field)
+            if values:
+                clauses.append({key: {'$in': values}})
+
+        # Duration range (seconds/minutes depending on stored field)
+        duration_range = filters.get('duration_range')
+        if duration_range and len(duration_range) == 2:
+            min_dur, max_dur = duration_range
+            if min_dur and not math.isinf(min_dur):
+                clauses.append({'duration': {'$gte': float(min_dur)}})
+            if max_dur and not math.isinf(max_dur):
+                clauses.append({'duration': {'$lte': float(max_dur)}})
+
+        # Revenue range
+        revenue_range = filters.get('revenue_range')
+        if revenue_range and len(revenue_range) == 2:
+            min_rev, max_rev = revenue_range
+            if min_rev and not math.isinf(min_rev):
+                clauses.append({'revenue': {'$gte': float(min_rev)}})
+            if max_rev and not math.isinf(max_rev):
+                clauses.append({'revenue': {'$lte': float(max_rev)}})
+
+        if not clauses:
+            return None
+
+        if len(clauses) == 1:
+            return clauses[0]
+
+        return {'$and': clauses}
+
+    def _apply_post_filters(self,
+                            results: List[Dict[str, Any]],
+                            filters: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Filter results using metadata for constraints the vector DB cannot handle."""
+        if not results:
+            return results
+
+        filtered: List[Dict[str, Any]] = []
+
+        # Prepare date range bounds
+        date_range = filters.get('date_range')
+        start_date = end_date = None
+        if date_range and len(date_range) == 2:
+            start_date = self._parse_date(date_range[0])
+            end_date = self._parse_date(date_range[1], end_of_day=True)
+
+        for result in results:
+            metadata = result.get('metadata', {}) or {}
+
+            # Date range filtering
+            if start_date or end_date:
+                ts_value = metadata.get('timestamp') or metadata.get('start_time')
+                ts = self._parse_date(ts_value)
+                if ts is None:
+                    continue
+                if start_date and ts < start_date:
+                    continue
+                if end_date and ts > end_date:
+                    continue
+
+            filtered.append(result)
+
+        return filtered
+
+    @staticmethod
+    def _parse_date(value: Optional[str], end_of_day: bool = False) -> Optional[datetime]:
+        """Parse a date/datetime string to datetime object."""
+        if not value or isinstance(value, float) and math.isnan(value):
+            return None
+
+        if isinstance(value, datetime):
+            dt = value
+        else:
+            str_value = str(value)
+
+            # Handle date-only strings
+            try:
+                if 'T' in str_value or ' ' in str_value:
+                    dt = datetime.fromisoformat(str_value.replace('Z', '+00:00'))
+                else:
+                    dt = datetime.fromisoformat(str_value)
+            except ValueError:
+                return None
+
+        if end_of_day and dt.time() == datetime.min.time():
+            return dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        return dt
     
     def _rerank_results(self, 
                        query: str, 

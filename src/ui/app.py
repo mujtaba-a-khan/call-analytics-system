@@ -201,6 +201,76 @@ class CallAnalyticsApp:
                 vector_cfg = self.config.get('vectorstore', {})
                 st.session_state.vector_store = ChromaClient(vector_cfg)
 
+                # Automatically populate the vector store if it is empty
+                try:
+                    stats = st.session_state.vector_store.get_statistics()
+                    if stats.get('total_documents', 0) == 0:
+                        data_df = st.session_state.storage_manager.load_all_records()
+                        if data_df is not None and not data_df.empty:
+                            from vectordb.indexer import DocumentIndexer
+
+                            indexing_config = dict(vector_cfg.get('indexing', {}))
+                            indexing_config.setdefault('text_fields', ['transcript', 'notes'])
+                            indexing_config.setdefault('min_text_length', 10)
+                            indexing_config.setdefault(
+                                'metadata_fields',
+                                [
+                                    'call_id',
+                                    'agent_id',
+                                    'campaign',
+                                    'call_type',
+                                    'outcome',
+                                    'timestamp',
+                                    'duration',
+                                    'revenue'
+                                ]
+                            )
+
+                            indexer = DocumentIndexer(
+                                st.session_state.vector_store,
+                                config=indexing_config
+                            )
+
+                            required_fields = set(indexing_config['metadata_fields'])
+                            existing_fields: set[str] = set()
+                            try:
+                                sample = st.session_state.vector_store.collection.peek(1)
+                                if sample and sample.get('metadatas'):
+                                    metadata_sample = sample['metadatas'][0]
+                                    if metadata_sample:
+                                        existing_fields = set(metadata_sample.keys())
+                            except Exception as peek_error:
+                                logger.debug(
+                                    "Unable to inspect vector store metadata: %s",
+                                    peek_error
+                                )
+
+                            needs_reindex = stats.get('total_documents', 0) == 0
+                            if not needs_reindex and required_fields - existing_fields:
+                                needs_reindex = True
+                                logger.info(
+                                    "Vector store metadata missing fields %s; triggering reindex",
+                                    required_fields - existing_fields
+                                )
+
+                            if needs_reindex:
+                                if stats.get('total_documents', 0) > 0:
+                                    indexed_count = indexer.reindex_all(data_df)
+                                else:
+                                    indexed_count = indexer.index_dataframe(data_df)
+
+                                logger.info(
+                                    "Populated vector store with %d document(s)",
+                                    indexed_count
+                                )
+                        else:
+                            logger.info("No call records available to index into vector store")
+                except Exception as index_error:
+                    logger.warning(
+                        "Vector store initialization skipped: %s",
+                        index_error
+                    )
+
             # Initialize LLM client if enabled
             if st.session_state.llm_client is None and self.config.get('ollama', {}).get('enabled', False):
                 try:

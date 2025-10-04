@@ -174,14 +174,18 @@ class DocumentIndexer:
         for field in self.text_fields:
             if field in row and pd.notna(row[field]):
                 text = str(row[field]).strip()
-                if text:
-                    # Add field label for context
-                    if field != 'transcript':
-                        text_parts.append(f"{field.upper()}: {text}")
-                    else:
-                        text_parts.append(text)
-        
-        return "\n\n".join(text_parts)
+
+                # Treat placeholder values as missing
+                if not text or text.lower() in {"none", "nan", "null"}:
+                    continue
+
+                # Add field label for context when not using the transcript field
+                if field != 'transcript':
+                    text_parts.append(f"{field.upper()}: {text}")
+                else:
+                    text_parts.append(text)
+
+        return "\n\n".join(text_parts).strip()
     
     def _validate_text(self, text: str) -> bool:
         """
@@ -195,8 +199,8 @@ class DocumentIndexer:
         """
         if not text or not text.strip():
             return False
-        
-        text_length = len(text)
+
+        text_length = len(text.strip())
         
         if text_length < self.min_text_length:
             logger.debug(f"Text too short: {text_length} < {self.min_text_length}")
