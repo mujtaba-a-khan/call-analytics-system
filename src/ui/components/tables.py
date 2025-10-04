@@ -392,8 +392,8 @@ class AgentPerformanceTable:
             agent_stats['Total Calls'] = agent_groups.size().values
         
         if 'connection_rate' in metrics and 'outcome' in data.columns:
-            agent_stats['Connection Rate'] = agent_groups.apply(
-                lambda x: (x['outcome'] == 'connected').mean() * 100
+            agent_stats['Connection Rate'] = agent_groups['outcome'].agg(
+                lambda outcomes: (outcomes == 'connected').mean() * 100
             ).values
         
         if 'avg_duration' in metrics and 'duration' in data.columns:

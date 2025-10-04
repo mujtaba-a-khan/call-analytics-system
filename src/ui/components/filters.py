@@ -189,40 +189,57 @@ class DateRangeFilter:
             Tuple of (start_date, end_date)
         """
         container = container or st
-        
-        # Preset range selector
-        col1, col2 = container.columns([1, 2])
-        
-        with col1:
-            preset = st.selectbox(
-                "Date Range",
-                options=list(cls.PRESET_RANGES.keys()),
-                index=list(cls.PRESET_RANGES.keys()).index(default_range),
-                key=f"{key_prefix}_preset"
-            )
-        
-        # Handle custom date selection
+
+        preset_key = f"{key_prefix}_preset"
+        picker_key = f"{key_prefix}_date_picker"
+        state_key = f"{key_prefix}_date_value"
+
+        preset_options = list(cls.PRESET_RANGES.keys())
+        default_index = preset_options.index(default_range) if default_range in preset_options else 0
+
+        if state_key not in st.session_state:
+            st.session_state[state_key] = cls.PRESET_RANGES[preset_options[default_index]]()
+
+        preset = container.selectbox(
+            "Date Range",
+            options=preset_options,
+            index=default_index,
+            key=preset_key
+        )
+
         if preset == 'Custom':
-            with col2:
-                subcol1, subcol2 = st.columns(2)
-                with subcol1:
-                    start_date = st.date_input(
-                        "Start Date",
-                        value=date.today() - timedelta(days=29),
-                        key=f"{key_prefix}_start"
-                    )
-                with subcol2:
-                    end_date = st.date_input(
-                        "End Date",
-                        value=date.today(),
-                        key=f"{key_prefix}_end"
-                    )
+            current_value = st.session_state.get(state_key, cls.PRESET_RANGES[preset_options[default_index]]())
+            date_selection = container.date_input(
+                "Select date range",
+                value=current_value,
+                key=picker_key,
+                label_visibility="collapsed",
+                disabled=False
+            )
+
+            if isinstance(date_selection, tuple) and len(date_selection) == 2:
+                start_date, end_date = date_selection
+            elif isinstance(date_selection, tuple) and date_selection:
+                start_date = end_date = date_selection[0]
+            else:
+                start_date = end_date = date_selection
+
+            st.session_state[state_key] = (start_date, end_date)
         else:
-            # Use preset range
             start_date, end_date = cls.PRESET_RANGES[preset]()
-            with col2:
-                st.info(f"📅 {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-        
+            st.session_state[state_key] = (start_date, end_date)
+            container.date_input(
+                "Select date range",
+                value=(start_date, end_date),
+                key=picker_key,
+                label_visibility="collapsed",
+                disabled=True
+            )
+
+        container.caption(
+            f"📅 {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
+        )
+
         return start_date, end_date
 
 

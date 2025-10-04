@@ -106,7 +106,7 @@ test = [
 [project.scripts]
 # CLI commands for easy execution
 call-analytics = "src.cli:main"
-call-analytics-ui = "src.ui.app:main"
+call-analytics-ui = "scripts.launch_ui:main"
 rebuild-index = "scripts.rebuild_index:main"
 download-models = "scripts.download_models:main"
 setup-environment = "scripts.setup_environment:main"

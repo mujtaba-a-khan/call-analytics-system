@@ -44,28 +44,75 @@ except ImportError as e:
     print(f"Error: Missing required package. Please install dependencies: pip install -e .")
     sys.exit(1)
 
-# Page configuration - must be first Streamlit command
-st.set_page_config(
-    page_title="Call Analytics System",
-    page_icon="📞",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://github.com/mujtaba-a-khan/call-analytics-system',
-        'Report a bug': 'https://github.com/mujtaba-a-khan/call-analytics-system/issues',
-        'About': 'Call Analytics System v1.0.0 - Professional call center analytics'
-    }
-)
+def _has_streamlit_context() -> bool:
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+    except ImportError:
+        try:
+            from streamlit.script_run_context import get_script_run_ctx  # type: ignore
+        except ImportError:
+            return False
 
-# Hide Streamlit's default multipage sidebar navigation
-st.markdown(
-    """
-    <style>
-    div[data-testid="stSidebarNav"] { display: none; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+    try:
+        return get_script_run_ctx() is not None
+    except RuntimeError:
+        return False
+
+
+def _configure_streamlit_page() -> None:
+    """Apply page config and sidebar styling when Streamlit context exists."""
+
+    if not _has_streamlit_context():
+        return
+
+    st.set_page_config(
+        page_title="Call Analytics System",
+        page_icon="📞",
+        layout="wide",
+        initial_sidebar_state="expanded",
+        menu_items={
+            'Get Help': 'https://github.com/mujtaba-a-khan/call-analytics-system',
+            'Report a bug': 'https://github.com/mujtaba-a-khan/call-analytics-system/issues',
+            'About': 'Call Analytics System v1.0.0 - Professional call center analytics'
+        }
+    )
+
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stSidebarNav"] { display: none; }
+        [data-testid="stSidebar"] {
+            padding: 0 !important;
+            min-width: 300px;
+            width: 300px;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            padding: 1.5rem 1.25rem 2rem;
+        }
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child {
+            flex: 1 1 auto;
+            overflow-y: auto;
+        }
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
+            margin-top: auto;
+        }
+        [data-testid="stSidebar"] .sidebar-footer {
+            font-size: 0.85rem;
+            opacity: 0.75;
+            padding-top: 0.75rem;
+        }
+        [data-testid="stSidebar"] .sidebar-footer span {
+            display: block;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 class CallAnalyticsApp:
@@ -314,73 +361,86 @@ class CallAnalyticsApp:
             str: Selected page name
         """
         with st.sidebar:
-            st.title("📞 Call Analytics")
-            st.divider()
-            # Navigation
-            pages = {
-                "Dashboard": "📊",
-                "Upload Data": "📤",
-                "Analysis": "🔍",
-                "Q&A Interface": "💬",
-                "Settings": "⚙️"
-            }
+            sidebar_main = st.container()
+            sidebar_footer = st.container()
 
-            selected_page = st.radio(
-                "Navigation",
-                options=list(pages.keys()),
-                format_func=lambda x: f"{pages[x]} {x}",
-                index=list(pages.keys()).index(st.session_state.current_page),
-                label_visibility="collapsed"
-            )
+            with sidebar_main:
+                st.title("📞 Call Analytics")
+                st.divider()
+                # Navigation
+                pages = {
+                    "Dashboard": "📊",
+                    "Upload Data": "📤",
+                    "Analysis": "🔍",
+                    "Q&A Interface": "💬",
+                    "Settings": "⚙️"
+                }
 
-            st.session_state.current_page = selected_page
-            
-            # System status
-            st.divider()
-            st.caption("System Status")
-            
-            # Show component status
-            status_items = []
+                selected_page = st.radio(
+                    "Navigation",
+                    options=list(pages.keys()),
+                    format_func=lambda x: f"{pages[x]} {x}",
+                    index=list(pages.keys()).index(st.session_state.current_page),
+                    label_visibility="collapsed"
+                )
 
-            # Check data status
-            row_count = 0
-            try:
-                row_count = st.session_state.storage_manager.get_record_count()
-            except Exception as count_error:
-                logger.warning(f"Unable to determine record count: {count_error}")
+                st.session_state.current_page = selected_page
 
-            if row_count > 0:
-                status_items.append(f"✅ {row_count:,} records loaded")
-            else:
-                status_items.append("⚠️ No data loaded")
-            
-            # Check vector store status
-            if st.session_state.vector_store is not None:
-                status_items.append("✅ Vector store ready")
-            else:
-                status_items.append("⚠️ Vector store not initialized")
-            
-            # Check Whisper status
-            if self.config.get('whisper', {}).get('enabled', False):
-                status_items.append("✅ Whisper STT available")
-            else:
-                status_items.append("ℹ️ Whisper STT disabled")
-            
-            # Check Ollama status
-            if self.config.get('ollama', {}).get('enabled', False):
-                status_items.append("✅ Ollama LLM available")
-            else:
-                status_items.append("ℹ️ Ollama LLM disabled")
-            
-            for item in status_items:
-                st.caption(item)
-            
-            # Footer
-            st.divider()
-            st.caption(f"v{self.config.get('app', {}).get('version', '1.0.0')}")
-            st.caption(f"Python {sys.version_info.major}.{sys.version_info.minor}")
-            
-            return selected_page
+                # System status
+                st.divider()
+                st.caption("System Status")
+
+                status_items: list[str] = []
+
+                # Check data status
+                row_count = 0
+                try:
+                    row_count = st.session_state.storage_manager.get_record_count()
+                except Exception as count_error:
+                    logger.warning(f"Unable to determine record count: {count_error}")
+
+                if row_count > 0:
+                    status_items.append(f"✅ {row_count:,} records loaded")
+                else:
+                    status_items.append("⚠️ No data loaded")
+
+                # Check vector store status
+                if st.session_state.vector_store is not None:
+                    status_items.append("✅ Vector store ready")
+                else:
+                    status_items.append("⚠️ Vector store not initialized")
+
+                # Check Whisper status
+                if self.config.get('whisper', {}).get('enabled', False):
+                    status_items.append("✅ Whisper STT available")
+                else:
+                    status_items.append("ℹ️ Whisper STT disabled")
+
+                # Check Ollama status
+                if self.config.get('ollama', {}).get('enabled', False):
+                    status_items.append("✅ Ollama LLM available")
+                else:
+                    status_items.append("ℹ️ Ollama LLM disabled")
+
+                for item in status_items:
+                    st.caption(item)
+
+            version_text = self.config.get('app', {}).get('version', '1.0.0')
+            python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}"
+
+            with sidebar_footer:
+                st.markdown(
+                    f"""
+                    <div class="sidebar-footer">
+                        <hr />
+                        <span>v{version_text}</span>
+                        <span>{python_version}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        return selected_page
     
     def render_page(self, page_name: str) -> None:
         """
@@ -551,20 +611,17 @@ class CallAnalyticsApp:
                 st.exception(e)
 
 
-def main():
+def main() -> None:
     """Main entry point for the application"""
+
     try:
-        # Create logs directory if it doesn't exist
+        _configure_streamlit_page()
         Path('logs').mkdir(exist_ok=True)
-        
-        # Initialize and run application
         app = CallAnalyticsApp()
         app.run()
-        
     except KeyboardInterrupt:
         logger.info("Application interrupted by user")
         sys.exit(0)
-        
     except Exception as e:
         logger.critical(f"Critical application error: {e}\n{traceback.format_exc()}")
         st.error(f"Critical error: {str(e)}")
