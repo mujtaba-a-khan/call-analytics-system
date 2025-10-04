@@ -34,14 +34,58 @@ class CSVProcessor:
             config: Configuration dictionary with CSV settings
         """
         config = config or {}
+
         self.encoding = config.get('encoding', 'utf-8')
-        self.required_columns = config.get('required_columns', [
-            'call_id', 'timestamp', 'duration', 'transcript'
-        ])
-        self.optional_columns = config.get('optional_columns', [
+
+        default_required = ['call_id', 'timestamp', 'duration', 'transcript']
+        default_optional = [
             'agent_id', 'campaign', 'customer_name', 'phone_number',
             'product_name', 'amount', 'revenue', 'outcome', 'call_type', 'notes'
-        ])
+        ]
+
+        schema_definitions = self._extract_field_schema(config)
+
+        explicit_required = config.get('required_columns')
+        explicit_optional = config.get('optional_columns')
+
+        derived_required = [
+            field.get('name') for field in schema_definitions
+            if isinstance(field, dict) and field.get('required', False)
+        ]
+        derived_required = [name for name in derived_required if name]
+
+        derived_optional = [
+            field.get('name') for field in schema_definitions
+            if isinstance(field, dict) and not field.get('required', False)
+        ]
+        derived_optional = [name for name in derived_optional if name]
+
+        base_optional = explicit_optional or default_optional
+        if derived_optional:
+            base_optional = [
+                col for col in base_optional
+                if col not in derived_required
+            ]
+            base_optional = derived_optional + base_optional
+
+        self.required_columns = explicit_required or derived_required or default_required
+        self.optional_columns = list(dict.fromkeys(base_optional))
+        self.field_definitions = schema_definitions
+        self.field_labels = {
+            field['name']: field.get('label', field['name'])
+            for field in self.field_definitions
+            if isinstance(field, dict) and field.get('name')
+        }
+        self.field_alias_map = {
+            field['name']: field.get('aliases', [])
+            for field in self.field_definitions
+            if isinstance(field, dict) and field.get('name')
+        }
+        self.field_pattern_map = {
+            field['name']: field.get('patterns', [])
+            for field in self.field_definitions
+            if isinstance(field, dict) and field.get('name')
+        }
         self.date_formats = [
             '%Y-%m-%d %H:%M:%S',
             '%Y-%m-%d',
@@ -54,8 +98,42 @@ class CSVProcessor:
         # Field mapping for auto-detection
         self.field_mapping = {}
         self.errors_log = []
-        
+
         logger.info("CSVProcessor initialized")
+
+    @staticmethod
+    def _extract_field_schema(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract field schema definitions from configuration."""
+        if not config:
+            return []
+
+        if isinstance(config, dict):
+            if isinstance(config.get('definitions'), list):
+                return config['definitions']
+
+            fields_section = config.get('fields')
+            if isinstance(fields_section, dict) and isinstance(fields_section.get('definitions'), list):
+                return fields_section['definitions']
+
+        return []
+
+    @staticmethod
+    def _normalize_header(value: str) -> str:
+        """Normalize header strings for comparison."""
+        if not isinstance(value, str):
+            return ''
+        return re.sub(r'[^a-z0-9]', '', value.lower())
+
+    def get_field_label(self, name: str) -> str:
+        """Return a human-friendly label for a field name."""
+        return self.field_labels.get(name, name)
+
+    def get_mappable_fields(self) -> List[Dict[str, Any]]:
+        """Return schema fields that should appear in the mapping UI."""
+        return [
+            field for field in self.field_definitions
+            if isinstance(field, dict) and field.get('show_in_mapping', True)
+        ]
     
     def detect_encoding(self, file_path: Path) -> str:
         """
@@ -156,9 +234,49 @@ class CSVProcessor:
         Returns:
             Dictionary mapping standard fields to CSV columns
         """
-        mapping = {}
-        
-        # Define patterns for common field names
+        if not headers:
+            return {}
+
+        if self.field_definitions:
+            mapping = self._auto_map_with_schema(headers)
+        else:
+            mapping = self._auto_map_with_defaults(headers)
+
+        self.field_mapping = mapping
+        logger.info(f"Auto-mapped {len(mapping)} fields")
+
+        return mapping
+
+    def _auto_map_with_schema(self, headers: List[str]) -> Dict[str, str]:
+        """Auto-map using configured field schema."""
+        mapping: Dict[str, str] = {}
+        used_headers: set[str] = set()
+        normalized_headers = {header: self._normalize_header(header) for header in headers}
+
+        for field in self.field_definitions:
+            if not isinstance(field, dict):
+                continue
+
+            name = field.get('name')
+            if not name:
+                continue
+
+            matched_header = self._match_field_to_header(
+                field,
+                headers,
+                normalized_headers,
+                used_headers
+            )
+
+            if matched_header:
+                mapping[name] = matched_header
+                used_headers.add(matched_header)
+
+        return mapping
+
+    def _auto_map_with_defaults(self, headers: List[str]) -> Dict[str, str]:
+        """Fallback auto-mapping when no schema is provided."""
+        mapping: Dict[str, str] = {}
         patterns = {
             'call_id': r'(call[\s_-]?id|id|identifier|record[\s_-]?id)',
             'phone_number': r'(phone|telephone|number|contact|mobile|cell)',
@@ -171,19 +289,59 @@ class CSVProcessor:
             'notes': r'(notes|comments|remarks|description|transcript)',
             'revenue': r'(revenue|amount|value|price|cost|sale)',
         }
-        
-        # Try to match headers with patterns
+
         for standard_field, pattern in patterns.items():
             for header in headers:
                 if re.search(pattern, header.lower()):
                     mapping[standard_field] = header
                     break
-        
-        # Update internal mapping
-        self.field_mapping = mapping
-        logger.info(f"Auto-mapped {len(mapping)} fields")
-        
+
         return mapping
+
+    def _match_field_to_header(
+        self,
+        field: Dict[str, Any],
+        headers: List[str],
+        normalized_headers: Dict[str, str],
+        used_headers: set[str]
+    ) -> Optional[str]:
+        """Match a single field definition to the best header."""
+        name = field.get('name')
+        if not name:
+            return None
+
+        label = field.get('label')
+        aliases = self.field_alias_map.get(name, [])
+        candidates = {
+            self._normalize_header(name)
+        }
+
+        if label:
+            candidates.add(self._normalize_header(label))
+
+        candidates.update(self._normalize_header(alias) for alias in aliases)
+
+        for header in headers:
+            if header in used_headers:
+                continue
+            if normalized_headers.get(header) in candidates:
+                return header
+
+        patterns = self.field_pattern_map.get(name, [])
+        for pattern in patterns:
+            try:
+                compiled = re.compile(pattern)
+            except re.error as exc:
+                logger.warning(f"Invalid regex pattern '{pattern}' for field '{name}': {exc}")
+                continue
+
+            for header in headers:
+                if header in used_headers:
+                    continue
+                if compiled.search(header.lower()) or compiled.search(normalized_headers.get(header, '')):
+                    return header
+
+        return None
     
     def standardize_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -207,11 +365,18 @@ class CSVProcessor:
             df = df.loc[:, ~df.columns.duplicated()]
             logger.info("Removed duplicate columns after standardization")
 
+        if 'timestamp' not in df.columns:
+            for fallback in ['start_time', 'created_at', 'date']:
+                if fallback in df.columns:
+                    df['timestamp'] = df[fallback]
+                    logger.debug(f"Created timestamp column from {fallback}")
+                    break
+
         # Add missing optional columns with default values
         for col in self.optional_columns:
             if col not in df.columns:
                 df[col] = None
-        
+
         logger.info(f"Standardized columns: {list(df.columns)}")
         return df
     

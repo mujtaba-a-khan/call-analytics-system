@@ -52,7 +52,17 @@ class UploadPage:
         """
         self.storage_manager = storage_manager
         self.config = config
-        self.csv_processor = CSVProcessor()
+
+        csv_config = dict(config.get('csv_processor', {}))
+        fields_config = config.get('fields')
+
+        if isinstance(fields_config, dict):
+            if 'definitions' in fields_config:
+                csv_config['definitions'] = fields_config['definitions']
+            else:
+                csv_config['fields'] = fields_config
+
+        self.csv_processor = CSVProcessor(csv_config)
         # Initialize audio processor with derived configuration
         audio_config = dict(config.get('audio', {}))
         paths_config = config.get('paths', {})
@@ -146,7 +156,8 @@ class UploadPage:
                 with col1:
                     st.write("**Detected Mappings:**")
                     for standard, csv_field in field_mapping.items():
-                        st.success(f"✓ {standard} → {csv_field}")
+                        label = self.csv_processor.get_field_label(standard)
+                        st.success(f"✓ {label} → {csv_field}")
                 
                 with col2:
                     st.write("**Unmapped Fields:**")
@@ -491,18 +502,35 @@ class UploadPage:
         """
         st.write("Manually adjust field mappings:")
         
-        # Standard fields that need mapping
-        standard_fields = [
-            'call_id', 'phone_number', 'call_type', 'outcome',
-            'duration', 'timestamp', 'agent_id', 'campaign',
-            'notes', 'revenue'
-        ]
-        
+        schema_fields = self.csv_processor.get_mappable_fields()
+        if schema_fields:
+            standard_fields = schema_fields
+        else:
+            fallback_fields = [
+                'call_id', 'phone_number', 'call_type', 'outcome',
+                'duration', 'timestamp', 'agent_id', 'campaign',
+                'notes', 'revenue'
+            ]
+            standard_fields = [
+                {'name': field, 'label': field.replace('_', ' ').title()}
+                for field in fallback_fields
+            ]
+
         # Create mapping interface
         new_mapping = {}
-        
+
         for field in standard_fields:
-            current = current_mapping.get(field, '')
+            if isinstance(field, dict):
+                field_name = field.get('name')
+                field_label = field.get('label', field_name)
+            else:
+                field_name = field
+                field_label = field
+
+            if not field_name:
+                continue
+
+            current = current_mapping.get(field_name, '')
             options = [''] + headers
             
             # Ensure current value is in options
@@ -510,15 +538,15 @@ class UploadPage:
                 options.append(current)
             
             selected = st.selectbox(
-                f"{field}:",
+                f"{field_label}:",
                 options=options,
                 index=options.index(current) if current in options else 0,
-                key=f"map_{field}"
+                key=f"map_{field_name}"
             )
             
             if selected:
-                new_mapping[field] = selected
-        
+                new_mapping[field_name] = selected
+
         # Update mapping
         if st.button("Apply Mapping"):
             self.csv_processor.field_mapping = new_mapping
@@ -626,7 +654,59 @@ class UploadPage:
         except Exception as e:
             logger.error(f"Error importing CSV: {e}")
             st.error(f"Import failed: {str(e)}")
-    
+
+    def _batch_process_csv_file(self,
+                                file_path: Path,
+                                deduplicate: bool = True) -> Tuple[int, int]:
+        """Process a CSV file during batch processing without UI widgets."""
+        total_processed = 0
+
+        try:
+            headers = pd.read_csv(file_path, nrows=0).columns.tolist()
+            existing_mapping = dict(self.csv_processor.field_mapping)
+            mapping = self.csv_processor.auto_map_fields(headers)
+            if not mapping and existing_mapping:
+                self.csv_processor.field_mapping = existing_mapping
+        except Exception as header_error:
+            logger.warning(f"Unable to auto-map fields for {file_path.name}: {header_error}")
+
+        def process_batch(records: pd.DataFrame) -> None:
+            nonlocal total_processed
+            try:
+                added = self.storage_manager.append_records(records, deduplicate=deduplicate)
+            except AttributeError:
+                if hasattr(self.storage_manager, 'load_all_records'):
+                    existing = self.storage_manager.load_all_records()
+                    combined = pd.concat([existing, records], ignore_index=True)
+                    self.storage_manager.save_dataframe(combined, 'call_records')
+                    added = len(records)
+                else:
+                    raise
+            total_processed += added
+
+        processed, errors = self.csv_processor.process_csv_batch(
+            file_path,
+            batch_callback=process_batch
+        )
+
+        self.storage_manager.add_import_record({
+            'timestamp': datetime.now(),
+            'filename': file_path.name,
+            'file_type': 'CSV',
+            'records_imported': processed,
+            'errors': errors,
+            'status': 'success' if errors == 0 else 'partial'
+        })
+
+        try:
+            loaded_df = self.storage_manager.load_all_records()
+            if loaded_df is not None:
+                st.session_state.data = loaded_df
+        except Exception as load_error:
+            logger.warning(f"Unable to refresh session data after batch import: {load_error}")
+
+        return processed, errors
+
     def _process_audio_files(self,
                             files: List[Any],
                             language: str,
@@ -717,14 +797,67 @@ class UploadPage:
             parallel: Whether to use parallel processing
         """
         st.info(f"Starting batch processing from {directory}")
-        
-        # Implementation would include:
-        # - File discovery and queuing
-        # - Batch processing with progress tracking
-        # - Error handling and reporting
-        # - Result summary
-        
-        st.success("Batch processing complete")
+
+        csv_files: List[Path] = []
+        audio_files: List[Path] = []
+
+        if process_csv:
+            csv_files = sorted(directory.glob('**/*.csv'))
+        if process_audio:
+            audio_patterns = ['*.wav', '*.mp3', '*.m4a', '*.ogg', '*.flac']
+            for pattern in audio_patterns:
+                audio_files.extend(directory.glob(f'**/{pattern}'))
+            audio_files.sort()
+
+        total_files = len(csv_files) + len(audio_files)
+
+        if total_files == 0:
+            st.warning("No files found to process in the selected directory.")
+            return
+
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        completed = 0
+        csv_results: List[str] = []
+        csv_errors: List[str] = []
+
+        for csv_path in csv_files:
+            completed += 1
+            status_text.text(f"Processing CSV file {csv_path.name} ({completed}/{total_files})")
+            try:
+                processed, errors = self._batch_process_csv_file(csv_path, deduplicate=True)
+                message = f"{csv_path.name}: {processed} records"
+                if errors:
+                    message += f" ({errors} errors)"
+                csv_results.append(message)
+            except Exception as exc:
+                logger.error(f"Batch CSV processing failed for {csv_path}: {exc}")
+                csv_errors.append(f"{csv_path.name}: {exc}")
+            progress_bar.progress(min(completed / total_files, 1.0))
+
+        audio_results: List[str] = []
+        audio_errors: List[str] = []
+
+        if audio_files:
+            status_text.text("Audio batch processing is not yet implemented in batch mode.")
+            audio_errors.append(
+                "Audio batch processing is not currently supported; please process audio files individually."
+            )
+            completed += len(audio_files)
+            progress_bar.progress(min(completed / total_files, 1.0))
+
+        status_text.text("Batch processing complete")
+        progress_bar.progress(1.0)
+
+        if csv_results:
+            st.success("\n".join(["CSV files processed:"] + csv_results))
+        if csv_errors:
+            st.warning("\n".join(["CSV processing issues:"] + csv_errors))
+        if audio_results:
+            st.success("\n".join(["Audio files processed:"] + audio_results))
+        if audio_errors:
+            st.warning("\n".join(audio_errors))
     
     def _process_zip_file(self, zip_file: Any) -> None:
         """

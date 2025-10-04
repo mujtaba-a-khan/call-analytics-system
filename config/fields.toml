@@ -1,0 +1,146 @@
+[fields]
+version = 1
+
+[[fields.definitions]]
+name = "call_id"
+label = "Call ID"
+required = true
+show_in_mapping = true
+aliases = ["call_id", "callid", "interaction_id"]
+patterns = ["call[\\s_-]?id", "identifier", "record[\\s_-]?id"]
+
+[[fields.definitions]]
+name = "timestamp"
+label = "Call Timestamp"
+required = true
+show_in_mapping = true
+aliases = ["timestamp", "start_time", "call_timestamp", "datetime"]
+patterns = ["time", "date", "start[\\s_-]?time", "timestamp"]
+
+[[fields.definitions]]
+name = "duration"
+label = "Duration (seconds)"
+required = true
+show_in_mapping = true
+aliases = ["duration", "duration_seconds", "call_duration", "length"]
+patterns = ["duration", "length", "call[\\s_-]?time", "seconds", "minutes"]
+
+[[fields.definitions]]
+name = "transcript"
+label = "Transcript"
+required = true
+show_in_mapping = true
+aliases = ["transcript", "notes", "call_notes", "conversation", "summary"]
+patterns = ["transcript", "notes", "remarks", "description", "conversation"]
+
+[[fields.definitions]]
+name = "phone_number"
+label = "Phone Number"
+required = false
+show_in_mapping = true
+aliases = ["phone_number", "phone", "contact_number", "customer_phone"]
+patterns = ["phone", "telephone", "mobile", "contact", "cell"]
+
+[[fields.definitions]]
+name = "agent_id"
+label = "Agent"
+required = false
+show_in_mapping = true
+aliases = ["agent_id", "agent", "employee_id", "rep_id"]
+patterns = ["agent", "employee", "representative", "rep"]
+
+[[fields.definitions]]
+name = "agent_name"
+label = "Agent Name"
+required = false
+show_in_mapping = true
+aliases = ["agent_name", "agent", "agent_full_name", "agent_name_full"]
+patterns = ["agent\\b", "agent.*name", "representative.*name"]
+
+[[fields.definitions]]
+name = "campaign"
+label = "Campaign"
+required = false
+show_in_mapping = true
+aliases = ["campaign", "project", "program", "initiative"]
+patterns = ["campaign", "project", "program", "initiative"]
+
+[[fields.definitions]]
+name = "outcome"
+label = "Outcome"
+required = false
+show_in_mapping = true
+aliases = ["outcome", "result", "status", "disposition"]
+patterns = ["outcome", "result", "status", "disposition"]
+
+[[fields.definitions]]
+name = "call_type"
+label = "Call Type"
+required = false
+show_in_mapping = true
+aliases = ["call_type", "type", "category"]
+patterns = ["type", "category", "classification", "call[\\s_-]?type"]
+
+[[fields.definitions]]
+name = "notes"
+label = "Notes"
+required = false
+show_in_mapping = true
+aliases = ["notes", "comments", "remarks", "summary_notes"]
+patterns = ["notes", "comments", "remarks", "summary"]
+
+[[fields.definitions]]
+name = "revenue"
+label = "Revenue / Amount"
+required = false
+show_in_mapping = true
+aliases = ["revenue", "amount", "sale_value", "total_amount"]
+patterns = ["revenue", "amount", "value", "price", "cost", "sale"]
+
+[[fields.definitions]]
+name = "customer_name"
+label = "Customer Name"
+required = false
+show_in_mapping = true
+aliases = ["customer_name", "client_name", "buyer_name"]
+patterns = ["customer.*name", "client.*name", "buyer.*name"]
+
+[[fields.definitions]]
+name = "product_name"
+label = "Product"
+required = false
+show_in_mapping = true
+aliases = ["product_name", "item_name", "service_name"]
+patterns = ["product", "item", "service", "plan"]
+
+[[fields.definitions]]
+name = "quantity"
+label = "Quantity"
+required = false
+show_in_mapping = true
+aliases = ["quantity", "qty", "units"]
+patterns = ["quantity", "qty", "units", "volume"]
+
+[[fields.definitions]]
+name = "order_id"
+label = "Order ID"
+required = false
+show_in_mapping = true
+aliases = ["order_id", "orderid", "purchase_id"]
+patterns = ["order", "purchase", "invoice"]
+
+[[fields.definitions]]
+name = "language"
+label = "Language"
+required = false
+show_in_mapping = true
+aliases = ["language", "locale", "lang"]
+patterns = ["language", "locale", "lang"]
+
+[[fields.definitions]]
+name = "priority"
+label = "Priority"
+required = false
+show_in_mapping = false
+aliases = ["priority", "urgency"]
+patterns = ["priority", "urgency", "severity"]

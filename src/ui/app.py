@@ -98,18 +98,17 @@ class CallAnalyticsApp:
         # Try to load configuration files
         config_dir = Path('config')
         if config_dir.exists():
-            config_files = ['app.toml', 'models.toml', 'vectorstore.toml']
-            
-            for config_file in config_files:
-                config_path = config_dir / config_file
+            config_files = sorted(config_dir.glob('*.toml'))
+
+            for config_path in config_files:
                 if config_path.exists():
                     try:
                         with open(config_path, 'r') as f:
                             file_config = toml.load(f)
-                            config.update(file_config)
-                            logger.info(f"Loaded configuration from {config_file}")
+                            config = self.merge_configs(config, file_config)
+                            logger.info(f"Loaded configuration from {config_path.name}")
                     except Exception as e:
-                        logger.warning(f"Failed to load {config_file}: {e}")
+                        logger.warning(f"Failed to load {config_path.name}: {e}")
         
         return config
     
@@ -152,6 +151,16 @@ class CallAnalyticsApp:
                 'api_base': 'http://localhost:11434'
             }
         }
+
+    @staticmethod
+    def merge_configs(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively merge configuration dictionaries."""
+        for key, value in updates.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                base[key] = CallAnalyticsApp.merge_configs(base[key], value)
+            else:
+                base[key] = value
+        return base
     
     def initialize_session_state(self) -> None:
         """Initialize Streamlit session state variables"""
