@@ -8,7 +8,7 @@ Includes caching, batch processing, and confidence scoring.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 import hashlib
 import pickle
@@ -32,6 +32,24 @@ class TranscriptionResult:
     language: str
     confidence: float
     model_used: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Provide a dict view for legacy code expecting mapping semantics."""
+        return {
+            'text': self.transcript,
+            'transcript': self.transcript,
+            'segments': self.segments,
+            'duration': self.duration_seconds,
+            'duration_seconds': self.duration_seconds,
+            'language': self.language,
+            'confidence': self.confidence,
+            'model': self.model_used,
+            'model_used': self.model_used,
+        }
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Compatibility helper matching dict.get signature."""
+        return self.to_dict().get(key, default)
 
 
 class WhisperSTT:
@@ -57,6 +75,7 @@ class WhisperSTT:
         self.beam_size = config.get('beam_size', 1)
         self.temperature = config.get('temperature', 0.0)
         self.vad_filter = config.get('vad_filter', False)
+        self.default_language = config.get('language')
         
         # Cache settings
         self.cache_dir = Path(config.get('cache_dir', 'data/cache/stt'))
@@ -93,31 +112,42 @@ class WhisperSTT:
             logger.error(f"Failed to load Whisper model: {e}")
             raise RuntimeError(f"Could not load Whisper model: {e}")
     
-    def transcribe(self, audio_path: Path, use_cache: bool = True) -> TranscriptionResult:
+    def transcribe(
+        self,
+        audio_path: Path,
+        language: Optional[str] = None,
+        use_cache: bool = True
+    ) -> TranscriptionResult:
         """
         Transcribe an audio file to text.
         
         Args:
             audio_path: Path to the audio file (should be WAV 16kHz mono)
+            language: Preferred language code (None uses defaults)
             use_cache: Whether to use cached transcriptions
         
         Returns:
             TranscriptionResult containing transcript and metadata
         """
         # Check cache first
-        if use_cache:
+        if use_cache and language is None:
             cached_result = self._load_from_cache(audio_path)
             if cached_result:
                 logger.info(f"Using cached transcription for {audio_path.name}")
                 return cached_result
-        
+
         try:
             logger.info(f"Transcribing audio: {audio_path.name}")
             
+            language_hint = language or self.default_language
+            # Use english for .en models when no explicit language supplied
+            if language_hint is None and self.model_size.endswith('.en'):
+                language_hint = 'en'
+
             # Perform transcription
             segments, info = self.model.transcribe(
                 str(audio_path),
-                language='en',  # Force English for .en models
+                language=language_hint,
                 beam_size=self.beam_size,
                 vad_filter=self.vad_filter,
                 temperature=self.temperature
@@ -152,18 +182,20 @@ class WhisperSTT:
             # Get audio duration from info
             duration = float(getattr(info, 'duration', 0.0))
             
+            detected_language = language_hint or getattr(info, 'language', None) or 'unknown'
+
             # Create result object
             result = TranscriptionResult(
                 transcript=full_transcript,
                 segments=segment_list,
                 duration_seconds=duration,
-                language='en',
+                language=detected_language,
                 confidence=avg_confidence,
                 model_used=self.model_size
             )
             
-            # Save to cache
-            if use_cache:
+            # Save to cache only when we can safely reuse without language-specific differences
+            if use_cache and language is None:
                 self._save_to_cache(audio_path, result)
             
             logger.info(f"Transcription complete: {len(full_transcript)} chars, "

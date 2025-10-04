@@ -340,32 +340,42 @@ SECRET_KEY=your_secret_key_here
     
     def create_sample_data(self) -> bool:
         """
-        Create sample data for testing.
+        Create sample assets (tabular and audio) for testing.
         
         Returns:
             True if successful, False otherwise
         """
         self.logger.info("Creating sample data...")
-        
+
+        csv_success = self._create_sample_csv_data()
+        voice_success = self._create_sample_voice_data()
+
+        if not csv_success:
+            self.logger.warning("Sample CSV generation failed; see logs above")
+
+        if not voice_success:
+            self.logger.warning("Sample voice generation failed; see logs above")
+
+        return csv_success and voice_success
+
+    def _create_sample_csv_data(self) -> bool:
+        """Create CSV sample data matching the call import format."""
         try:
             import pandas as pd
             from datetime import datetime, timedelta
             import random
-            
-            # Generate sample call records
+
             num_records = 100
-            
-            # Sample data generators
+
             phone_numbers = [f"+1{random.randint(2000000000, 9999999999)}" for _ in range(50)]
             agents = [f"agent_{i:03d}" for i in range(1, 11)]
             campaigns = ['sales', 'support', 'billing', 'retention', 'survey']
             outcomes = ['connected', 'no_answer', 'voicemail', 'busy', 'failed']
             call_types = ['inbound', 'outbound']
-            
-            # Generate records
+
             records = []
             base_date = datetime.now() - timedelta(days=30)
-            
+
             for i in range(num_records):
                 record = {
                     'call_id': f"CALL_{i:06d}",
@@ -391,18 +401,295 @@ SECRET_KEY=your_secret_key_here
                     ])
                 }
                 records.append(record)
-            
-            # Save as CSV
+
             df = pd.DataFrame(records)
             sample_file = self.base_dir / 'data' / 'raw' / 'sample_calls.csv'
             df.to_csv(sample_file, index=False)
-            
-            self.logger.info(f"✓ Created sample data with {num_records} records")
+
+            self.logger.info(f"✓ Created sample CSV data with {num_records} records")
             return True
-            
+
         except Exception as e:
-            self.logger.error(f"Failed to create sample data: {e}")
+            self.logger.error(f"Failed to create sample CSV data: {e}")
             return False
+
+    def _create_sample_voice_data(self) -> bool:
+        """Create sample audio files with transcripts for voice ingestion demos."""
+        try:
+            import pandas as pd
+            from datetime import datetime, timedelta
+            import random
+            import contextlib
+            import wave
+
+            audio_dir = self.base_dir / 'data' / 'raw' / 'sample_audio'
+            transcripts_dir = audio_dir / 'transcripts'
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            transcripts_dir.mkdir(parents=True, exist_ok=True)
+
+            base_date = datetime.now() - timedelta(days=7)
+            phone_numbers = [f"+1{random.randint(2000000000, 9999999999)}" for _ in range(20)]
+            agents = [
+                {'id': 'agent_101', 'name': 'Alex Rivera'},
+                {'id': 'agent_204', 'name': 'Priya Malhotra'},
+                {'id': 'agent_318', 'name': 'Taylor Chen'},
+                {'id': 'agent_422', 'name': 'Morgan Blake'},
+                {'id': 'agent_537', 'name': 'Jamie Patel'}
+            ]
+
+            sample_scripts = [
+                {
+                    'call_id': 'CALL_AUDIO_001',
+                    'script': (
+                        "Hello, thanks for calling Acme Support. This is Alex speaking. "
+                        "I understand you're seeing an unexpected billing charge. "
+                        "I'd be happy to take a look at that for you."
+                    ),
+                    'notes': 'Resolved billing inquiry on the call.',
+                    'call_topic': 'billing_correction',
+                    'campaign': 'billing_support',
+                    'outcome': 'resolved',
+                    'call_type': 'inbound',
+                    'revenue': 0.0,
+                    'tags': ['billing', 'invoice', 'refund'],
+                    'sentiment': 'concerned'
+                },
+                {
+                    'call_id': 'CALL_AUDIO_002',
+                    'script': (
+                        "Good afternoon, you've reached the Acme sales desk. This is Priya. "
+                        "I'm calling to follow up on the demo you attended last week and see if you had any questions."
+                    ),
+                    'notes': 'Left voicemail requesting callback.',
+                    'call_topic': 'sales_follow_up',
+                    'campaign': 'midmarket_outreach',
+                    'outcome': 'voicemail',
+                    'call_type': 'outbound',
+                    'revenue': 0.0,
+                    'tags': ['sales', 'follow_up'],
+                    'sentiment': 'neutral'
+                },
+                {
+                    'call_id': 'CALL_AUDIO_003',
+                    'script': (
+                        "Hi Jamie, it's Taylor from Acme Customer Success. "
+                        "I'm checking in to confirm that the latest firmware update resolved the disconnect issue you reported."
+                    ),
+                    'notes': 'Customer confirmed issue resolved; scheduled follow-up email.',
+                    'call_topic': 'technical_support',
+                    'campaign': 'customer_success',
+                    'outcome': 'resolved',
+                    'call_type': 'outbound',
+                    'revenue': random.choice([0.0, 149.0, 299.0]),
+                    'tags': ['support', 'firmware'],
+                    'sentiment': 'positive'
+                },
+                {
+                    'call_id': 'CALL_AUDIO_004',
+                    'script': (
+                        "Hi, this is Morgan from Acme Renewals. I'm reaching out to discuss your upcoming "
+                        "subscription renewal and share the loyalty discount that's available this quarter."
+                    ),
+                    'notes': 'Customer agreed to renew with discount applied.',
+                    'call_topic': 'renewal_negotiation',
+                    'campaign': 'retention_push',
+                    'outcome': 'upsold',
+                    'call_type': 'outbound',
+                    'revenue': 499.0,
+                    'tags': ['renewal', 'discount'],
+                    'sentiment': 'optimistic'
+                },
+                {
+                    'call_id': 'CALL_AUDIO_005',
+                    'script': (
+                        "Hello, you've reached Acme Surveys. We're collecting quick feedback about your "
+                        "recent installation appointment. Do you have two minutes to answer three questions?"
+                    ),
+                    'notes': 'Captured NPS response and forwarded to analytics team.',
+                    'call_topic': 'customer_feedback',
+                    'campaign': 'nps_automation',
+                    'outcome': 'completed',
+                    'call_type': 'outbound',
+                    'revenue': 0.0,
+                    'tags': ['survey', 'feedback'],
+                    'sentiment': 'neutral'
+                }
+            ]
+
+            metadata_rows = []
+            method_stats = {'pyttsx3': 0, 'say': 0, 'tone_fallback': 0}
+
+            for idx, sample in enumerate(sample_scripts, start=1):
+                audio_name = f"sample_call_{idx:02d}.wav"
+                audio_path = audio_dir / audio_name
+                transcript_path = transcripts_dir / f"{audio_path.stem}.txt"
+
+                generated, method_used = self._generate_voice_sample(
+                    sample['script'],
+                    audio_path
+                )
+
+                if method_used in method_stats:
+                    method_stats[method_used] += 1
+                else:
+                    method_stats[method_used] = 1
+
+                transcript_path.write_text(sample['script'], encoding='utf-8')
+
+                # Compute duration if possible
+                duration_seconds = self._measure_audio_duration(audio_path)
+
+                agent = random.choice(agents)
+                record = {
+                    'call_id': sample['call_id'],
+                    'audio_file': audio_name,
+                    'transcript_file': str(transcript_path.relative_to(audio_dir)),
+                    'transcript': sample['script'],
+                    'phone_number': random.choice(phone_numbers),
+                    'timestamp': base_date + timedelta(
+                        days=random.randint(0, 7),
+                        hours=random.randint(8, 18),
+                        minutes=random.randint(0, 59)
+                    ),
+                    'duration_seconds': duration_seconds,
+                    'agent_id': agent['id'],
+                    'agent_name': agent['name'],
+                    'campaign': sample['campaign'],
+                    'outcome': sample['outcome'],
+                    'call_type': sample['call_type'],
+                    'call_topic': sample['call_topic'],
+                    'sentiment': sample['sentiment'],
+                    'tags': ",".join(sample['tags']),
+                    'revenue': sample['revenue'],
+                    'notes': sample['notes']
+                }
+
+                metadata_rows.append(record)
+
+                if not generated:
+                    self.logger.warning(
+                        "Generated synthetic tone for %s; install pyttsx3 or use macOS 'say' for real speech",
+                        audio_name
+                    )
+
+            metadata_df = pd.DataFrame(metadata_rows)
+            metadata_file = audio_dir / 'sample_audio_metadata.csv'
+            metadata_df.to_csv(metadata_file, index=False)
+
+            created_files = len(metadata_rows)
+            if created_files:
+                details = ", ".join(
+                    f"{method}:{count}" for method, count in method_stats.items() if count
+                )
+                self.logger.info(
+                    "✓ Created %s sample audio files in %s (%s)",
+                    created_files,
+                    audio_dir,
+                    details or 'no audio generated'
+                )
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to create sample voice data: {e}")
+            return False
+
+    def _generate_voice_sample(self, text: str, output_path: Path) -> Tuple[bool, str]:
+        """Create a spoken WAV file for the provided text.
+
+        Returns a tuple of (success flag, method label).
+        """
+        try:
+            import pyttsx3  # type: ignore
+
+            engine = pyttsx3.init()
+            engine.setProperty('rate', 160)
+            engine.save_to_file(text, str(output_path))
+            engine.runAndWait()
+            return True, 'pyttsx3'
+
+        except Exception as pyttsx_error:
+            self.logger.debug(f"pyttsx3 not available or failed: {pyttsx_error}")
+
+        try:
+            import shutil
+            say_path = shutil.which('say')
+            if say_path:
+                subprocess.run(
+                    [
+                        say_path,
+                        '-o', str(output_path),
+                        '--file-format=WAVE',
+                        '--data-format=LEF32@16000',
+                        text
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                return True, 'say'
+        except Exception as say_error:
+            self.logger.debug(f"macOS say command failed: {say_error}")
+
+        try:
+            self._write_tone_sample(output_path)
+            return False, 'tone_fallback'
+        except Exception as tone_error:
+            self.logger.error(f"Failed to write fallback tone sample: {tone_error}")
+            raise
+
+    def _write_tone_sample(self, output_path: Path, duration: float = 3.0) -> None:
+        """Write a simple sine wave tone when no TTS engine is available."""
+        import math
+        import wave
+        import struct
+
+        sample_rate = 16000
+        frequency = 440
+        amplitude = 16000
+        frame_count = int(duration * sample_rate)
+
+        with wave.open(str(output_path), 'w') as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+
+            for frame_index in range(frame_count):
+                value = int(amplitude * math.sin(2 * math.pi * frequency * (frame_index / sample_rate)))
+                wav_file.writeframes(struct.pack('<h', value))
+
+    @staticmethod
+    def _measure_audio_duration(audio_path: Path) -> float:
+        """Read actual WAV duration in seconds, returning 0 on failure."""
+        try:
+            import contextlib
+            import wave
+            import aifc
+
+            try:
+                import soundfile as sf  # type: ignore
+
+                info = sf.info(str(audio_path))
+                if info.frames and info.samplerate:
+                    return round(info.frames / float(info.samplerate), 2)
+                if getattr(info, 'duration', 0):
+                    return round(info.duration, 2)
+            except (ImportError, RuntimeError):
+                # soundfile not available or unsupported format; fall back to stdlib readers
+                pass
+
+            for opener in (wave.open, aifc.open):
+                try:
+                    with contextlib.closing(opener(str(audio_path), 'rb')) as af:
+                        frames = af.getnframes()
+                        framerate = af.getframerate()
+                        if framerate:
+                            return round(frames / float(framerate), 2)
+                except (wave.Error, aifc.Error, FileNotFoundError):
+                    continue
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Unable to measure duration for %s: %s", audio_path, exc)
+        return 0.0
     
     def verify_installation(self) -> Tuple[bool, Dict[str, bool]]:
         """

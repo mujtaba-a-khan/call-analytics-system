@@ -340,7 +340,7 @@ class StorageManager:
     def append_records(self, new_df: pd.DataFrame, deduplicate: bool = True) -> int:
         """
         Append new records to existing data.
-        
+
         Args:
             new_df: DataFrame with new records
             deduplicate: Whether to remove duplicates
@@ -370,6 +370,47 @@ class StorageManager:
         records_added = len(combined_df) - len(existing_df)
         logger.info(f"Added {records_added} new records")
         return records_added
+
+    def store_call_records(
+        self,
+        records: Union[List[Dict[str, Any]], Dict[str, Any], pd.DataFrame],
+        deduplicate: bool = True
+    ) -> int:
+        """Persist new call records provided as list/dict/DataFrame.
+
+        Args:
+            records: Iterable of call record dicts or DataFrame
+            deduplicate: Remove existing call_id duplicates if True
+
+        Returns:
+            Number of records added to storage
+        """
+        if records is None:
+            logger.warning("No records provided to store_call_records")
+            return 0
+
+        if isinstance(records, pd.DataFrame):
+            new_df = records.copy()
+        elif isinstance(records, dict):
+            new_df = pd.DataFrame([records])
+        else:
+            try:
+                new_df = pd.DataFrame(records)
+            except Exception as e:
+                logger.error(f"Failed to construct DataFrame from records: {e}")
+                raise
+
+        if new_df.empty:
+            logger.warning("No data to store after DataFrame construction")
+            return 0
+
+        # Normalize timestamps
+        if 'timestamp' in new_df.columns:
+            new_df['timestamp'] = pd.to_datetime(new_df['timestamp'], errors='coerce')
+
+        added = self.append_records(new_df, deduplicate=deduplicate)
+        logger.info(f"Stored {added} call record(s)")
+        return added
     
     def create_snapshot(self, df: pd.DataFrame, name: str) -> Path:
         """

@@ -15,6 +15,8 @@ from pydub.utils import which
 import hashlib
 import json
 
+import pandas as pd
+
 # Configure logging for this module
 logger = logging.getLogger(__name__)
 
@@ -98,6 +100,11 @@ class AudioProcessor:
         except Exception as e:
             logger.error(f"Error processing audio file {file_path}: {e}")
             raise AudioProcessingError(f"Failed to process audio: {e}")
+
+    def process_audio(self, file_path: Path, use_cache: bool = True) -> Path:
+        """Compatibility wrapper returning only the processed file path."""
+        processed_path, _ = self.process_audio_file(file_path, use_cache=use_cache)
+        return processed_path
     
     def _normalize_audio(self, audio: AudioSegment) -> AudioSegment:
         """

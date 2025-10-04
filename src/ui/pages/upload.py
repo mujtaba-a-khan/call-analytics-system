@@ -731,6 +731,7 @@ class UploadPage:
         status_text = st.empty()
         
         processed_records = []
+        metadata_lookup = self._load_audio_metadata()
         
         for idx, file in enumerate(files):
             try:
@@ -750,14 +751,30 @@ class UploadPage:
                     language=None if language == 'auto' else language
                 )
                 
-                # Create call record
+                record_metadata = metadata_lookup.get(file.name.lower(), {})
+
+                metadata_duration_seconds = record_metadata.get('duration_seconds')
+                if metadata_duration_seconds in (None, '', 0, 0.0):
+                    metadata_duration_seconds = record_metadata.get('duration')
+                if metadata_duration_seconds in (None, '', 0, 0.0):
+                    metadata_duration_seconds = result.duration_seconds
+
+                metadata_duration_minutes = record_metadata.get('duration_minutes')
+                if metadata_duration_minutes in (None, '', 0, 0.0):
+                    metadata_duration_minutes = metadata_duration_seconds / 60 if metadata_duration_seconds else 0
+
                 record = {
-                    'call_id': f"audio_{datetime.now():%Y%m%d_%H%M%S}_{idx}",
-                    'phone_number': 'unknown',
-                    'timestamp': datetime.now(),
-                    'duration': result.get('duration', 0),
-                    'transcript': result.get('text', ''),
-                    **metadata
+                    'call_id': record_metadata.get(
+                        'call_id', f"audio_{datetime.now():%Y%m%d_%H%M%S}_{idx}"
+                    ),
+                    'phone_number': record_metadata.get('phone_number', 'unknown'),
+                    'timestamp': record_metadata.get('timestamp', datetime.now()),
+                    'duration': metadata_duration_seconds,
+                    'duration_seconds': metadata_duration_seconds,
+                    'duration_minutes': metadata_duration_minutes,
+                    'transcript': result.transcript,
+                    **metadata,
+                    **{k: v for k, v in record_metadata.items() if k not in {'audio_file', 'transcript_file', 'transcript'}}
                 }
                 
                 processed_records.append(record)
@@ -849,6 +866,64 @@ class UploadPage:
 
         status_text.text("Batch processing complete")
         progress_bar.progress(1.0)
+
+    def _load_audio_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Load metadata for sample audio files if available."""
+        paths_config = self.config.get('paths', {}) if isinstance(self.config, dict) else {}
+        data_root = paths_config.get('data', 'data')
+        metadata_file = Path(data_root) / 'raw' / 'sample_audio' / 'sample_audio_metadata.csv'
+        lookup: Dict[str, Dict[str, Any]] = {}
+
+        if not metadata_file.exists():
+            return lookup
+
+        try:
+            import csv
+            from datetime import datetime
+
+            with metadata_file.open('r', encoding='utf-8') as fh:
+                reader = csv.DictReader(fh)
+                for row in reader:
+                    audio_name = row.get('audio_file')
+                    if not audio_name:
+                        continue
+
+                    # Coerce timestamp and numeric fields if present
+                    timestamp_str = row.get('timestamp')
+                    if timestamp_str:
+                        try:
+                            row['timestamp'] = datetime.fromisoformat(timestamp_str)
+                        except ValueError:
+                            row['timestamp'] = timestamp_str
+
+                    for field in [
+                        'duration',
+                        'duration_seconds',
+                        'duration_minutes',
+                        'handle_time_seconds',
+                        'after_call_work_seconds',
+                        'revenue'
+                    ]:
+                        value = row.get(field)
+                        if value is None or value == '':
+                            continue
+                        try:
+                            numeric = float(value)
+                            row[field] = int(numeric) if numeric.is_integer() else numeric
+                        except ValueError:
+                            row[field] = value
+
+                    lookup[audio_name.lower()] = row
+
+            if lookup:
+                logger.info("Loaded metadata for %d audio files", len(lookup))
+            else:
+                logger.info("Audio metadata file found but no entries parsed")
+
+        except Exception as exc:
+            logger.warning(f"Unable to load audio metadata: {exc}")
+
+        return lookup
 
         if csv_results:
             st.success("\n".join(["CSV files processed:"] + csv_results))
