@@ -786,19 +786,142 @@ class AnalysisPage:
                 st.warning("Insufficient data for comparison")
                 return
             
-            # Display comparison
-            ComparisonTable.render(
+            comparison_data = ComparisonTable.prepare_comparison_data(
                 current_data=data2,
                 previous_data=data1,
                 group_column=group_by,
-                metrics=metrics,
-                container=st.container()
+                metrics=metrics
             )
-            
+
+            if comparison_data.empty:
+                st.warning("No comparison data available for the selected configuration")
+                return
+
+            if chart_type == "Table":
+                ComparisonTable.render(
+                    current_data=data2,
+                    previous_data=data1,
+                    group_column=group_by,
+                    metrics=metrics,
+                    container=st.container()
+                )
+            else:
+                self._render_comparison_chart(
+                    comparison=comparison_data,
+                    group_column=group_by,
+                    metrics=metrics,
+                    chart_type=chart_type
+                )
+
+                with st.expander("View comparison table"):
+                    ComparisonTable.render(
+                        current_data=data2,
+                        previous_data=data1,
+                        group_column=group_by,
+                        metrics=metrics
+                    )
+
         except Exception as e:
             logger.error(f"Error in period comparison: {e}")
             st.error(f"Comparison failed: {str(e)}")
-    
+
+    def _render_comparison_chart(self,
+                                 comparison: pd.DataFrame,
+                                 group_column: str,
+                                 metrics: List[str],
+                                 chart_type: str) -> None:
+        """Render the selected visualization for the period comparison results."""
+        try:
+            value_columns: List[str] = []
+            for metric in metrics:
+                current_col = f"{metric}_Current"
+                previous_col = f"{metric}_Previous"
+                if current_col in comparison.columns:
+                    value_columns.append(current_col)
+                if previous_col in comparison.columns:
+                    value_columns.append(previous_col)
+
+            if not value_columns:
+                st.warning("Selected metrics are not available for visualization")
+                return
+
+            chart_df = comparison[[group_column] + value_columns].copy()
+            chart_df[group_column] = chart_df[group_column].astype(str)
+
+            melted = chart_df.melt(
+                id_vars=group_column,
+                var_name="MetricPeriod",
+                value_name="Value"
+            ).dropna(subset=["Value"])
+
+            if melted.empty:
+                st.warning("No comparison values to visualize")
+                return
+
+            melted["Period"] = melted["MetricPeriod"].apply(
+                lambda x: "Current" if x.endswith("_Current") else "Previous"
+            )
+            melted["Metric"] = melted["MetricPeriod"].apply(
+                lambda x: x.replace("_Current", "").replace("_Previous", "")
+            )
+            melted.drop(columns=["MetricPeriod"], inplace=True)
+
+            melted.sort_values(["Metric", group_column, "Period"], inplace=True)
+
+            facet_args: Dict[str, Any] = {}
+            metric_count = melted["Metric"].nunique()
+            if metric_count > 1:
+                facet_args = {"facet_col": "Metric", "facet_col_wrap": 2}
+
+            category_order = {
+                group_column: sorted(melted[group_column].unique()),
+                "Period": ["Previous", "Current"]
+            }
+
+            if chart_type == "Bar Chart":
+                fig = px.bar(
+                    melted,
+                    x=group_column,
+                    y="Value",
+                    color="Period",
+                    barmode="group",
+                    category_orders=category_order,
+                    **facet_args
+                )
+            elif chart_type == "Line Chart":
+                fig = px.line(
+                    melted,
+                    x=group_column,
+                    y="Value",
+                    color="Period",
+                    markers=True,
+                    category_orders=category_order,
+                    **facet_args
+                )
+            else:
+                st.warning(f"Unsupported visualization type '{chart_type}'.")
+                return
+
+            fig.update_layout(
+                template="plotly_dark",
+                title="Period Comparison",
+                legend_title_text="Period",
+                xaxis_title=group_column.replace('_', ' ').title(),
+                yaxis_title="Value"
+            )
+
+            # Clean facet titles for readability
+            if metric_count > 1:
+                fig.for_each_annotation(
+                    lambda a: a.update(text=a.text.split("=")[-1].replace('_', ' ').title())
+                )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        except Exception as exc:
+            logger.error(f"Error rendering comparison chart: {exc}")
+            st.error(f"Failed to render visualization: {str(exc)}")
+
     def _execute_cohort_analysis(self,
                                  cohort_type: str,
                                  cohort_period: str,

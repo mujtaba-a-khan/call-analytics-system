@@ -493,41 +493,59 @@ class ComparisonTable:
             title: Table title
         """
         container = container or st
-        
+
+        comparison = cls.prepare_comparison_data(
+            current_data=current_data,
+            previous_data=previous_data,
+            group_column=group_column,
+            metrics=metrics
+        )
+
+        if comparison.empty:
+            container.warning("No comparison data available")
+            return
+
         container.subheader(title)
-        
-        # Calculate metrics for both periods
-        current_metrics = cls._calculate_group_metrics(current_data, group_column, metrics)
-        previous_metrics = cls._calculate_group_metrics(previous_data, group_column, metrics)
-        
-        # Merge and calculate changes
-        comparison = current_metrics.merge(
-            previous_metrics,
-            on=group_column,
-            suffixes=('_Current', '_Previous'),
-            how='outer'
-        ).fillna(0)
-        
-        # Calculate percentage changes
+
+        display_df = comparison.copy()
+
         for metric in metrics:
-            curr_col = f"{metric}_Current"
-            prev_col = f"{metric}_Previous"
-            
-            if curr_col in comparison.columns and prev_col in comparison.columns:
-                change_col = f"{metric}_Change"
-                comparison[change_col] = (
-                    (comparison[curr_col] - comparison[prev_col]) / 
-                    comparison[prev_col].replace(0, 1) * 100
-                )
-                
-                # Format change column with arrows
-                comparison[change_col] = comparison[change_col].apply(
-                    lambda x: f"{'↑' if x > 0 else '↓'} {abs(x):.1f}%" if not pd.isna(x) else "-"
-                )
-        
-        # Display the comparison table
-        st.dataframe(
-            comparison,
+            change_col = f"{metric}_Change"
+            delta_col = f"{metric}_Delta"
+
+            if change_col in display_df.columns:
+                def _format_change(row: pd.Series) -> str:
+                    value = row[change_col]
+                    delta_value = row.get(delta_col)
+
+                    if pd.isna(value):
+                        return "-"
+
+                    if value > 0:
+                        arrow = "↑"
+                    elif value < 0:
+                        arrow = "↓"
+                    else:
+                        arrow = "→"
+
+                    pct_text = f"{abs(value):.1f}%"
+
+                    delta_text = ""
+                    if delta_value is not None and not pd.isna(delta_value) and delta_value != 0:
+                        if float(delta_value).is_integer():
+                            delta_text = f" (Δ {delta_value:+,.0f})"
+                        else:
+                            delta_text = f" (Δ {delta_value:+,.2f})"
+
+                    return f"{arrow} {pct_text}{delta_text}"
+
+                display_df[change_col] = display_df.apply(_format_change, axis=1)
+
+            if delta_col in display_df.columns:
+                display_df.drop(columns=[delta_col], inplace=True)
+
+        container.dataframe(
+            display_df,
             use_container_width=True,
             hide_index=True,
             column_config={
@@ -535,9 +553,84 @@ class ComparisonTable:
                     col.replace('_', ' '),
                     help=f"Comparison of {col}"
                 )
-                for col in comparison.columns
+                for col in display_df.columns
             }
         )
+
+    @staticmethod
+    def prepare_comparison_data(current_data: pd.DataFrame,
+                                previous_data: pd.DataFrame,
+                                group_column: str,
+                                metrics: List[str]) -> pd.DataFrame:
+        """Compute comparison metrics between periods for reuse in tables and charts."""
+        if current_data is None or previous_data is None:
+            return pd.DataFrame()
+
+        if group_column not in current_data.columns or group_column not in previous_data.columns:
+            return pd.DataFrame()
+
+        current_metrics = ComparisonTable._calculate_group_metrics(
+            current_data,
+            group_column,
+            metrics
+        )
+        previous_metrics = ComparisonTable._calculate_group_metrics(
+            previous_data,
+            group_column,
+            metrics
+        )
+
+        if current_metrics.empty and previous_metrics.empty:
+            return pd.DataFrame()
+
+        comparison = current_metrics.merge(
+            previous_metrics,
+            on=group_column,
+            suffixes=("_Current", "_Previous"),
+            how="outer"
+        ).fillna(0)
+
+        for metric in metrics:
+            curr_col = f"{metric}_Current"
+            prev_col = f"{metric}_Previous"
+
+            if curr_col in comparison.columns and prev_col in comparison.columns:
+                change_col = f"{metric}_Change"
+                delta_col = f"{metric}_Delta"
+
+                delta_values = comparison[curr_col] - comparison[prev_col]
+                comparison[delta_col] = delta_values
+
+                prev_values = comparison[prev_col]
+                max_reference = max(
+                    comparison[curr_col].abs().max(),
+                    comparison[prev_col].abs().max(),
+                    1e-9
+                )
+
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    zero_prev = prev_values == 0
+                    zero_delta = delta_values == 0
+
+                    base_change = np.where(
+                        zero_prev,
+                        np.where(
+                            zero_delta,
+                            0.0,
+                            np.sign(delta_values) * np.minimum(100.0, (np.abs(delta_values) / max_reference) * 100.0)
+                        ),
+                        (delta_values / np.abs(prev_values)) * 100.0
+                    )
+
+                    raw_change = np.where(
+                        zero_prev,
+                        base_change,
+                        np.clip(base_change, -100.0, 100.0)
+                    )
+
+                comparison[change_col] = raw_change
+
+        return comparison
     
     @staticmethod
     def _calculate_group_metrics(data: pd.DataFrame,
