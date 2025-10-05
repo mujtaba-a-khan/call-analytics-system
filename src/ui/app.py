@@ -80,34 +80,204 @@ def _configure_streamlit_page() -> None:
     st.markdown(
         """
         <style>
+        :root {
+            --sidebar-width: 300px;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        .stApp {
+            margin: 0;
+            padding: 0;
+        }
+
         div[data-testid="stSidebarNav"] { display: none; }
+
         [data-testid="stSidebar"] {
             padding: 0 !important;
-            min-width: 300px;
-            width: 300px;
+            min-width: var(--sidebar-width);
+            width: var(--sidebar-width);
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            background: rgba(13, 16, 24, 0.98);
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+            z-index: 60;
+            transform: none !important;
         }
+
         [data-testid="stSidebar"] > div:first-child {
-            padding: 1.5rem 1.25rem 2rem;
+            padding: 3.25rem 1.25rem 1.25rem;
+            height: 100%;
         }
+
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: 100%;
         }
+
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child {
             flex: 1 1 auto;
             overflow-y: auto;
+            padding-right: 0.35rem;
         }
+
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
             margin-top: auto;
         }
+
+        [data-testid="stSidebar"] h1 {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+        }
+
         [data-testid="stSidebar"] .sidebar-footer {
             font-size: 0.85rem;
             opacity: 0.75;
-            padding-top: 0.75rem;
+            padding: 0.75rem 0 0.9rem;
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(13, 16, 24, 0) 0%, rgba(13, 16, 24, 0.95) 45%);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
+
         [data-testid="stSidebar"] .sidebar-footer span {
             display: block;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            padding-top: 3.25rem;
+            padding-bottom: 4.5rem;
+            margin-left: 0;
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        [data-testid="stAppViewContainer"] > .main {
+            padding-top: 0 !important;
+            padding-right: 0 !important;
+            padding-left: 0 !important;
+            margin-left: var(--sidebar-width);
+            width: calc(100% - var(--sidebar-width));
+        }
+
+        [data-testid="stAppViewContainer"] > .main .block-container {
+            padding: 3rem 1.5rem 3.75rem 0.75rem !important;
+            margin: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
+        }
+
+        .main .block-container {
+            padding: 3rem 1.5rem 3.75rem 0.75rem !important;
+            margin: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
+        }
+
+        .main .block-container > h1:first-child {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+        }
+
+        .app-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 0.75rem 1.5rem;
+            padding-left: 1.25rem;
+            background: rgba(15, 17, 24, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: grid;
+            grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+            align-items: center;
+            gap: 1rem;
+            color: rgba(255, 255, 255, 0.7);
+            z-index: 100;
+        }
+
+        .app-footer__meta {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        .app-footer__status {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-chip {
+            padding: 0.25rem 0.6rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.75);
+            white-space: nowrap;
+        }
+
+        .status-chip.status-ok {
+            background: rgba(34, 197, 94, 0.18);
+            color: #4ade80;
+        }
+
+        .status-chip.status-warn {
+            background: rgba(239, 68, 68, 0.18);
+            color: #f87171;
+        }
+
+        .status-chip.status-info {
+            background: rgba(59, 130, 246, 0.18);
+            color: #60a5fa;
+        }
+
+        .app-footer__links {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .app-footer__links a {
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .app-footer__links a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 1200px) {
+            [data-testid="stAppViewContainer"] {
+                margin-left: 0;
+                padding-top: 2.75rem;
+                padding-left: 0;
+            }
+            .app-footer {
+                padding-left: 1rem;
+                grid-template-columns: 1fr;
+                text-align: left;
+                gap: 0.75rem;
+            }
+            .app-footer__meta,
+            .app-footer__status,
+            .app-footer__links {
+                justify-content: flex-start;
+            }
         }
         </style>
         """,
@@ -362,11 +532,12 @@ class CallAnalyticsApp:
         """
         with st.sidebar:
             sidebar_main = st.container()
-            sidebar_footer = st.container()
+            # sidebar_footer = st.container()
 
             with sidebar_main:
                 st.title("📞 Call Analytics")
                 st.divider()
+
                 # Navigation
                 pages = {
                     "Dashboard": "📊",
@@ -374,6 +545,7 @@ class CallAnalyticsApp:
                     "Analysis": "🔍",
                     "Q&A Interface": "💬",
                     "Settings": "⚙️"
+                    
                 }
 
                 selected_page = st.radio(
@@ -383,65 +555,94 @@ class CallAnalyticsApp:
                     index=list(pages.keys()).index(st.session_state.current_page),
                     label_visibility="collapsed"
                 )
-
-                st.session_state.current_page = selected_page
-
-                # System status
                 st.divider()
-                st.caption("System Status")
+                st.session_state.current_page = selected_page
+            # version_text = self.config.get('app', {}).get('version', '1.0.0')
+            # python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}"
 
-                status_items: list[str] = []
-
-                # Check data status
-                row_count = 0
-                try:
-                    row_count = st.session_state.storage_manager.get_record_count()
-                except Exception as count_error:
-                    logger.warning(f"Unable to determine record count: {count_error}")
-
-                if row_count > 0:
-                    status_items.append(f"✅ {row_count:,} records loaded")
-                else:
-                    status_items.append("⚠️ No data loaded")
-
-                # Check vector store status
-                if st.session_state.vector_store is not None:
-                    status_items.append("✅ Vector store ready")
-                else:
-                    status_items.append("⚠️ Vector store not initialized")
-
-                # Check Whisper status
-                if self.config.get('whisper', {}).get('enabled', False):
-                    status_items.append("✅ Whisper STT available")
-                else:
-                    status_items.append("ℹ️ Whisper STT disabled")
-
-                # Check Ollama status
-                if self.config.get('ollama', {}).get('enabled', False):
-                    status_items.append("✅ Ollama LLM available")
-                else:
-                    status_items.append("ℹ️ Ollama LLM disabled")
-
-                for item in status_items:
-                    st.caption(item)
-
-            version_text = self.config.get('app', {}).get('version', '1.0.0')
-            python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}"
-
-            with sidebar_footer:
-                st.markdown(
-                    f"""
-                    <div class="sidebar-footer">
-                        <hr />
-                        <span>v{version_text}</span>
-                        <span>{python_version}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+            # with sidebar_footer:
+            #     st.markdown(
+            #         f"""
+            #         <div class="sidebar-footer">
+            #             <hr />
+            #             <span>v{version_text}</span>
+            #             <span>{python_version}</span>
+            #         </div>
+            #         """,
+            #         unsafe_allow_html=True
+            #     )
 
         return selected_page
-    
+
+    def _collect_system_status(self) -> List[tuple[str, str]]:
+        """Gather formatted system status indicators for display."""
+
+        status_items: List[tuple[str, str]] = []
+
+        storage_manager = st.session_state.get('storage_manager')
+        if storage_manager is not None:
+            try:
+                row_count = storage_manager.get_record_count()
+                if row_count > 0:
+                    status_items.append((f"✅ {row_count:,} records", "status-ok"))
+                else:
+                    status_items.append(("⚠️ No records", "status-warn"))
+            except Exception as count_error:
+                logger.warning(f"Unable to determine record count: {count_error}")
+                status_items.append(("ℹ️ Records unavailable", "status-info"))
+        else:
+            status_items.append(("ℹ️ Storage not ready", "status-info"))
+
+        vector_store = st.session_state.get('vector_store')
+        if vector_store is not None:
+            status_items.append(("✅ Vector store", "status-ok"))
+        else:
+            status_items.append(("⚠️ Vector store", "status-warn"))
+
+        whisper_enabled = self.config.get('whisper', {}).get('enabled', False)
+        if whisper_enabled:
+            status_items.append(("✅ Whisper STT", "status-ok"))
+        else:
+            status_items.append(("ℹ️ Whisper off", "status-info"))
+
+        ollama_enabled = self.config.get('ollama', {}).get('enabled', False)
+        if ollama_enabled:
+            status_items.append(("✅ Ollama LLM", "status-ok"))
+        else:
+            status_items.append(("ℹ️ Ollama off", "status-info"))
+
+        return status_items
+
+    def render_app_footer(self) -> None:
+        """Render a persistent footer for the main application area."""
+
+        current_year = datetime.now().year
+        version_text = self.config.get('app', {}).get('version', '1.0.0')
+        python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}"
+
+        status_badges = self._collect_system_status()
+        status_html = ''.join(
+            f"<span class=\"status-chip {cls}\">{text}</span>" for text, cls in status_badges
+        ) or "<span class=\"status-chip status-info\">ℹ️ Status pending</span>"
+
+        st.markdown(
+            f"""
+            <div class="app-footer">
+                <div class="app-footer__meta">
+                    <span>© {current_year} Call Analytics System</span>
+                    <span>{python_version} · v{version_text}</span>
+                </div>
+                <div class="app-footer__status">{status_html}</div>
+                <div class="app-footer__links">
+                    <a href="https://github.com/mujtaba-a-khan/call-analytics-system" target="_blank" rel="noopener noreferrer">Repository</a>
+                    <a href="https://github.com/mujtaba-a-khan/call-analytics-system/issues" target="_blank" rel="noopener noreferrer">Support</a>
+                    <a href="https://docs.streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit Docs</a>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     def render_page(self, page_name: str) -> None:
         """
         Render the selected page with lazy loading.
@@ -602,6 +803,7 @@ class CallAnalyticsApp:
             
             # Render selected page
             self.render_page(selected_page)
+            self.render_app_footer()
             
         except Exception as e:
             logger.error(f"Application error: {e}\n{traceback.format_exc()}")
