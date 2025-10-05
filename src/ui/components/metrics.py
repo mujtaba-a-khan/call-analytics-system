@@ -7,6 +7,7 @@ summaries with visual enhancements and real-time updates.
 """
 
 import logging
+import numbers
 from typing import Dict, List, Optional, Any, Tuple, Union
 import streamlit as st
 import pandas as pd
@@ -72,22 +73,45 @@ class MetricValue:
     def format_delta(self) -> Optional[str]:
         """
         Format the delta value for display.
-        
+
         Returns:
             Formatted delta string or None
         """
         if self.delta is None:
             return None
-        
-        if self.format_type == 'percent':
-            return f"{self.delta:+.1f}%"
-        elif self.format_type == 'currency':
-            return f"${self.delta:+,.2f}"
-        else:
-            if isinstance(self.delta, float):
-                return f"{self.delta:+,.1f}"
-            else:
-                return f"{self.delta:+,}"
+
+        delta_value = self.delta
+        if isinstance(delta_value, np.generic):
+            delta_value = delta_value.item()
+
+        if isinstance(delta_value, numbers.Real):
+            delta_float = float(delta_value)
+            magnitude = abs(delta_float)
+
+            if magnitude < 1e-9:
+                if self.format_type == 'percent':
+                    return "0.0%"
+                if self.format_type == 'currency':
+                    return "$0.00"
+                if self.format_type == 'duration':
+                    return "0.0 min"
+                return "0"
+
+            sign = '-' if delta_float < 0 else '+'
+
+            if self.format_type == 'percent':
+                return f"{sign}{magnitude:.1f}%"
+            if self.format_type == 'currency':
+                return f"{sign}${magnitude:,.2f}"
+            if self.format_type == 'duration':
+                return f"{sign}{magnitude:.1f} min"
+
+            if isinstance(delta_value, numbers.Integral) and magnitude.is_integer():
+                return f"{sign}{int(magnitude):,}"
+
+            return f"{sign}{magnitude:,.1f}"
+
+        return str(delta_value)
 
 
 class MetricCard:
@@ -126,11 +150,25 @@ class MetricCard:
         # Use Streamlit's metric component
         display_label = metric_label
         metric_label_visibility = 'hidden' if metric.icon else label_visibility
+        delta_display = metric.format_delta()
+        delta_color = metric.delta_color
+
+        if metric.delta is not None:
+            delta_raw = metric.delta
+            if isinstance(delta_raw, np.generic):
+                delta_raw = delta_raw.item()
+
+            if isinstance(delta_raw, numbers.Real):
+                if abs(float(delta_raw)) < 1e-9:
+                    delta_color = 'off'
+                elif delta_color not in {'normal', 'inverse', 'off'}:
+                    delta_color = 'normal'
+
         col.metric(
             label=display_label,
             value=metric.format_value(),
-            delta=metric.format_delta(),
-            delta_color=metric.delta_color,
+            delta=delta_display,
+            delta_color=delta_color,
             help=metric.help_text,
             label_visibility=metric_label_visibility
         )
@@ -355,13 +393,23 @@ class KPIDashboard:
         avg_duration = data['duration'].mean() / 60 if 'duration' in data.columns else 0
         
         # Calculate comparison deltas if provided
-        deltas = {}
+        deltas = {
+            'total': 0,
+            'connected': 0,
+            'rate': 0,
+            'duration': 0
+        }
+
         if compare_period is not None and len(compare_period) > 0:
             prev_total = len(compare_period)
             prev_connected = len(compare_period[compare_period['outcome'] == 'connected'])
             prev_rate = (prev_connected / prev_total * 100) if prev_total > 0 else 0
-            prev_duration = compare_period['duration'].mean() / 60
-            
+            prev_duration = (
+                compare_period['duration'].mean() / 60
+                if 'duration' in compare_period.columns and prev_total > 0
+                else 0
+            )
+
             deltas['total'] = total_calls - prev_total
             deltas['connected'] = connected_calls - prev_connected
             deltas['rate'] = connection_rate - prev_rate
@@ -426,13 +474,19 @@ class KPIDashboard:
         conversion_rate = (revenue_calls / len(data) * 100) if len(data) > 0 else 0
         
         # Calculate comparison deltas
-        deltas = {}
-        if compare_period is not None and len(compare_period) > 0:
+        deltas = {
+            'total': 0,
+            'calls': 0,
+            'avg': 0,
+            'conversion': 0
+        }
+
+        if compare_period is not None and len(compare_period) > 0 and 'revenue' in compare_period.columns:
             prev_revenue = compare_period['revenue'].sum()
             prev_revenue_calls = len(compare_period[compare_period['revenue'] > 0])
             prev_avg = prev_revenue / len(compare_period)
             prev_conversion = (prev_revenue_calls / len(compare_period) * 100)
-            
+
             deltas['total'] = total_revenue - prev_revenue
             deltas['calls'] = revenue_calls - prev_revenue_calls
             deltas['avg'] = avg_revenue - prev_avg

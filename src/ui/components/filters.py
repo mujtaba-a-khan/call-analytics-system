@@ -171,6 +171,68 @@ class DateRangeFilter:
         'This Year': lambda: (date(date.today().year, 1, 1), date.today()),
         'Custom': None
     }
+
+    @staticmethod
+    def _resolve_preset_range(preset: str) -> Tuple[date, date]:
+        resolver = DateRangeFilter.PRESET_RANGES.get(preset)
+        if callable(resolver):
+            start_date, end_date = resolver()
+        else:
+            today = date.today()
+            start_date, end_date = today, today
+
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+
+        return start_date, end_date
+
+    @staticmethod
+    def _normalize_selection(selection: Any,
+                             current_range: Optional[Tuple[date, date]] = None) -> Optional[Tuple[date, date]]:
+        if selection is None:
+            return None
+
+        if isinstance(selection, (tuple, list)):
+            cleaned = tuple(d for d in selection if d is not None)
+        else:
+            cleaned = (selection,) if selection else ()
+
+        if not cleaned:
+            return None
+
+        if len(cleaned) == 1:
+            selected = cleaned[0]
+
+            base_start, base_end = None, None
+            if isinstance(current_range, tuple) and len(current_range) == 2:
+                base_start, base_end = current_range
+
+            if base_start is None and base_end is None:
+                start_date = end_date = selected
+            elif base_start is not None and base_end is not None and base_start == base_end:
+                if selected >= base_start:
+                    start_date, end_date = base_start, selected
+                else:
+                    start_date, end_date = selected, base_start
+            else:
+                # Determine which boundary the user is adjusting based on proximity
+                if base_start is None:
+                    base_start = selected
+                if base_end is None:
+                    base_end = selected
+
+                adjust_start = abs((selected - base_start).days) <= abs((selected - base_end).days)
+                if adjust_start:
+                    start_date, end_date = selected, base_end
+                else:
+                    start_date, end_date = base_start, selected
+        else:
+            start_date, end_date = cleaned[:2]
+
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+
+        return start_date, end_date
     
     @classmethod
     def render(cls, 
@@ -198,7 +260,7 @@ class DateRangeFilter:
         default_index = preset_options.index(default_range) if default_range in preset_options else 0
 
         if state_key not in st.session_state:
-            st.session_state[state_key] = cls.PRESET_RANGES[preset_options[default_index]]()
+            st.session_state[state_key] = cls._resolve_preset_range(preset_options[default_index])
 
         preset = container.selectbox(
             "Date Range",
@@ -208,7 +270,12 @@ class DateRangeFilter:
         )
 
         if preset == 'Custom':
-            current_value = st.session_state.get(state_key, cls.PRESET_RANGES[preset_options[default_index]]())
+            default_value = cls._resolve_preset_range(preset_options[default_index])
+            current_value = st.session_state.get(state_key, default_value)
+
+            if not isinstance(current_value, tuple) or len(current_value) != 2:
+                current_value = default_value
+
             date_selection = container.date_input(
                 "Select date range",
                 value=current_value,
@@ -217,16 +284,15 @@ class DateRangeFilter:
                 disabled=False
             )
 
-            if isinstance(date_selection, tuple) and len(date_selection) == 2:
-                start_date, end_date = date_selection
-            elif isinstance(date_selection, tuple) and date_selection:
-                start_date = end_date = date_selection[0]
-            else:
-                start_date = end_date = date_selection
+            normalized = cls._normalize_selection(date_selection, current_value)
 
-            st.session_state[state_key] = (start_date, end_date)
+            if normalized is None:
+                start_date, end_date = current_value
+            else:
+                start_date, end_date = normalized
+                st.session_state[state_key] = (start_date, end_date)
         else:
-            start_date, end_date = cls.PRESET_RANGES[preset]()
+            start_date, end_date = cls._resolve_preset_range(preset)
             st.session_state[state_key] = (start_date, end_date)
             container.date_input(
                 "Select date range",
