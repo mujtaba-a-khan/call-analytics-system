@@ -39,7 +39,7 @@ class MetricsCalculator:
     def calculate_basic_metrics(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Calculate basic call metrics.
-        
+
         Args:
             df: DataFrame with call data
             
@@ -47,7 +47,7 @@ class MetricsCalculator:
             Dictionary of calculated metrics
         """
         metrics = {}
-        
+
         # Total calls
         metrics['total_calls'] = len(df)
         
@@ -71,8 +71,79 @@ class MetricsCalculator:
                 metrics['total_revenue'] / (metrics['total_duration'] / 60)
                 if metrics.get('total_duration', 0) > 0 else 0
             )
-        
+
         return metrics
+
+    def calculate_all_metrics(self, df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+        """Aggregate commonly used metrics into logical groups for UI display."""
+        if df is None or df.empty:
+            return {
+                'overview': {
+                    'total_calls': 0,
+                    'connected_calls': 0,
+                    'connection_rate': 0.0
+                }
+            }
+
+        grouped_metrics: Dict[str, Dict[str, Any]] = {}
+        basic_metrics = self.calculate_basic_metrics(df)
+
+        overview_keys = ['total_calls', 'connected_calls', 'connection_rate']
+        overview = {key: basic_metrics[key] for key in overview_keys if key in basic_metrics}
+        if overview:
+            grouped_metrics['overview'] = overview
+
+        duration_metrics: Dict[str, Any] = {}
+        for key in ['avg_duration', 'median_duration', 'total_duration']:
+            if key in basic_metrics:
+                duration_metrics[key] = basic_metrics[key]
+        percentiles = self.calculate_percentiles(df, 'duration')
+        if percentiles:
+            duration_metrics.update(percentiles)
+        if duration_metrics:
+            grouped_metrics['duration_metrics'] = duration_metrics
+
+        revenue_metrics: Dict[str, Any] = {}
+        for key in ['total_revenue', 'avg_revenue', 'revenue_per_minute']:
+            if key in basic_metrics:
+                revenue_metrics[key] = basic_metrics[key]
+        if revenue_metrics:
+            grouped_metrics['revenue_metrics'] = revenue_metrics
+
+        outcome_distribution = self.calculate_outcome_distribution(df)
+        if not outcome_distribution.empty:
+            total_outcomes = outcome_distribution.sum()
+            grouped_metrics['outcome_distribution'] = {
+                f"{outcome}_calls": int(count)
+                for outcome, count in outcome_distribution.items()
+            }
+            if total_outcomes > 0:
+                grouped_metrics['outcome_distribution_percentage'] = {
+                    f"{outcome}_pct": (count / total_outcomes) * 100
+                    for outcome, count in outcome_distribution.items()
+                }
+
+        if 'timestamp' in df.columns and not df['timestamp'].isna().all():
+            temporal_metrics: Dict[str, Any] = {}
+            timestamps = pd.to_datetime(df['timestamp'], errors='coerce').dropna()
+            if not timestamps.empty:
+                span_days = max((timestamps.max() - timestamps.min()).days, 0) + 1
+                temporal_metrics['active_days'] = span_days
+                temporal_metrics['calls_per_day'] = basic_metrics['total_calls'] / span_days if span_days else basic_metrics['total_calls']
+                temporal_metrics['first_call'] = timestamps.min().strftime('%Y-%m-%d')
+                temporal_metrics['last_call'] = timestamps.max().strftime('%Y-%m-%d')
+            if temporal_metrics:
+                grouped_metrics['time_metrics'] = temporal_metrics
+
+        entity_metrics: Dict[str, Any] = {}
+        if 'agent_id' in df.columns:
+            entity_metrics['unique_agents'] = int(df['agent_id'].nunique())
+        if 'campaign' in df.columns:
+            entity_metrics['active_campaigns'] = int(df['campaign'].nunique())
+        if entity_metrics:
+            grouped_metrics['entity_metrics'] = entity_metrics
+
+        return grouped_metrics
     
     def calculate_agent_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
         """

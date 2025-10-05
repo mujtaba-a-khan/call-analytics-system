@@ -57,7 +57,7 @@ class AnalysisPage:
         """
         self.storage_manager = storage_manager
         self.vector_store = vector_store
-        self.metrics_calculator = MetricsCalculator
+        self.metrics_calculator = MetricsCalculator()
         self.advanced_filters = AdvancedFilters
         
         # Initialize semantic search if vector store available
@@ -183,27 +183,46 @@ class AnalysisPage:
             st.subheader("Filter Presets")
             self._render_filter_presets(filter_state)
         
-        # Apply filters and load data
+        if "custom_analysis_data" not in st.session_state:
+            st.session_state["custom_analysis_data"] = None
+            st.session_state["custom_analysis_status"] = "idle"
+            st.session_state["custom_analysis_count"] = 0
+            st.session_state["custom_analysis_show_clipboard"] = False
+
         if st.button("Apply Filters", type="primary", use_container_width=True):
             data = self._apply_custom_filters(filter_state)
-            
-            if not data.empty:
-                # Display results
-                st.success(f"Found {len(data)} records matching your criteria")
-                
-                # Analysis options
-                analysis_type = st.selectbox(
-                    "Select Analysis Type",
-                    ["Summary Statistics", "Time Analysis", "Agent Analysis", 
-                     "Outcome Analysis", "Custom Aggregation"]
-                )
-                
-                self._render_analysis_results(data, analysis_type)
-                
-                # Export options
-                self._render_export_options(data)
-            else:
-                st.warning("No records found matching your filters")
+            st.session_state["custom_analysis_data"] = data
+            st.session_state["custom_analysis_count"] = len(data) if data is not None else 0
+            st.session_state["custom_analysis_status"] = (
+                "loaded" if data is not None and not data.empty else "empty"
+            )
+            st.session_state["custom_analysis_show_clipboard"] = False
+
+        data = st.session_state.get("custom_analysis_data")
+        status = st.session_state.get("custom_analysis_status", "idle")
+
+        if status == "loaded" and data is not None and not data.empty:
+            st.success(
+                f"Found {st.session_state.get('custom_analysis_count', len(data))} records matching your criteria"
+            )
+
+            analysis_type = st.selectbox(
+                "Select Analysis Type",
+                [
+                    "Summary Statistics",
+                    "Time Analysis",
+                    "Agent Analysis",
+                    "Outcome Analysis",
+                    "Custom Aggregation"
+                ],
+                key="custom_analysis_type"
+            )
+
+            self._render_analysis_results(data, analysis_type)
+            self._render_export_options(data)
+
+        elif status == "empty":
+            st.warning("No records found matching your filters")
     
     def _render_comparison_tab(self) -> None:
         """
@@ -694,38 +713,46 @@ class AnalysisPage:
         st.divider()
         st.subheader("Export Results")
         
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         col1, col2, col3 = st.columns(3)
-        
+
+        csv_data = data.to_csv(index=False).encode('utf-8')
+
         with col1:
-            if st.button("📄 Export to CSV"):
-                csv = data.to_csv(index=False)
-                st.download_button(
-                    label="Download CSV",
-                    data=csv,
-                    file_name=f"analysis_results_{datetime.now():%Y%m%d_%H%M%S}.csv",
-                    mime="text/csv"
-                )
-        
+            st.download_button(
+                label="📄 Export to CSV",
+                data=csv_data,
+                file_name=f"analysis_results_{timestamp}.csv",
+                mime="text/csv",
+                key="custom_analysis_export_csv"
+            )
+
         with col2:
-            if st.button("📊 Export to Excel"):
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    data.to_excel(writer, index=False, sheet_name='Analysis')
-                excel_data = output.getvalue()
-                
-                st.download_button(
-                    label="Download Excel",
-                    data=excel_data,
-                    file_name=f"analysis_results_{datetime.now():%Y%m%d_%H%M%S}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                data.to_excel(writer, index=False, sheet_name='Analysis')
+            excel_data = output.getvalue()
+
+            st.download_button(
+                label="📊 Export to Excel",
+                data=excel_data,
+                file_name=f"analysis_results_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="custom_analysis_export_excel"
+            )
+
         with col3:
-            if st.button("📋 Copy to Clipboard"):
-                # Note: This is a placeholder as clipboard functionality
-                # requires JavaScript integration
-                st.info("Data ready for copying")
-                st.code(data.to_string(), language=None)
+            if st.button("📋 Copy to Clipboard", key="custom_analysis_copy_clipboard"):
+                st.session_state["custom_analysis_show_clipboard"] = True
+
+            if st.session_state.get("custom_analysis_show_clipboard"):
+                st.info("Select and copy the tab-delimited data below.")
+                st.text_area(
+                    "Clipboard Data",
+                    data.to_csv(index=False, sep='\t'),
+                    height=200,
+                    key="custom_analysis_clipboard_data"
+                )
     
     def _execute_period_comparison(self,
                                    period1: Tuple[datetime, datetime],
