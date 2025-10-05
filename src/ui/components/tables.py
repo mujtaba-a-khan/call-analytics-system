@@ -8,6 +8,7 @@ filtering, pagination, and export capabilities.
 
 import logging
 from typing import Dict, List, Optional, Any, Tuple, Union
+from urllib.parse import urlencode
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -207,7 +208,18 @@ class CallRecordsTable:
             Selected record details if action clicked
         """
         container = container or st
-        
+
+        record_session_key = 'recent_calls_selected_record'
+
+        if records is None or records.empty:
+            if 'view_call' in st.query_params.keys():
+                st.query_params.pop('view_call', None)
+            st.session_state.pop(record_session_key, None)
+            return None
+
+        # Normalize indices to ensure consistent row mapping
+        records = records.reset_index(drop=True)
+
         # Prepare display columns
         display_columns = ['call_id', 'phone_number', 'timestamp', 'duration', 
                           'outcome', 'agent_id', 'campaign']
@@ -247,35 +259,84 @@ class CallRecordsTable:
             'revenue': st.column_config.TextColumn('Revenue', width='small'),
             'transcript': st.column_config.TextColumn('Transcript Preview', width='large')
         }
-        
-        # Add action buttons if requested
-        selected_record = None
-        if show_actions:
-            display_data['Actions'] = '🔍 View'
-            column_config['Actions'] = st.column_config.TextColumn('Actions', width='small')
-            
-            # Create clickable table
-            event = st.dataframe(
+
+        def _first_value(value: Any) -> Optional[str]:
+            if value is None:
+                return None
+            if isinstance(value, list):
+                return value[0] if value else None
+            return str(value)
+
+        def _sync_selection(record: Dict[str, Any]) -> None:
+            st.session_state[record_session_key] = record
+            call_id_value = record.get('call_id')
+            if not call_id_value:
+                return
+            current_param = _first_value(st.query_params.get('view_call'))
+            if current_param != call_id_value:
+                st.query_params['view_call'] = call_id_value
+
+        selected_record: Optional[Dict[str, Any]] = None
+
+        view_call_param = _first_value(st.query_params.get('view_call'))
+        if view_call_param and 'call_id' in records.columns:
+            matches = records.index[records['call_id'] == view_call_param].tolist()
+            if matches:
+                selected_record = records.iloc[matches[0]].to_dict()
+                _sync_selection(selected_record)
+            else:
+                st.query_params.pop('view_call', None)
+                st.session_state.pop(record_session_key, None)
+
+        if selected_record is None:
+            cached_record = st.session_state.get(record_session_key)
+            if cached_record and cached_record.get('call_id') in records['call_id'].values:
+                selected_record = cached_record
+                _sync_selection(selected_record)
+            else:
+                st.session_state.pop(record_session_key, None)
+
+        if show_actions and 'call_id' in records.columns:
+            def _build_view_url(call_id: Any) -> str:
+                call_id_str = str(call_id) if call_id is not None else ''
+                if not call_id_str:
+                    return ''
+                query_pairs: List[Tuple[str, str]] = []
+                for key in st.query_params.keys():
+                    if key == 'view_call':
+                        continue
+                    value = st.query_params.get(key)
+                    if isinstance(value, list):
+                        query_pairs.extend((key, str(item)) for item in value if item is not None)
+                    elif value is not None:
+                        query_pairs.append((key, str(value)))
+                query_pairs.append(('view_call', call_id_str))
+                query_string = urlencode(query_pairs)
+                return f'?{query_string}' if query_string else ''
+
+            display_data['Actions'] = records['call_id'].apply(_build_view_url)
+            column_config['Actions'] = st.column_config.LinkColumn(
+                'Actions',
+                help='Open call details',
+                width='small',
+                display_text='View'
+            )
+
+            st.dataframe(
                 display_data,
                 use_container_width=True,
                 hide_index=True,
                 column_config=column_config,
-                on_select="rerun",
-                selection_mode="single-row"
+                key='recent_calls_table'
             )
-            
-            if event.selection and event.selection['rows']:
-                selected_idx = event.selection['rows'][0]
-                selected_record = records.iloc[selected_idx].to_dict()
         else:
-            # Regular table without selection
             st.dataframe(
                 display_data,
                 use_container_width=True,
                 hide_index=True,
                 column_config=column_config
             )
-        
+
         return selected_record
     
     @staticmethod

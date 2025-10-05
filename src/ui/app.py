@@ -151,6 +151,40 @@ def _configure_streamlit_page() -> None:
             display: block;
         }
 
+        /* Style the "View" cells in the recent calls table */
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] [data-testid="stDataFrameSelectionHeader"],
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] [data-testid="stDataFrameRowCheckbox"],
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] [aria-label="Select rows"] {
+            display: none !important;
+        }
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child {
+            white-space: nowrap;
+        }
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.9rem;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child a::before {
+            content: '🔍';
+        }
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child a:hover {
+            background: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.95);
+        }
+
         [data-testid="stAppViewContainer"] {
             padding-top: 3.25rem;
             padding-bottom: 4.5rem;
