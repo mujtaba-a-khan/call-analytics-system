@@ -120,16 +120,37 @@ def _configure_streamlit_page() -> None:
             display: flex;
             flex-direction: column;
             height: 100%;
+            overflow-y: auto;
         }
 
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:first-child {
-            flex: 1 1 auto;
-            overflow-y: auto;
+            flex: 0 0 auto;
             padding-right: 0.35rem;
         }
 
-        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div:last-child {
-            margin-top: auto;
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] > div + div {
+            margin-top: 1.5rem;
+        }
+
+        [data-testid="stSidebar"] button[title="Collapse sidebar"],
+        [data-testid="stSidebar"] button[aria-label="Collapse sidebar"],
+        [data-testid="stSidebar"] button[aria-label="Close sidebar"],
+        button[title*="Sidebar"],
+        button[aria-label*="sidebar"],
+        button[aria-label*="Sidebar"],
+        button[data-testid="collapsedSidebarButton"],
+        button[data-testid="baseButton-sidebarCollapseButton"],
+        button[data-testid="baseButton-collapsedSidebarButton"],
+        button[data-testid="stSidebarNavToggle"],
+        [data-testid*="sidebarCollapse"],
+        [data-testid*="SidebarCollapse"],
+        [data-testid*="collapsedSidebar"],
+        [data-testid*="CollapsedSidebar"],
+        div[data-testid="collapsedControl"],
+        div[data-testid="collapsedSidebarButton"],
+        div[data-testid="collapsedSidebarButton"] button,
+        div[data-testid="collapsedControl"] button {
+            display: none !important;
         }
 
         [data-testid="stSidebar"] h1 {
@@ -591,20 +612,6 @@ class CallAnalyticsApp:
                 )
                 st.divider()
                 st.session_state.current_page = selected_page
-            # version_text = self.config.get('app', {}).get('version', '1.0.0')
-            # python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}"
-
-            # with sidebar_footer:
-            #     st.markdown(
-            #         f"""
-            #         <div class="sidebar-footer">
-            #             <hr />
-            #             <span>v{version_text}</span>
-            #             <span>{python_version}</span>
-            #         </div>
-            #         """,
-            #         unsafe_allow_html=True
-            #     )
 
         return selected_page
 
