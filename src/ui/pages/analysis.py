@@ -951,12 +951,204 @@ class AnalysisPage:
                 st.warning("No data available for cohort analysis")
                 return
             
-            # Perform cohort analysis (simplified version)
+            if 'timestamp' not in data.columns:
+                st.error("Cohort analysis requires a 'timestamp' column in the dataset")
+                return
+
+            df = data.copy()
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            df = df.dropna(subset=['timestamp']).sort_values('timestamp')
+
+            if df.empty:
+                st.warning("All records in the selected range have invalid timestamps")
+                return
+
+            # Helper utilities for period handling
+            def get_period_start(series: pd.Series, granularity: str) -> pd.Series:
+                if granularity == "Daily":
+                    return series.dt.floor('D')
+                if granularity == "Weekly":
+                    return series.dt.to_period('W').apply(lambda p: p.start_time)
+                # Default to monthly granularity
+                return series.dt.to_period('M').apply(lambda p: p.start_time)
+
+            def format_period_label(starts: pd.Series, granularity: str) -> pd.Series:
+                if granularity == "Daily":
+                    return starts.dt.strftime("%Y-%m-%d")
+                if granularity == "Weekly":
+                    return starts.dt.strftime("Week of %Y-%m-%d")
+                return starts.dt.strftime("%Y-%m")
+
+            customer_col = None
+            for candidate in ["phone_number", "customer_id", "contact_id", "call_id"]:
+                if candidate in df.columns:
+                    customer_col = candidate
+                    break
+
+            if customer_col is None:
+                st.error("Cohort analysis requires a customer identifier column (e.g. phone number or call id)")
+                return
+
+            cohort_start_series: pd.Series
+            cohort_label_series: pd.Series
+
+            if cohort_type == "First Call Date":
+                first_contact = df.groupby(customer_col)['timestamp'].transform('min')
+                cohort_start_series = get_period_start(first_contact, cohort_period)
+                cohort_label_series = format_period_label(cohort_start_series, cohort_period)
+            elif cohort_type == "Campaign Start":
+                if 'campaign' not in df.columns:
+                    st.error("Campaign information is not available in the dataset")
+                    return
+                campaign_first = df.groupby('campaign')['timestamp'].transform('min')
+                cohort_start_series = get_period_start(campaign_first, cohort_period)
+                cohort_labels = format_period_label(cohort_start_series, cohort_period)
+                cohort_label_series = df['campaign'].fillna('Unknown Campaign') + ' • ' + cohort_labels
+            else:  # Agent Assignment
+                agent_col = 'agent_id' if 'agent_id' in df.columns else 'agent'
+                if agent_col not in df.columns:
+                    st.error("Agent information is not available in the dataset")
+                    return
+                agent_first = df.groupby(agent_col)['timestamp'].transform('min')
+                cohort_start_series = get_period_start(agent_first, cohort_period)
+                cohort_labels = format_period_label(cohort_start_series, cohort_period)
+                cohort_label_series = df[agent_col].fillna('Unassigned Agent') + ' • ' + cohort_labels
+
+            df['cohort_start'] = cohort_start_series
+            df['cohort_label'] = cohort_label_series
+            df = df.dropna(subset=['cohort_start', 'cohort_label'])
+
+            if df.empty:
+                st.warning("Unable to determine cohorts for the selected configuration")
+                return
+
+            df['period_start'] = get_period_start(df['timestamp'], cohort_period)
+
+            if cohort_period == "Monthly":
+                df['period_index'] = (
+                    (df['period_start'].dt.year - df['cohort_start'].dt.year) * 12 +
+                    (df['period_start'].dt.month - df['cohort_start'].dt.month)
+                )
+            else:
+                delta_days = (df['period_start'] - df['cohort_start']).dt.days
+                if cohort_period == "Weekly":
+                    df['period_index'] = (delta_days // 7).astype(int)
+                else:
+                    df['period_index'] = delta_days.astype(int)
+
+            df = df[(df['period_index'] >= 0) & (df['period_index'] < periods)]
+
+            if df.empty:
+                st.warning("No cohort activity found within the selected number of periods")
+                return
+
+            period_labels = [f"Period {i}" for i in range(periods)]
+
+            def finalize_table(pivot: pd.DataFrame) -> pd.DataFrame:
+                pivot = pivot.reindex(columns=range(periods), fill_value=0)
+                pivot.columns = period_labels
+                # Sort cohorts by their actual start date for consistent ordering
+                ordering = (
+                    df[['cohort_label', 'cohort_start']]
+                    .drop_duplicates()
+                    .set_index('cohort_label')['cohort_start']
+                )
+                return pivot.reindex(ordering.sort_values().index).fillna(0)
+
+            value_table: pd.DataFrame
+            display_caption = ""
+
+            if metric == "Retention Rate":
+                cohort_sizes = (
+                    df[df['period_index'] == 0]
+                    .groupby('cohort_label')[customer_col]
+                    .nunique()
+                    .replace(0, np.nan)
+                )
+                period_counts = (
+                    df.groupby(['cohort_label', 'period_index'])[customer_col]
+                    .nunique()
+                    .unstack(fill_value=0)
+                )
+                value_table = finalize_table(period_counts)
+                value_table = value_table.div(cohort_sizes, axis=0) * 100
+                value_table = value_table.round(2)
+                display_caption = "Values represent the % of the original cohort that engaged in each period."
+            elif metric == "Average Duration":
+                duration_col = 'duration' if 'duration' in df.columns else 'duration_seconds'
+                if duration_col not in df.columns:
+                    st.error("Duration information is not available in the dataset")
+                    return
+                averages = (
+                    df.groupby(['cohort_label', 'period_index'])[duration_col]
+                    .mean()
+                    .unstack()
+                )
+                value_table = finalize_table(averages) / 60.0
+                value_table = value_table.round(2)
+                display_caption = "Average call duration (minutes) per cohort period."
+            elif metric == "Revenue per Cohort":
+                if 'revenue' not in df.columns:
+                    st.error("Revenue information is not available in the dataset")
+                    return
+                revenues = (
+                    df.groupby(['cohort_label', 'period_index'])['revenue']
+                    .sum()
+                    .unstack()
+                )
+                value_table = finalize_table(revenues).round(2)
+                display_caption = "Total revenue generated by each cohort in the specified period."
+            else:  # Call Frequency
+                if 'call_id' in df.columns:
+                    call_counts = (
+                        df.groupby(['cohort_label', 'period_index'])['call_id']
+                        .count()
+                        .unstack()
+                    )
+                else:
+                    call_counts = (
+                        df.groupby(['cohort_label', 'period_index']).size()
+                        .unstack()
+                    )
+                value_table = finalize_table(call_counts).round(0)
+                display_caption = "Number of calls handled by the cohort in each period."
+
             st.info(f"Cohort analysis for {metric} by {cohort_type}")
-            
-            # Create cohort visualization
-            # This is a placeholder for actual cohort analysis logic
-            st.write("Cohort analysis results would appear here")
+            st.dataframe(value_table)
+            if display_caption:
+                st.caption(display_caption)
+
+            # Cohort heatmap for visual interpretation
+            heatmap_df = value_table.copy()
+            colorbar_title = metric if metric != "Average Duration" else "Minutes"
+            if metric == "Retention Rate":
+                colorbar_title = "Retention (%)"
+
+            colorscale = 'Blues'
+            if metric == "Average Duration":
+                colorscale = 'Oranges'
+            elif metric == "Revenue per Cohort":
+                colorscale = 'Greens'
+            elif metric == "Call Frequency":
+                colorscale = 'Purples'
+
+            heatmap = go.Figure(
+                data=go.Heatmap(
+                    z=heatmap_df.values,
+                    x=heatmap_df.columns,
+                    y=heatmap_df.index,
+                    colorscale=colorscale,
+                    text=heatmap_df.round(2).astype(str),
+                    hovertemplate='Cohort: %{y}<br>%{x}: %{z}<extra></extra>',
+                    colorbar=dict(title=colorbar_title)
+                )
+            )
+            heatmap.update_layout(
+                title=f"{metric} by Cohort Period",
+                xaxis_title="Period",
+                yaxis_title="Cohort"
+            )
+            st.plotly_chart(heatmap, use_container_width=True)
             
         except Exception as e:
             logger.error(f"Error in cohort analysis: {e}")
