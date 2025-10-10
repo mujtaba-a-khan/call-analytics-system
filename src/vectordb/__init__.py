@@ -6,26 +6,37 @@ This package handles vector storage and retrieval for semantic search.
 
 __version__ = "1.0.0"
 
+from typing import Any, NamedTuple
+
 __all__ = [
+    "ChromaClient",
     "ChromaDBClient",
-    "VectorIndexer",
-    "VectorRetriever",
+    "DocumentIndexer",
+    "DocumentRetriever",
+    "VectorDBError",
 ]
 
 
-def __getattr__(name):
-    """Lazy loading for vector database modules"""
-    if name == "ChromaDBClient":
-        from .chroma_client import ChromaDBClient
+class _Export(NamedTuple):
+    module: str
+    attr: str
 
-        return ChromaDBClient
-    elif name == "VectorIndexer":
-        from .indexer import VectorIndexer
 
-        return VectorIndexer
-    elif name == "VectorRetriever":
-        from .retriever import VectorRetriever
+_EXPORTS: dict[str, _Export] = {
+    "ChromaClient": _Export("chroma_client", "ChromaClient"),
+    "ChromaDBClient": _Export("chroma_client", "ChromaClient"),
+    "VectorDBError": _Export("chroma_client", "VectorDBError"),
+    "DocumentIndexer": _Export("indexer", "DocumentIndexer"),
+    "DocumentRetriever": _Export("retriever", "DocumentRetriever"),
+}
 
-        return VectorRetriever
 
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+def __getattr__(name: str) -> Any:
+    """Lazy loading for vector database modules."""
+    try:
+        module_name, attr = _EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from exc
+
+    module = __import__(f"{__name__}.{module_name}", fromlist=[attr])
+    return getattr(module, attr)

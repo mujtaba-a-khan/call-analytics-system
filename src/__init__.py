@@ -1,11 +1,16 @@
 """
 Call Analytics System - Main Package
 
-A comprehensive system for analyzing call center data with speech-to-text,
-semantic search, and advanced analytics capabilities.
+Provides high-level convenience functions and lazy exports for the rest of
+the project while keeping import time low.
 """
 
+from __future__ import annotations
+
+import logging
 import os
+from pathlib import Path
+from typing import Any, NamedTuple
 
 # Disable Hugging Face tokenizer parallelism to avoid fork-related warnings.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -17,21 +22,16 @@ __author__ = "Mujtaba Khan"
 __license__ = "MIT"
 __copyright__ = "Copyright 2025"
 
-# Lazy imports to prevent circular dependencies and reduce memory overhead
 
-
-def get_system_info():
+def get_system_info() -> dict[str, Any]:
     """
-    Get comprehensive system information and capabilities.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing system information and status
+    Gather system information and optional ML capabilities.
     """
     import platform
     import sys
     from datetime import datetime
 
-    system_info = {
+    system_info: dict[str, Any] = {
         "version": __version__,
         "title": __title__,
         "python_version": platform.python_version(),
@@ -41,7 +41,6 @@ def get_system_info():
         "python_3_13_compatible": sys.version_info >= (3, 13),
     }
 
-    # Try to get ML capabilities if available
     try:
         from .ml import get_ml_capabilities
 
@@ -52,50 +51,52 @@ def get_system_info():
     return system_info
 
 
-def run_app():
+def run_app() -> Any:
     """
     Launch the Streamlit application.
-
-    This is the main entry point for the UI.
     """
     try:
         from .ui import run_app as _run_app
 
         return _run_app()
-    except ImportError as e:
-        import logging
-
-        logging.error(f"Failed to import UI module: {e}")
+    except ImportError as exc:
+        logging.error("Failed to import UI module: %s", exc)
         raise RuntimeError(
             "UI modules not available. Please ensure Streamlit is installed: "
             "pip install streamlit>=1.35.0"
-        ) from e
+        ) from exc
 
 
-def setup_logging(level="INFO", log_file=None):
+def setup_logging(
+    level: str = "INFO",
+    log_dir: str | Path | None = None,
+    *,
+    console_output: bool = True,
+    file_output: bool = True,
+    structured_logs: bool = False,
+) -> logging.Logger:
     """
-    Initialize logging for the application.
-
-    Args:
-        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Optional path to log file
-
-    Returns:
-        logging.Logger: Configured logger instance
+    Configure the project-wide logging defaults and return a logger instance.
     """
+    resolved_dir = Path(log_dir) if log_dir is not None else None
+
     try:
         from .utils.logger import setup_logging as _setup_logging
 
-        return _setup_logging(level=level, log_file=log_file)
+        _setup_logging(
+            log_level=level,
+            log_dir=resolved_dir,
+            console_output=console_output,
+            file_output=file_output,
+            structured_logs=structured_logs,
+        )
     except ImportError:
-        # Fallback to basic logging if utils not available
-        import logging
-
         logging.basicConfig(
             level=getattr(logging, level.upper()),
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
-        return logging.getLogger(__name__)
+
+    return logging.getLogger(__name__)
 
 
 # Define what's available for import
@@ -110,93 +111,57 @@ __all__ = [
 ]
 
 
-# Only import heavy modules when explicitly requested
-def __getattr__(name):
+class _LazyExport(NamedTuple):
+    module: str
+    attr: str
+
+
+_LAZY_EXPORTS: dict[str, _LazyExport] = {
+    # Core modules
+    "CallRecord": _LazyExport("core.data_schema", "CallRecord"),
+    "AudioProcessor": _LazyExport("core.audio_processor", "AudioProcessor"),
+    "CSVProcessor": _LazyExport("core.csv_processor", "CSVProcessor"),
+    "StorageManager": _LazyExport("core.storage_manager", "StorageManager"),
+    "LabelingEngine": _LazyExport("core.labeling_engine", "LabelingEngine"),
+    # Analysis
+    "MetricsCalculator": _LazyExport("analysis.aggregations", "MetricsCalculator"),
+    "SemanticSearchEngine": _LazyExport("analysis.semantic_search", "SemanticSearchEngine"),
+    "QueryInterpreter": _LazyExport("analysis.query_interpreter", "QueryInterpreter"),
+    "AdvancedFilters": _LazyExport("analysis.filters", "AdvancedFilters"),
+    # ML
+    "WhisperSTT": _LazyExport("ml.whisper_stt", "WhisperSTT"),
+    "EmbeddingManager": _LazyExport("ml.embeddings", "EmbeddingManager"),
+    "get_ml_capabilities": _LazyExport("ml", "get_ml_capabilities"),
+    # Vector DB (with backward compatible aliases)
+    "ChromaClient": _LazyExport("vectordb.chroma_client", "ChromaClient"),
+    "ChromaDBClient": _LazyExport("vectordb.chroma_client", "ChromaClient"),
+    "VectorDBError": _LazyExport("vectordb.chroma_client", "VectorDBError"),
+    "DocumentIndexer": _LazyExport("vectordb.indexer", "DocumentIndexer"),
+    "VectorIndexer": _LazyExport("vectordb.indexer", "DocumentIndexer"),
+    "DocumentRetriever": _LazyExport("vectordb.retriever", "DocumentRetriever"),
+    "VectorRetriever": _LazyExport("vectordb.retriever", "DocumentRetriever"),
+    # Utilities
+    "get_logger": _LazyExport("utils.logger", "get_logger"),
+    "validate_phone": _LazyExport("utils.validators", "validate_phone"),
+    "validate_phone_number": _LazyExport("utils.validators", "validate_phone"),
+    "validate_email": _LazyExport("utils.validators", "validate_email"),
+    "format_duration": _LazyExport("utils.formatters", "format_duration"),
+}
+
+
+def __getattr__(name: str) -> Any:
     """
-    Lazy loading of heavy modules to prevent circular imports and reduce startup time.
-
-    This is called when an attribute is accessed but not found in the module.
+    Lazily resolve heavyweight modules to avoid eager imports.
     """
-    # Core module imports
-    if name == "CallRecord":
-        from .core.data_schema import CallRecord
+    try:
+        module_name, attr = _LAZY_EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'") from exc
 
-        return CallRecord
-    elif name == "AudioProcessor":
-        from .core.audio_processor import AudioProcessor
+    module = __import__(f"{__name__}.{module_name}", fromlist=[attr])
+    return getattr(module, attr)
 
-        return AudioProcessor
-    elif name == "CSVProcessor":
-        from .core.csv_processor import CSVProcessor
 
-        return CSVProcessor
-    elif name == "StorageManager":
-        from .core.storage_manager import StorageManager
-
-        return StorageManager
-    elif name == "LabelingEngine":
-        from .core.labeling_engine import LabelingEngine
-
-        return LabelingEngine
-
-    # Analysis module imports
-    elif name == "MetricsCalculator":
-        from .analysis.aggregations import MetricsCalculator
-
-        return MetricsCalculator
-    elif name == "SemanticSearchEngine":
-        from .analysis.semantic_search import SemanticSearchEngine
-
-        return SemanticSearchEngine
-    elif name == "QueryInterpreter":
-        from .analysis.query_interpreter import QueryInterpreter
-
-        return QueryInterpreter
-    elif name == "AdvancedFilters":
-        from .analysis.filters import AdvancedFilters
-
-        return AdvancedFilters
-
-    # ML module imports
-    elif name == "WhisperSTT":
-        from .ml.whisper_stt import WhisperSTT
-
-        return WhisperSTT
-    elif name == "EmbeddingManager":
-        from .ml.embeddings import EmbeddingManager
-
-        return EmbeddingManager
-    elif name == "get_ml_capabilities":
-        from .ml import get_ml_capabilities
-
-        return get_ml_capabilities
-
-    # Vector DB imports
-    elif name == "ChromaDBClient":
-        from .vectordb.chroma_client import ChromaDBClient
-
-        return ChromaDBClient
-    elif name == "VectorIndexer":
-        from .vectordb.indexer import VectorIndexer
-
-        return VectorIndexer
-    elif name == "VectorRetriever":
-        from .vectordb.retriever import VectorRetriever
-
-        return VectorRetriever
-
-    # Utility imports
-    elif name == "get_logger":
-        from .utils.logger import get_logger
-
-        return get_logger
-    elif name == "validate_phone_number":
-        from .utils.validators import validate_phone_number
-
-        return validate_phone_number
-    elif name == "format_duration":
-        from .utils.formatters import format_duration
-
-        return format_duration
-
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+def __dir__() -> list[str]:
+    """Ensure lazy exports show up in interactive introspection tools."""
+    return sorted(set(__all__) | set(_LAZY_EXPORTS.keys()) | set(globals()))

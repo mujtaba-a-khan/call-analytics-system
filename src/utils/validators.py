@@ -6,9 +6,22 @@ Functions for validating and sanitizing data inputs.
 
 import re
 from datetime import date, datetime
-from typing import Any
+from typing import Any, TypedDict
 
 import pandas as pd
+
+
+class DataFrameValidationResult(TypedDict):
+    valid: bool
+    errors: list[str]
+    warnings: list[str]
+    stats: dict[str, Any]
+
+
+class ConfigValidationResult(TypedDict):
+    valid: bool
+    errors: list[str]
+    warnings: list[str]
 
 
 def validate_email(email: str) -> bool:
@@ -167,7 +180,7 @@ def validate_dataframe(
     df: pd.DataFrame,
     required_columns: list[str],
     column_types: dict[str, type] | None = None,
-) -> dict[str, Any]:
+) -> DataFrameValidationResult:
     """
     Validate DataFrame structure and content.
 
@@ -179,7 +192,12 @@ def validate_dataframe(
     Returns:
         Validation result dictionary
     """
-    result = {"valid": True, "errors": [], "warnings": [], "stats": {}}
+    result: DataFrameValidationResult = {
+        "valid": True,
+        "errors": [],
+        "warnings": [],
+        "stats": {},
+    }
 
     # Check if DataFrame is empty
     if df.empty:
@@ -200,7 +218,7 @@ def validate_dataframe(
                 actual_type = df[col].dtype
 
                 # Map pandas types to Python types
-                type_mapping = {
+                type_mapping: dict[type, list[str]] = {
                     str: ["object", "string"],
                     int: ["int64", "int32", "int16", "int8"],
                     float: ["float64", "float32", "float16"],
@@ -300,7 +318,7 @@ def validate_json(json_str: str) -> tuple[bool, str | None]:
 def validate_config(
     config: dict[str, Any],
     schema: dict[str, Any],
-) -> dict[str, Any]:
+) -> ConfigValidationResult:
     """
     Validate configuration against a schema.
 
@@ -311,9 +329,9 @@ def validate_config(
     Returns:
         Validation result
     """
-    result = {"valid": True, "errors": [], "warnings": []}
+    result: ConfigValidationResult = {"valid": True, "errors": [], "warnings": []}
 
-    def validate_value(value, expected_type, path=""):
+    def validate_value(value: Any, expected_type: Any, path: str = "") -> None:
         """Recursively validate configuration values"""
         if expected_type == "string":
             if not isinstance(value, str):

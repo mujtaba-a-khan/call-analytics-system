@@ -8,7 +8,7 @@ and document retrieval. Handles embedding generation and similarity search.
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 try:
     import chromadb
@@ -36,7 +36,7 @@ class EmbeddingGenerator:
     Supports multiple backends with fallback options.
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]) -> None:
         """
         Initialize the embedding generator.
 
@@ -49,10 +49,10 @@ class EmbeddingGenerator:
         self.normalize = config.get("normalize", True)
         self.batch_size = config.get("batch_size", 64)
 
-        self.model = None
+        self.model: Any | None = None
         self._initialize_model()
 
-    def _initialize_model(self):
+    def _initialize_model(self) -> None:
         """Initialize the embedding model based on provider"""
         if self.provider == "sentence-transformers" and SENTENCE_TRANSFORMERS_AVAILABLE:
             logger.info(f"Loading SentenceTransformer model: {self.model_name}")
@@ -82,7 +82,7 @@ class EmbeddingGenerator:
                 batch_size=self.batch_size,
                 show_progress_bar=False,
             )
-            return embeddings.tolist()
+            return cast(list[list[float]], embeddings.tolist())
         else:
             # Fallback to hash-based embeddings
             return [self._hash_embedding(text) for text in texts]
@@ -113,7 +113,7 @@ class EmbeddingGenerator:
             if norm > 0:
                 embedding = embedding / norm
 
-        return embedding.tolist()
+        return cast(list[float], embedding.tolist())
 
 
 class ChromaClient:
@@ -122,7 +122,7 @@ class ChromaClient:
     Handles document storage, retrieval, and semantic search.
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, Any]) -> None:
         """
         Initialize the ChromaDB client.
 
@@ -144,31 +144,44 @@ class ChromaClient:
         self.embedder = EmbeddingGenerator(embedding_config)
 
         # Initialize ChromaDB client
-        self.client = None
-        self.collection = None
+        self.client: Any | None = None
+        self.collection: Any | None = None
         self._initialize_client()
 
         logger.info(f"ChromaClient initialized with collection: {self.collection_name}")
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize ChromaDB client and collection"""
         try:
             # Create persistent client
-            self.client = chromadb.PersistentClient(
+            client = chromadb.PersistentClient(
                 path=str(self.persist_dir),
                 settings=Settings(anonymized_telemetry=False, allow_reset=True),
             )
 
             # Get or create collection
-            self.collection = self.client.get_or_create_collection(
+            collection = client.get_or_create_collection(
                 name=self.collection_name, metadata={"hnsw:space": self.distance_metric}
             )
 
-            logger.info(f"ChromaDB collection ready: {self.collection.count()} documents")
+            self.client = client
+            self.collection = collection
+
+            logger.info(f"ChromaDB collection ready: {collection.count()} documents")
 
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB: {e}")
             raise RuntimeError(f"Could not initialize ChromaDB: {e}") from e
+
+    def _get_client(self) -> Any:
+        if self.client is None:
+            raise RuntimeError("ChromaDB client is not initialized")
+        return self.client
+
+    def _get_collection(self) -> Any:
+        if self.collection is None:
+            raise RuntimeError("ChromaDB collection is not initialized")
+        return self.collection
 
     def add_documents(
         self, documents: list[str], ids: list[str], metadatas: list[dict[str, Any]] | None = None
@@ -199,7 +212,8 @@ class ChromaClient:
                 metadatas = [{} for _ in documents]
 
             # Add to collection
-            self.collection.upsert(
+            collection = self._get_collection()
+            collection.upsert(
                 documents=documents, embeddings=embeddings, ids=ids, metadatas=metadatas
             )
 
@@ -229,7 +243,8 @@ class ChromaClient:
             query_embedding = self.embedder.generate_embeddings([query_text])[0]
 
             # Perform search
-            results = self.collection.query(
+            collection = self._get_collection()
+            results = collection.query(
                 query_embeddings=[query_embedding],
                 n_results=top_k,
                 where=filter_dict,
@@ -273,7 +288,8 @@ class ChromaClient:
             List of documents with their metadata
         """
         try:
-            results = self.collection.get(ids=ids, include=["documents", "metadatas"])
+            collection = self._get_collection()
+            results = collection.get(ids=ids, include=["documents", "metadatas"])
 
             formatted_results = []
             for i in range(len(results["ids"])):
@@ -304,14 +320,15 @@ class ChromaClient:
         """
         try:
             # Get existing documents
-            existing = self.collection.get(ids=ids, include=["documents"])
+            collection = self._get_collection()
+            existing = collection.get(ids=ids, include=["documents"])
 
             if not existing["ids"]:
                 logger.warning("No documents found to update")
                 return False
 
             # Update with new metadata
-            self.collection.update(ids=ids, metadatas=metadatas)
+            collection.update(ids=ids, metadatas=metadatas)
 
             logger.info(f"Updated metadata for {len(ids)} documents")
             return True
@@ -331,7 +348,8 @@ class ChromaClient:
             Number of documents deleted
         """
         try:
-            self.collection.delete(ids=ids)
+            collection = self._get_collection()
+            collection.delete(ids=ids)
             logger.info(f"Deleted {len(ids)} documents from vector database")
             return len(ids)
 
@@ -348,8 +366,9 @@ class ChromaClient:
         """
         try:
             # Delete and recreate collection
-            self.client.delete_collection(self.collection_name)
-            self.collection = self.client.create_collection(
+            client = self._get_client()
+            client.delete_collection(self.collection_name)
+            self.collection = client.create_collection(
                 name=self.collection_name, metadata={"hnsw:space": self.distance_metric}
             )
 
@@ -368,7 +387,8 @@ class ChromaClient:
             Dictionary containing database statistics
         """
         try:
-            count = self.collection.count()
+            collection = self._get_collection()
+            count = cast(int, collection.count())
 
             return {
                 "total_documents": count,

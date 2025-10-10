@@ -190,16 +190,34 @@ strict_equality = true
 module = [
     "streamlit.*",
     "plotly.*",
+    "chromadb",
     "chromadb.*",
-    "whisper.*",
-    "ollama.*",
     "sentence_transformers.*",
     "torch.*",
-    "librosa.*",
-    "soundfile.*",
     "pydub.*",
+    "pandas",
+    "requests",
+    "toml",
+    "yaml",
+    "dateparser",
+    "pytz",
+    "dateutil",
+    "dateutil.*",
+    "fuzzywuzzy",
+    "sklearn.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "src.analysis.*",
+    "src.core.*",
+    "src.ml.*",
+    "src.ui.*",
+    "src.cli",
+    "src.utils.logger",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

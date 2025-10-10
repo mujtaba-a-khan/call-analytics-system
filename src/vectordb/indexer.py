@@ -9,7 +9,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -22,7 +22,9 @@ class DocumentIndexer:
     and metadata extraction.
     """
 
-    def __init__(self, vector_db_client, config: dict = None):
+    def __init__(
+        self, vector_db_client: Any, config: dict[str, Any] | None = None
+    ) -> None:
         """
         Initialize the document indexer.
 
@@ -107,10 +109,12 @@ class DocumentIndexer:
                         batch_meta = [batch_meta[j] for j in new_indices]
 
                 # Index the batch
-                count = self.vector_db.add_documents(
-                    documents=batch_docs, ids=batch_ids, metadatas=batch_meta
+                count = cast(
+                    int,
+                    self.vector_db.add_documents(
+                        documents=batch_docs, ids=batch_ids, metadatas=batch_meta
+                    ),
                 )
-
                 total_indexed += count
                 logger.info(f"Indexed batch {i//batch_size + 1}: {count} documents")
 
@@ -123,7 +127,9 @@ class DocumentIndexer:
 
         return total_indexed
 
-    def _prepare_documents(self, df: pd.DataFrame) -> tuple:
+    def _prepare_documents(
+        self, df: pd.DataFrame
+    ) -> tuple[list[str], list[str], list[dict[str, Any]]]:
         """
         Prepare documents from DataFrame for indexing.
 
@@ -133,9 +139,9 @@ class DocumentIndexer:
         Returns:
             Tuple of (documents, ids, metadatas)
         """
-        documents = []
-        ids = []
-        metadatas = []
+        documents: list[str] = []
+        ids: list[str] = []
+        metadatas: list[dict[str, Any]] = []
 
         for _, row in df.iterrows():
             # Extract document text
@@ -246,7 +252,7 @@ class DocumentIndexer:
         Returns:
             Metadata dictionary
         """
-        metadata = {}
+        metadata: dict[str, Any] = {}
 
         for field in self.metadata_fields:
             if field in row:
@@ -267,7 +273,7 @@ class DocumentIndexer:
 
         return metadata
 
-    def _check_existing(self, ids: list[str]) -> set:
+    def _check_existing(self, ids: list[str]) -> set[str]:
         """
         Check which document IDs already exist in the database.
 
@@ -278,11 +284,12 @@ class DocumentIndexer:
             Set of existing IDs
         """
         try:
-            existing_docs = self.vector_db.get_by_ids(ids)
-            return {doc["id"] for doc in existing_docs if doc.get("id")}
+            existing_docs = cast(list[dict[str, Any]], self.vector_db.get_by_ids(ids))
+            existing_ids: set[str] = {doc["id"] for doc in existing_docs if doc.get("id")}
+            return existing_ids
         except Exception as e:
             logger.error(f"Error checking existing documents: {e}")
-            return set()
+            return set[str]()
 
     def reindex_all(self, df: pd.DataFrame) -> int:
         """
@@ -350,7 +357,7 @@ class DocumentIndexer:
             Number of documents deleted
         """
         try:
-            count = self.vector_db.delete_documents(call_ids)
+            count = cast(int, self.vector_db.delete_documents(call_ids))
             logger.info(f"Deleted {count} documents")
             return count
         except Exception as e:
@@ -364,12 +371,12 @@ class DocumentIndexer:
         Returns:
             Statistics dictionary
         """
-        stats = self.vector_db.get_statistics()
+        stats = cast(dict[str, Any], self.vector_db.get_statistics())
         stats["indexed_this_session"] = self.indexed_count
 
         return stats
 
-    def export_index_metadata(self, output_path: Path):
+    def export_index_metadata(self, output_path: Path) -> None:
         """
         Export index metadata for backup or analysis.
 
@@ -381,7 +388,7 @@ class DocumentIndexer:
             # For large collections, you might need pagination
             sample_results = self.vector_db.search(query_text="", top_k=1000)
 
-            metadata_list = []
+            metadata_list: list[dict[str, Any]] = []
             for result in sample_results:
                 metadata_list.append(
                     {

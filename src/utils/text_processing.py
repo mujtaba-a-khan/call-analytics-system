@@ -298,7 +298,7 @@ def extract_entities(text: str) -> dict[str, list[str]]:
     Returns:
         Dictionary of entity types to values
     """
-    entities = {
+    entities: dict[str, list[str]] = {
         "emails": [],
         "phone_numbers": [],
         "urls": [],
@@ -421,15 +421,15 @@ def calculate_similarity(text1: str, text2: str, method: str = "jaccard") -> flo
 
     elif method == "cosine":
         # Simple cosine similarity based on word frequency
-        words1 = Counter(text1.lower().split())
-        words2 = Counter(text2.lower().split())
+        counter1 = Counter(text1.lower().split())
+        counter2 = Counter(text2.lower().split())
 
         # Get all unique words
-        all_words = set(words1.keys()) | set(words2.keys())
+        all_words = set(counter1.keys()) | set(counter2.keys())
 
         # Create vectors
-        vec1 = [words1.get(word, 0) for word in all_words]
-        vec2 = [words2.get(word, 0) for word in all_words]
+        vec1 = [counter1.get(word, 0) for word in all_words]
+        vec2 = [counter2.get(word, 0) for word in all_words]
 
         # Calculate cosine similarity
         dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
@@ -443,14 +443,14 @@ def calculate_similarity(text1: str, text2: str, method: str = "jaccard") -> flo
 
     elif method == "levenshtein":
         # Normalized Levenshtein distance
-        def levenshtein_distance(s1, s2):
+        def levenshtein_distance(s1: str, s2: str) -> int:
             if len(s1) < len(s2):
                 return levenshtein_distance(s2, s1)
 
             if len(s2) == 0:
                 return len(s1)
 
-            previous_row = range(len(s2) + 1)
+            previous_row = list(range(len(s2) + 1))
             for i, c1 in enumerate(s1):
                 current_row = [i + 1]
                 for j, c2 in enumerate(s2):

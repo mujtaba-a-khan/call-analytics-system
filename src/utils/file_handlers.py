@@ -13,7 +13,7 @@ import os
 import pickle
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import toml
 import yaml
@@ -85,15 +85,27 @@ def load_config_file(filepath: str | Path) -> dict[str, Any]:
     try:
         if suffix == ".json":
             with open(filepath, encoding="utf-8") as handle:
-                return json.load(handle)
+                data = json.load(handle)
+            if isinstance(data, dict):
+                return cast(dict[str, Any], data)
+            logger.error("JSON config must be an object at %s", filepath)
+            return {}
 
         if suffix in {".yaml", ".yml"}:
             with open(filepath, encoding="utf-8") as handle:
-                return yaml.safe_load(handle) or {}
+                data = yaml.safe_load(handle)
+            if isinstance(data, dict):
+                return cast(dict[str, Any], data)
+            logger.error("YAML config must be a mapping at %s", filepath)
+            return {}
 
         if suffix == ".toml":
             with open(filepath, encoding="utf-8") as handle:
-                return toml.load(handle)
+                data = toml.load(handle)
+            if isinstance(data, dict):
+                return cast(dict[str, Any], data)
+            logger.error("TOML config must be a table at %s", filepath)
+            return {}
 
         logger.error("Unsupported config format: %s", suffix)
         return {}
