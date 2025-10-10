@@ -98,7 +98,7 @@ pipeline {
         script {
           def coverageReport = 'build/reports/coverage.xml'
           if (fileExists(coverageReport)) {
-            recordCoverage(tools: [cobertura(pattern: coverageReport)])
+            recordCoverage(tools: [[parser: 'COBERTURA', pattern: coverageReport]])
           } else {
             echo "Coverage report ${coverageReport} not found; skipping coverage publish."
           }
