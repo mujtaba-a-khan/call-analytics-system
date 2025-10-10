@@ -345,7 +345,7 @@ class EmbeddingManager:
         Returns:
             Cache key
         """
-        return hashlib.md5(f"{self.provider_name}:{text}".encode()).hexdigest()
+        return hashlib.sha256(f"{self.provider_name}:{text}".encode()).hexdigest()
 
     def compute_similarity(
         self,

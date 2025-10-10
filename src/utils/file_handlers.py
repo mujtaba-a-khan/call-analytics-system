@@ -12,8 +12,9 @@ import mimetypes
 import os
 import pickle
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 import toml
 import yaml
@@ -138,22 +139,38 @@ def save_config_file(config: dict[str, Any], filepath: str | Path) -> bool:
         return False
 
 
+class HashProtocol(Protocol):
+    """Protocol capturing the subset of hash API we use."""
+
+    def update(self, data: bytes) -> None: ...
+
+    def hexdigest(self) -> str: ...
+
+
+HashFactory = Callable[[], HashProtocol]
+
+
+SECURE_HASHERS: dict[str, HashFactory] = {
+    "sha256": hashlib.sha256,
+    "sha384": hashlib.sha384,
+    "sha512": hashlib.sha512,
+    "blake2b": hashlib.blake2b,
+    "blake2s": hashlib.blake2s,
+}
+
+
 def get_file_hash(filepath: str | Path, algorithm: str = "sha256") -> str | None:
-    """Calculate the hash of a file."""
+    """Calculate the hash of a file using a secure algorithm."""
     filepath = Path(filepath)
 
     if not filepath.exists():
         return None
 
     try:
-        if algorithm == "md5":
-            hasher = hashlib.md5()
-        elif algorithm == "sha1":
-            hasher = hashlib.sha1()
-        elif algorithm == "sha256":
-            hasher = hashlib.sha256()
-        else:
-            raise ValueError(f"Unsupported algorithm: {algorithm}")
+        hasher_factory = SECURE_HASHERS.get(algorithm.lower())
+        if hasher_factory is None:
+            raise ValueError(f"Unsupported or insecure algorithm: {algorithm}")
+        hasher = hasher_factory()
 
         with open(filepath, "rb") as handle:
             for chunk in iter(lambda: handle.read(4096), b""):

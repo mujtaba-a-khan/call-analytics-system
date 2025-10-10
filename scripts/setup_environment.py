@@ -11,18 +11,17 @@ import logging
 import secrets
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence, TypeVar, TypedDict
+from typing import Any, TypedDict
 
 import toml
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-_T = TypeVar("_T")
 
-
-def secure_choice(options: Sequence[_T]) -> _T:
+def secure_choice(options: Sequence[Any]) -> Any:
     """
     Select a value using a cryptographically secure random generator.
 
