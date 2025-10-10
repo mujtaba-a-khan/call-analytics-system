@@ -31,9 +31,7 @@ class DocumentRetriever:
     with support for filtering, reranking, and result processing.
     """
 
-    def __init__(
-        self, vector_db_client: Any, config: dict[str, Any] | None = None
-    ) -> None:
+    def __init__(self, vector_db_client: Any, config: dict[str, Any] | None = None) -> None:
         """
         Initialize the document retriever.
 
