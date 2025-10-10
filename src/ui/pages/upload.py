@@ -18,9 +18,8 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-# Import core modules
-from src.core.csv_processor import CSVProcessor
 from src.core.audio_processor import AudioProcessor
+from src.core.csv_processor import CSVProcessor
 from src.core.storage_manager import StorageManager
 from src.ml.whisper_stt import WhisperSTT
 
@@ -411,12 +410,18 @@ class UploadPage:
 
             # Format columns
             if 'timestamp' in history_df.columns:
-                history_df['timestamp'] = pd.to_datetime(history_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+                history_df['timestamp'] = (
+                    pd.to_datetime(history_df['timestamp'])
+                    .dt.strftime('%Y-%m-%d %H:%M')
+                )
 
             if 'file_size' in history_df.columns:
-                history_df['file_size'] = history_df['file_size'].apply(
-                    lambda x: f"{x / 1024 / 1024:.1f} MB" if x > 1024 * 1024 else f"{x / 1024:.1f} KB"
-                )
+                def _format_size(value: float) -> str:
+                    if value > 1024 * 1024:
+                        return f"{value / 1024 / 1024:.1f} MB"
+                    return f"{value / 1024:.1f} KB"
+
+                history_df['file_size'] = history_df['file_size'].apply(_format_size)
 
             # Display table
             st.dataframe(
@@ -442,15 +447,22 @@ class UploadPage:
                 st.metric("Total Imports", len(history_df))
 
             with col2:
-                total_records = history_df.get('records_imported', pd.Series(dtype=float)).fillna(0).sum()
+                total_records_series = history_df.get('records_imported', pd.Series(dtype=float))
+                total_records = total_records_series.fillna(0).sum()
                 st.metric("Total Records", f"{int(total_records):,}")
 
             with col3:
-                successful = int((history_df.get('status') == 'success').sum()) if 'status' in history_df.columns else 0
+                if 'status' in history_df.columns:
+                    successful = int((history_df['status'] == 'success').sum())
+                else:
+                    successful = 0
                 st.metric("Successful", successful)
 
             with col4:
-                failed = int((history_df.get('status') == 'failed').sum()) if 'status' in history_df.columns else 0
+                if 'status' in history_df.columns:
+                    failed = int((history_df['status'] == 'failed').sum())
+                else:
+                    failed = 0
                 st.metric("Failed", failed)
 
             # Management options
@@ -569,7 +581,7 @@ class UploadPage:
             # Estimate total rows for progress feedback
             try:
                 encoding = self.csv_processor.detect_encoding(file_path)
-                with open(file_path, 'r', encoding=encoding, errors='ignore') as fh:
+                with open(file_path, encoding=encoding, errors='ignore') as fh:
                     processed_target = sum(1 for _ in fh) - 1  # subtract header
                 if processed_target <= 0:
                     processed_target = 1
@@ -578,8 +590,6 @@ class UploadPage:
 
             # Process CSV in batches
             total_processed = 0
-            total_errors = 0
-
             def process_batch(records):
                 nonlocal total_processed
                 # Persist records incrementally
@@ -759,7 +769,9 @@ class UploadPage:
 
                 metadata_duration_minutes = record_metadata.get('duration_minutes')
                 if metadata_duration_minutes in (None, '', 0, 0.0):
-                    metadata_duration_minutes = metadata_duration_seconds / 60 if metadata_duration_seconds else 0
+                    metadata_duration_minutes = (
+                        metadata_duration_seconds / 60 if metadata_duration_seconds else 0
+                    )
 
                 record = {
                     'call_id': record_metadata.get(
@@ -772,7 +784,11 @@ class UploadPage:
                     'duration_minutes': metadata_duration_minutes,
                     'transcript': result.transcript,
                     **metadata,
-                    **{k: v for k, v in record_metadata.items() if k not in {'audio_file', 'transcript_file', 'transcript'}}
+                    **{
+                        k: v
+                        for k, v in record_metadata.items()
+                        if k not in {'audio_file', 'transcript_file', 'transcript'}
+                    }
                 }
 
                 processed_records.append(record)

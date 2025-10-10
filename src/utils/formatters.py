@@ -8,8 +8,8 @@ and other commonly displayed values.
 import logging
 import os
 import re
-from datetime import datetime
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
 import phonenumbers

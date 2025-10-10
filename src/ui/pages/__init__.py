@@ -15,7 +15,7 @@ __all__ = [
     'AnalysisPage',
     'QAInterface',
     'UploadPage',
-    
+
     # Render functions
     'render_dashboard_page',
     'render_analysis_page',
@@ -32,20 +32,19 @@ def __getattr__(name):
     if name in ['DashboardPage', 'render_dashboard_page']:
         from . import dashboard
         return getattr(dashboard, name)
-    
+
     # Analysis page
     elif name in ['AnalysisPage', 'render_analysis_page']:
         from . import analysis
         return getattr(analysis, name)
-    
+
     # QA interface
     elif name in ['QAInterface', 'render_qa_interface']:
         from . import qa_interface
         return getattr(qa_interface, name)
-    
+
     # Upload page
     elif name in ['UploadPage', 'render_upload_page']:
         from . import upload
         return getattr(upload, name)
-    
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

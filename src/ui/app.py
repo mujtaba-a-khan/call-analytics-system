@@ -6,14 +6,12 @@ Provides file upload, processing, analysis, and Q&A capabilities.
 Compatible with Python 3.13+
 """
 
-import sys
-import os
 import logging
-import argparse
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+import sys
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 # Ensure we're using Python 3.13+
 if sys.version_info < (3, 13):
@@ -36,12 +34,12 @@ logger = logging.getLogger(__name__)
 
 # Import with error handling
 try:
-    import streamlit as st
     import pandas as pd
+    import streamlit as st
     import toml
 except ImportError as e:
     logger.error(f"Failed to import required package: {e}")
-    print(f"Error: Missing required package. Please install dependencies: pip install -e .")
+    print("Error: Missing required package. Please install dependencies: pip install -e .")
     sys.exit(1)
 
 def _has_streamlit_context() -> bool:
@@ -345,7 +343,7 @@ class CallAnalyticsApp:
     Main application class for the Call Analytics System.
     Manages state, configuration, and UI components.
     """
-    
+
     def __init__(self):
         """Initialize the application with configuration"""
         try:
@@ -357,8 +355,8 @@ class CallAnalyticsApp:
             logger.error(f"Failed to initialize application: {e}")
             st.error(f"Failed to initialize application: {str(e)}")
             raise
-    
-    def load_configuration(self) -> Dict[str, Any]:
+
+    def load_configuration(self) -> dict[str, Any]:
         """
         Load configuration from TOML files.
         
@@ -366,7 +364,7 @@ class CallAnalyticsApp:
             Dict[str, Any]: Merged configuration dictionary
         """
         config = self.get_default_config()
-        
+
         # Try to load configuration files
         config_dir = Path('config')
         if config_dir.exists():
@@ -375,16 +373,16 @@ class CallAnalyticsApp:
             for config_path in config_files:
                 if config_path.exists():
                     try:
-                        with open(config_path, 'r') as f:
+                        with open(config_path) as f:
                             file_config = toml.load(f)
                             config = self.merge_configs(config, file_config)
                             logger.info(f"Loaded configuration from {config_path.name}")
                     except Exception as e:
                         logger.warning(f"Failed to load {config_path.name}: {e}")
-        
+
         return config
-    
-    def get_default_config(self) -> Dict[str, Any]:
+
+    def get_default_config(self) -> dict[str, Any]:
         """
         Get default configuration.
         
@@ -425,7 +423,7 @@ class CallAnalyticsApp:
         }
 
     @staticmethod
-    def merge_configs(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def merge_configs(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
         """Recursively merge configuration dictionaries."""
         for key, value in updates.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
@@ -433,7 +431,7 @@ class CallAnalyticsApp:
             else:
                 base[key] = value
         return base
-    
+
     def initialize_session_state(self) -> None:
         """Initialize Streamlit session state variables"""
         if 'initialized' not in st.session_state:
@@ -450,7 +448,7 @@ class CallAnalyticsApp:
             st.session_state.filter_state = {}
             st.session_state.qa_history = []
             logger.info("Session state initialized")
-    
+
     def setup_components(self) -> None:
         """
         Setup application components with lazy loading.
@@ -460,7 +458,7 @@ class CallAnalyticsApp:
             # Create required directories
             for path_key, path_value in self.config.get('paths', {}).items():
                 Path(path_value).mkdir(parents=True, exist_ok=True)
-            
+
             # Initialize storage manager if not already done
             if st.session_state.storage_manager is None:
                 from core.storage_manager import StorageManager
@@ -568,16 +566,16 @@ class CallAnalyticsApp:
                 except Exception as llm_error:
                     logger.warning(f"Failed to initialize LLM client: {llm_error}")
 
-            
+
             # Components will be initialized on-demand when pages are accessed
             self.components_ready = True
             logger.info("Components setup completed")
-            
+
         except Exception as e:
             logger.error(f"Failed to setup components: {e}")
             self.components_ready = False
             raise
-    
+
     def render_sidebar(self) -> str:
         """
         Render the sidebar navigation.
@@ -600,7 +598,7 @@ class CallAnalyticsApp:
                     "Analysis": "🔍",
                     "Q&A Interface": "💬",
                     "Settings": "⚙️"
-                    
+
                 }
 
                 selected_page = st.radio(
@@ -615,10 +613,10 @@ class CallAnalyticsApp:
 
         return selected_page
 
-    def _collect_system_status(self) -> List[tuple[str, str]]:
+    def _collect_system_status(self) -> list[tuple[str, str]]:
         """Gather formatted system status indicators for display."""
 
-        status_items: List[tuple[str, str]] = []
+        status_items: list[tuple[str, str]] = []
 
         storage_manager = st.session_state.get('storage_manager')
         if storage_manager is not None:
@@ -704,21 +702,21 @@ class CallAnalyticsApp:
                 self.render_settings()
             else:
                 st.error(f"Unknown page: {page_name}")
-                
+
         except ImportError as e:
             st.error(f"Failed to load page components: {str(e)}")
             st.info("Please ensure all dependencies are installed: pip install -e .")
             logger.error(f"Import error rendering {page_name}: {e}")
-            
+
         except Exception as e:
             st.error(f"Error rendering page: {str(e)}")
             logger.error(f"Error rendering {page_name}: {e}\n{traceback.format_exc()}")
-    
+
     def render_dashboard(self) -> None:
         """Render the dashboard page with lazy loading"""
         try:
             from ui.pages.dashboard import render_dashboard_page
-            
+
             # Pass storage manager instead of data
             render_dashboard_page(
                 storage_manager=st.session_state.storage_manager
@@ -727,34 +725,34 @@ class CallAnalyticsApp:
             # Fallback to basic dashboard
             st.header("📊 Dashboard")
             st.info("Advanced dashboard components are being loaded...")
-            
+
             if st.session_state.data is not None:
                 st.subheader("Data Overview")
                 st.write(f"Total Records: {len(st.session_state.data):,}")
                 st.dataframe(st.session_state.data.head(10))
             else:
                 st.warning("No data loaded. Please upload data first.")
-    
+
     def render_upload(self) -> None:
         """Render the upload page with lazy loading"""
         try:
             from ui.pages.upload import render_upload_page
-            
+
             render_upload_page(
                 storage_manager=st.session_state.storage_manager,
                 config=self.config
             )
-        except ImportError as e:
+        except ImportError:
             # Fallback to basic upload
             st.header("📤 Upload Data")
             st.info("Upload components are being loaded...")
-            
+
             uploaded_file = st.file_uploader(
                 "Choose a CSV file",
                 type=['csv'],
                 help="Upload a CSV file containing call transcripts"
             )
-            
+
             if uploaded_file is not None:
                 try:
                     df = pd.read_csv(uploaded_file)
@@ -763,12 +761,12 @@ class CallAnalyticsApp:
                     st.dataframe(df.head())
                 except Exception as e:
                     st.error(f"Error loading file: {str(e)}")
-    
+
     def render_analysis(self) -> None:
         """Render the analysis page with lazy loading"""
         try:
             from ui.pages.analysis import render_analysis_page
-            
+
             render_analysis_page(
                 storage_manager=st.session_state.storage_manager,
                 vector_store=st.session_state.vector_store
@@ -777,13 +775,13 @@ class CallAnalyticsApp:
             # Fallback to basic analysis
             st.header("🔍 Analysis")
             st.info("Analysis components are being loaded...")
-            
+
             if st.session_state.data is not None:
                 st.subheader("Basic Statistics")
                 st.write(st.session_state.data.describe())
             else:
                 st.warning("No data loaded for analysis.")
-    
+
     def render_qa_interface(self) -> None:
         """Render the Q&A interface page with lazy loading"""
         try:
@@ -798,58 +796,58 @@ class CallAnalyticsApp:
             # Fallback to basic Q&A
             st.header("💬 Q&A Interface")
             st.info("Q&A components are being loaded...")
-            
+
             question = st.text_input("Ask a question about your data:")
             if question:
                 st.info("Q&A functionality requires vector store and LLM setup.")
-    
+
     def render_settings(self) -> None:
         """Render the settings page"""
         st.header("⚙️ Settings")
-        
+
         # Display configuration sections
         st.subheader("Application Configuration")
-        
+
         # Show current configuration
         with st.expander("Current Configuration", expanded=False):
             st.json(self.config)
-        
+
         # System information
         st.subheader("System Information")
-        
+
         col1, col2, col3 = st.columns(3)
-        
+
         with col1:
             st.metric("Python Version", f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
-        
+
         with col2:
             st.metric("Streamlit Version", st.__version__)
-        
+
         with col3:
             import platform
             st.metric("Platform", platform.system())
-        
+
         # Clear cache button
         if st.button("Clear Cache", type="secondary"):
             st.cache_data.clear()
             st.cache_resource.clear()
             st.success("Cache cleared successfully")
             st.rerun()
-    
+
     def run(self) -> None:
         """Main application loop"""
         try:
             # Render sidebar and get selected page
             selected_page = self.render_sidebar()
-            
+
             # Render selected page
             self.render_page(selected_page)
             self.render_app_footer()
-            
+
         except Exception as e:
             logger.error(f"Application error: {e}\n{traceback.format_exc()}")
             st.error("An unexpected error occurred. Please check the logs.")
-            
+
             if st.checkbox("Show error details"):
                 st.exception(e)
 

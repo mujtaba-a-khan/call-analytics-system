@@ -6,16 +6,16 @@ call records, analytics results, and agent performance data with sorting,
 filtering, pagination, and export capabilities.
 """
 
-import logging
-from typing import Dict, List, Optional, Any, Tuple, Union
-from urllib.parse import urlencode
-import streamlit as st
-import pandas as pd
-import numpy as np
-from datetime import datetime
 import base64
+import logging
+from datetime import datetime
 from io import BytesIO
-import xlsxwriter
+from typing import Any
+from urllib.parse import urlencode
+
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class DataTable:
     Enhanced data table component with sorting, filtering, and
     pagination capabilities for large datasets.
     """
-    
+
     @classmethod
     def render(cls,
                data: pd.DataFrame,
@@ -34,8 +34,8 @@ class DataTable:
                page_size: int = 20,
                key: str = 'data_table',
                show_index: bool = False,
-               column_config: Optional[Dict[str, Any]] = None,
-               height: Optional[int] = None,
+               column_config: dict[str, Any] | None = None,
+               height: int | None = None,
                enable_search: bool = True,
                enable_export: bool = True) -> pd.DataFrame:
         """
@@ -56,11 +56,11 @@ class DataTable:
             Filtered/sorted DataFrame based on user interactions
         """
         container = container or st
-        
+
         # Initialize session state for pagination
         if f'{key}_page' not in st.session_state:
             st.session_state[f'{key}_page'] = 0
-        
+
         # Search functionality
         filtered_data = data.copy()
         if enable_search:
@@ -69,7 +69,7 @@ class DataTable:
                 key=f"{key}_search",
                 placeholder="Type to search..."
             )
-            
+
             if search_query:
                 # Search across all string columns
                 mask = pd.Series([False] * len(filtered_data))
@@ -78,54 +78,54 @@ class DataTable:
                         search_query, case=False, na=False
                     )
                 filtered_data = filtered_data[mask]
-        
+
         # Calculate pagination
         total_rows = len(filtered_data)
         total_pages = (total_rows - 1) // page_size + 1 if total_rows > 0 else 1
         current_page = st.session_state[f'{key}_page']
-        
+
         # Ensure current page is valid
         if current_page >= total_pages:
             current_page = total_pages - 1
             st.session_state[f'{key}_page'] = current_page
-        
+
         # Slice data for current page
         start_idx = current_page * page_size
         end_idx = min(start_idx + page_size, total_rows)
         page_data = filtered_data.iloc[start_idx:end_idx]
-        
+
         # Display table info
         col1, col2, col3 = container.columns([2, 3, 2])
         with col1:
             st.caption(f"Showing {start_idx + 1}-{end_idx} of {total_rows} rows")
-        
+
         # Pagination controls
         with col2:
             subcol1, subcol2, subcol3, subcol4, subcol5 = st.columns(5)
-            
+
             with subcol1:
                 if st.button("⏮️", key=f"{key}_first", disabled=(current_page == 0)):
                     st.session_state[f'{key}_page'] = 0
                     st.rerun()
-            
+
             with subcol2:
                 if st.button("◀️", key=f"{key}_prev", disabled=(current_page == 0)):
                     st.session_state[f'{key}_page'] = current_page - 1
                     st.rerun()
-            
+
             with subcol3:
                 st.caption(f"Page {current_page + 1}/{total_pages}")
-            
+
             with subcol4:
                 if st.button("▶️", key=f"{key}_next", disabled=(current_page >= total_pages - 1)):
                     st.session_state[f'{key}_page'] = current_page + 1
                     st.rerun()
-            
+
             with subcol5:
                 if st.button("⏭️", key=f"{key}_last", disabled=(current_page >= total_pages - 1)):
                     st.session_state[f'{key}_page'] = total_pages - 1
                     st.rerun()
-        
+
         # Export controls
         if enable_export:
             with col3:
@@ -134,10 +134,10 @@ class DataTable:
                     ["", "CSV", "Excel", "JSON"],
                     key=f"{key}_export_format"
                 )
-                
+
                 if export_format:
                     cls._handle_export(filtered_data, export_format, key)
-        
+
         # Display the table
         st.dataframe(
             page_data,
@@ -146,9 +146,9 @@ class DataTable:
             column_config=column_config,
             height=height
         )
-        
+
         return filtered_data
-    
+
     @staticmethod
     def _handle_export(data: pd.DataFrame, format: str, key: str) -> None:
         """
@@ -160,13 +160,13 @@ class DataTable:
             key: Component key for unique download button
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         if format == "CSV":
             csv = data.to_csv(index=False)
             b64 = base64.b64encode(csv.encode()).decode()
             href = f'<a href="data:file/csv;base64,{b64}" download="export_{timestamp}.csv">Download CSV</a>'
             st.markdown(href, unsafe_allow_html=True)
-            
+
         elif format == "Excel":
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -175,7 +175,7 @@ class DataTable:
             b64 = base64.b64encode(excel_data).decode()
             href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="export_{timestamp}.xlsx">Download Excel</a>'
             st.markdown(href, unsafe_allow_html=True)
-            
+
         elif format == "JSON":
             json_str = data.to_json(orient='records', indent=2)
             b64 = base64.b64encode(json_str.encode()).decode()
@@ -188,13 +188,13 @@ class CallRecordsTable:
     Specialized table component for displaying call records with
     custom formatting and action buttons.
     """
-    
+
     @classmethod
     def render(cls,
                records: pd.DataFrame,
                container: Any = None,
                show_actions: bool = True,
-               show_transcript: bool = False) -> Optional[Dict[str, Any]]:
+               show_transcript: bool = False) -> dict[str, Any] | None:
         """
         Render call records table with specialized formatting.
         
@@ -221,32 +221,32 @@ class CallRecordsTable:
         records = records.reset_index(drop=True)
 
         # Prepare display columns
-        display_columns = ['call_id', 'phone_number', 'timestamp', 'duration', 
+        display_columns = ['call_id', 'phone_number', 'timestamp', 'duration',
                           'outcome', 'agent_id', 'campaign']
-        
+
         if show_transcript and 'transcript' in records.columns:
             display_columns.append('transcript')
-        
+
         if 'revenue' in records.columns:
             display_columns.append('revenue')
-        
+
         # Filter to available columns
         display_columns = [col for col in display_columns if col in records.columns]
         display_data = records[display_columns].copy()
-        
+
         # Format columns for display
         if 'timestamp' in display_data.columns:
             display_data['timestamp'] = pd.to_datetime(display_data['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-        
+
         if 'duration' in display_data.columns:
             display_data['duration'] = display_data['duration'].apply(cls._format_duration)
-        
+
         if 'revenue' in display_data.columns:
             display_data['revenue'] = display_data['revenue'].apply(lambda x: f"${x:.2f}" if x > 0 else "-")
-        
+
         if 'transcript' in display_data.columns:
             display_data['transcript'] = display_data['transcript'].str[:100] + "..."
-        
+
         # Column configuration
         column_config = {
             'call_id': st.column_config.TextColumn('Call ID', width='small'),
@@ -260,14 +260,14 @@ class CallRecordsTable:
             'transcript': st.column_config.TextColumn('Transcript Preview', width='large')
         }
 
-        def _first_value(value: Any) -> Optional[str]:
+        def _first_value(value: Any) -> str | None:
             if value is None:
                 return None
             if isinstance(value, list):
                 return value[0] if value else None
             return str(value)
 
-        def _sync_selection(record: Dict[str, Any]) -> None:
+        def _sync_selection(record: dict[str, Any]) -> None:
             st.session_state[record_session_key] = record
             call_id_value = record.get('call_id')
             if not call_id_value:
@@ -276,7 +276,7 @@ class CallRecordsTable:
             if current_param != call_id_value:
                 st.query_params['view_call'] = call_id_value
 
-        selected_record: Optional[Dict[str, Any]] = None
+        selected_record: dict[str, Any] | None = None
 
         view_call_param = _first_value(st.query_params.get('view_call'))
         if view_call_param and 'call_id' in records.columns:
@@ -301,7 +301,7 @@ class CallRecordsTable:
                 call_id_str = str(call_id) if call_id is not None else ''
                 if not call_id_str:
                     return ''
-                query_pairs: List[Tuple[str, str]] = []
+                query_pairs: list[tuple[str, str]] = []
                 for key in st.query_params.keys():
                     if key == 'view_call':
                         continue
@@ -338,7 +338,7 @@ class CallRecordsTable:
             )
 
         return selected_record
-    
+
     @staticmethod
     def _format_duration(seconds: float) -> str:
         """
@@ -352,10 +352,10 @@ class CallRecordsTable:
         """
         if pd.isna(seconds):
             return "-"
-        
+
         minutes = int(seconds // 60)
         secs = int(seconds % 60)
-        
+
         if minutes > 0:
             return f"{minutes}m {secs}s"
         else:
@@ -367,12 +367,12 @@ class AgentPerformanceTable:
     Specialized table for displaying agent performance metrics
     with rankings and visual indicators.
     """
-    
+
     @classmethod
     def render(cls,
                data: pd.DataFrame,
                container: Any = None,
-               metrics: List[str] = ['calls', 'connection_rate', 'avg_duration', 'revenue'],
+               metrics: list[str] = ['calls', 'connection_rate', 'avg_duration', 'revenue'],
                show_rankings: bool = True) -> None:
         """
         Render agent performance table with metrics and rankings.
@@ -384,20 +384,20 @@ class AgentPerformanceTable:
             show_rankings: Whether to show ranking column
         """
         container = container or st
-        
+
         # Calculate agent metrics
         agent_stats = cls._calculate_agent_metrics(data, metrics)
-        
+
         if agent_stats.empty:
             container.warning("No agent data available")
             return
-        
+
         # Add rankings if requested
         if show_rankings:
             # Rank by total calls (or first metric)
             agent_stats = agent_stats.sort_values('Total Calls', ascending=False)
             agent_stats.insert(0, 'Rank', range(1, len(agent_stats) + 1))
-        
+
         # Format columns
         for col in agent_stats.columns:
             if 'Rate' in col or 'Percentage' in col:
@@ -408,7 +408,7 @@ class AgentPerformanceTable:
                 agent_stats[col] = agent_stats[col].apply(lambda x: f"${x:,.2f}")
             elif col not in ['Agent', 'Rank']:
                 agent_stats[col] = agent_stats[col].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x)
-        
+
         # Display table
         st.dataframe(
             agent_stats,
@@ -416,7 +416,7 @@ class AgentPerformanceTable:
             hide_index=True,
             height=400
         )
-        
+
         # Add summary statistics
         with container.expander("Summary Statistics"):
             col1, col2, col3 = st.columns(3)
@@ -427,10 +427,10 @@ class AgentPerformanceTable:
             with col3:
                 if 'revenue' in data.columns:
                     st.metric("Total Revenue", f"${data['revenue'].sum():,.2f}")
-    
+
     @staticmethod
-    def _calculate_agent_metrics(data: pd.DataFrame, 
-                                 metrics: List[str]) -> pd.DataFrame:
+    def _calculate_agent_metrics(data: pd.DataFrame,
+                                 metrics: list[str]) -> pd.DataFrame:
         """
         Calculate performance metrics for each agent.
         
@@ -443,27 +443,27 @@ class AgentPerformanceTable:
         """
         if 'agent_id' not in data.columns:
             return pd.DataFrame()
-        
+
         agent_groups = data.groupby('agent_id')
         agent_stats = pd.DataFrame()
         agent_stats['Agent'] = agent_groups.size().index
-        
+
         # Calculate each requested metric
         if 'calls' in metrics:
             agent_stats['Total Calls'] = agent_groups.size().values
-        
+
         if 'connection_rate' in metrics and 'outcome' in data.columns:
             agent_stats['Connection Rate'] = agent_groups['outcome'].agg(
                 lambda outcomes: (outcomes == 'connected').mean() * 100
             ).values
-        
+
         if 'avg_duration' in metrics and 'duration' in data.columns:
             agent_stats['Avg Duration'] = agent_groups['duration'].mean().values / 60
-        
+
         if 'revenue' in metrics and 'revenue' in data.columns:
             agent_stats['Total Revenue'] = agent_groups['revenue'].sum().values
             agent_stats['Avg Revenue'] = agent_groups['revenue'].mean().values
-        
+
         return agent_stats
 
 
@@ -472,13 +472,13 @@ class ComparisonTable:
     Component for displaying comparison tables with highlighting
     of differences and trends between periods or groups.
     """
-    
+
     @classmethod
     def render(cls,
                current_data: pd.DataFrame,
                previous_data: pd.DataFrame,
                group_column: str,
-               metrics: List[str],
+               metrics: list[str],
                container: Any = None,
                title: str = "Period Comparison") -> None:
         """
@@ -561,7 +561,7 @@ class ComparisonTable:
     def prepare_comparison_data(current_data: pd.DataFrame,
                                 previous_data: pd.DataFrame,
                                 group_column: str,
-                                metrics: List[str]) -> pd.DataFrame:
+                                metrics: list[str]) -> pd.DataFrame:
         """Compute comparison metrics between periods for reuse in tables and charts."""
         if current_data is None or previous_data is None:
             return pd.DataFrame()
@@ -631,11 +631,11 @@ class ComparisonTable:
                 comparison[change_col] = raw_change
 
         return comparison
-    
+
     @staticmethod
     def _calculate_group_metrics(data: pd.DataFrame,
                                  group_column: str,
-                                 metrics: List[str]) -> pd.DataFrame:
+                                 metrics: list[str]) -> pd.DataFrame:
         """
         Calculate metrics for grouped data.
         
@@ -649,17 +649,17 @@ class ComparisonTable:
         """
         if group_column not in data.columns:
             return pd.DataFrame()
-        
+
         result = pd.DataFrame()
         result[group_column] = data[group_column].unique()
-        
+
         for group in result[group_column]:
             group_data = data[data[group_column] == group]
-            
+
             for metric in metrics:
                 if metric == 'count':
                     result.loc[result[group_column] == group, metric] = len(group_data)
                 elif metric in data.columns:
                     result.loc[result[group_column] == group, metric] = group_data[metric].sum()
-        
+
         return result

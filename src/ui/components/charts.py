@@ -7,14 +7,11 @@ charts with consistent styling and interactivity.
 """
 
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
+from typing import Any
+
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-import streamlit as st
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -25,7 +22,7 @@ class ChartTheme:
     Consistent theme configuration for all charts in the application.
     Provides dark mode compatible color schemes and styling options.
     """
-    
+
     # Color palette for dark theme
     COLORS = {
         'primary': '#1f77b4',
@@ -39,15 +36,15 @@ class ChartTheme:
         'text': '#fafafa',
         'grid': '#404040'
     }
-    
+
     # Chart color sequences for multiple series
     COLOR_SEQUENCE = [
         '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
         '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
     ]
-    
+
     @classmethod
-    def get_layout_template(cls) -> Dict[str, Any]:
+    def get_layout_template(cls) -> dict[str, Any]:
         """
         Get standard layout template for Plotly charts.
         
@@ -81,13 +78,13 @@ class TimeSeriesChart:
     Creates interactive time series charts for call volume and metrics
     over time with multiple aggregation options.
     """
-    
+
     @staticmethod
     def create_call_volume_chart(
         data: pd.DataFrame,
         date_column: str = 'timestamp',
         aggregation: str = 'daily',
-        group_by: Optional[str] = None,
+        group_by: str | None = None,
         title: str = 'Call Volume Over Time'
     ) -> go.Figure:
         """
@@ -106,7 +103,7 @@ class TimeSeriesChart:
         try:
             # Convert date column to datetime
             data[date_column] = pd.to_datetime(data[date_column])
-            
+
             # Set aggregation frequency
             freq_map = {
                 'hourly': 'H',
@@ -115,16 +112,16 @@ class TimeSeriesChart:
                 'monthly': 'M'
             }
             freq = freq_map.get(aggregation, 'D')
-            
+
             # Create figure
             fig = go.Figure()
-            
+
             if group_by and group_by in data.columns:
                 # Group data and create traces for each group
                 for group_name in data[group_by].unique():
                     group_data = data[data[group_by] == group_name]
                     aggregated = group_data.resample(freq, on=date_column).size()
-                    
+
                     fig.add_trace(go.Scatter(
                         x=aggregated.index,
                         y=aggregated.values,
@@ -136,7 +133,7 @@ class TimeSeriesChart:
             else:
                 # Single series aggregation
                 aggregated = data.resample(freq, on=date_column).size()
-                
+
                 fig.add_trace(go.Scatter(
                     x=aggregated.index,
                     y=aggregated.values,
@@ -147,7 +144,7 @@ class TimeSeriesChart:
                     fill='tozeroy',
                     fillcolor='rgba(31, 119, 180, 0.2)'
                 ))
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -158,13 +155,13 @@ class TimeSeriesChart:
                 'showlegend': bool(group_by)
             })
             fig.update_layout(layout)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating time series chart: {e}")
             return go.Figure()
-    
+
     @staticmethod
     def create_peak_hours_heatmap(
         data: pd.DataFrame,
@@ -186,7 +183,7 @@ class TimeSeriesChart:
             # Extract hour and day of week
             data['hour'] = pd.to_datetime(data[timestamp_column]).dt.hour
             data['day_of_week'] = pd.to_datetime(data[timestamp_column]).dt.day_name()
-            
+
             # Create pivot table
             pivot = data.pivot_table(
                 index='hour',
@@ -195,11 +192,11 @@ class TimeSeriesChart:
                 aggfunc='count',
                 fill_value=0
             )
-            
+
             # Reorder days
             days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
             pivot = pivot.reindex(columns=days_order, fill_value=0)
-            
+
             # Create heatmap
             fig = go.Figure(data=go.Heatmap(
                 z=pivot.values,
@@ -209,7 +206,7 @@ class TimeSeriesChart:
                 colorbar=dict(title='Calls'),
                 hovertemplate='%{x}<br>%{y}:00<br>Calls: %{z}<extra></extra>'
             ))
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -219,9 +216,9 @@ class TimeSeriesChart:
                 'yaxis': {'dtick': 1}
             })
             fig.update_layout(layout)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating heatmap: {e}")
             return go.Figure()
@@ -232,7 +229,7 @@ class DistributionChart:
     Creates distribution charts for analyzing call characteristics
     such as duration, outcomes, and agent performance.
     """
-    
+
     @staticmethod
     def create_duration_distribution(
         data: pd.DataFrame,
@@ -255,14 +252,14 @@ class DistributionChart:
         try:
             # Convert duration to minutes
             durations = data[duration_column] / 60  # Assuming duration is in seconds
-            
+
             # Calculate statistics
             mean_duration = durations.mean()
             median_duration = durations.median()
-            
+
             # Create histogram
             fig = go.Figure()
-            
+
             fig.add_trace(go.Histogram(
                 x=durations,
                 nbinsx=bins,
@@ -270,7 +267,7 @@ class DistributionChart:
                 marker_color=ChartTheme.COLORS['primary'],
                 opacity=0.8
             ))
-            
+
             # Add mean and median lines
             fig.add_vline(
                 x=mean_duration,
@@ -278,14 +275,14 @@ class DistributionChart:
                 line_color=ChartTheme.COLORS['danger'],
                 annotation_text=f"Mean: {mean_duration:.1f} min"
             )
-            
+
             fig.add_vline(
                 x=median_duration,
                 line_dash="dash",
                 line_color=ChartTheme.COLORS['success'],
                 annotation_text=f"Median: {median_duration:.1f} min"
             )
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -295,13 +292,13 @@ class DistributionChart:
                 'bargap': 0.1
             })
             fig.update_layout(layout)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating duration distribution: {e}")
             return go.Figure()
-    
+
     @staticmethod
     def create_outcome_pie_chart(
         data: pd.DataFrame,
@@ -322,7 +319,7 @@ class DistributionChart:
         try:
             # Calculate outcome counts
             outcome_counts = data[outcome_column].value_counts()
-            
+
             # Define colors for common outcomes
             outcome_colors = {
                 'connected': ChartTheme.COLORS['success'],
@@ -331,10 +328,10 @@ class DistributionChart:
                 'busy': ChartTheme.COLORS['danger'],
                 'failed': ChartTheme.COLORS['danger']
             }
-            
-            colors = [outcome_colors.get(outcome.lower(), ChartTheme.COLORS['primary']) 
+
+            colors = [outcome_colors.get(outcome.lower(), ChartTheme.COLORS['primary'])
                      for outcome in outcome_counts.index]
-            
+
             # Create pie chart
             fig = go.Figure(data=[go.Pie(
                 labels=outcome_counts.index,
@@ -344,7 +341,7 @@ class DistributionChart:
                 textinfo='label+percent',
                 textposition='auto'
             )])
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -353,9 +350,9 @@ class DistributionChart:
                 'legend': {'orientation': 'v', 'yanchor': 'middle', 'y': 0.5}
             })
             fig.update_layout(layout)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating outcome pie chart: {e}")
             return go.Figure()
@@ -366,7 +363,7 @@ class PerformanceChart:
     Creates performance charts for agent and campaign analytics
     with comparative metrics and rankings.
     """
-    
+
     @staticmethod
     def create_agent_performance_bar(
         data: pd.DataFrame,
@@ -402,10 +399,10 @@ class PerformanceChart:
             else:
                 agent_stats = data.groupby(agent_column).size().sort_values(ascending=False)
                 y_title = 'Count'
-            
+
             # Get top N agents
             top_agents = agent_stats.head(top_n)
-            
+
             # Create bar chart
             fig = go.Figure(data=[go.Bar(
                 x=top_agents.index,
@@ -414,7 +411,7 @@ class PerformanceChart:
                 text=top_agents.values.round(1),
                 textposition='outside'
             )])
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -424,18 +421,18 @@ class PerformanceChart:
                 'xaxis': {'tickangle': -45}
             })
             fig.update_layout(layout)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating agent performance chart: {e}")
             return go.Figure()
-    
+
     @staticmethod
     def create_campaign_comparison(
         data: pd.DataFrame,
         campaign_column: str = 'campaign',
-        metrics: List[str] = ['calls', 'connection_rate', 'avg_duration'],
+        metrics: list[str] = ['calls', 'connection_rate', 'avg_duration'],
         title: str = 'Campaign Performance Comparison'
     ) -> go.Figure:
         """
@@ -454,7 +451,7 @@ class PerformanceChart:
             # Calculate metrics for each campaign
             campaign_stats = {}
             campaigns = data[campaign_column].unique()
-            
+
             for campaign in campaigns:
                 campaign_data = data[data[campaign_column] == campaign]
                 stats = {
@@ -464,7 +461,7 @@ class PerformanceChart:
                     'total_revenue': campaign_data['revenue'].sum()
                 }
                 campaign_stats[campaign] = stats
-            
+
             # Create subplot figure
             fig = make_subplots(
                 rows=1,
@@ -472,11 +469,11 @@ class PerformanceChart:
                 subplot_titles=metrics,
                 specs=[[{'type': 'bar'} for _ in metrics]]
             )
-            
+
             # Add traces for each metric
             for idx, metric in enumerate(metrics, 1):
                 values = [campaign_stats[c].get(metric, 0) for c in campaigns]
-                
+
                 fig.add_trace(
                     go.Bar(
                         x=campaigns,
@@ -488,7 +485,7 @@ class PerformanceChart:
                     row=1,
                     col=idx
                 )
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -497,13 +494,13 @@ class PerformanceChart:
                 'height': 400
             })
             fig.update_layout(layout)
-            
+
             # Update x-axis for all subplots
             for i in range(1, len(metrics) + 1):
                 fig.update_xaxes(tickangle=-45, row=1, col=i)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating campaign comparison: {e}")
             return go.Figure()
@@ -514,13 +511,13 @@ class TrendChart:
     Creates trend analysis charts for identifying patterns
     and forecasting future metrics.
     """
-    
+
     @staticmethod
     def create_moving_average_chart(
         data: pd.DataFrame,
         date_column: str = 'timestamp',
         value_column: str = 'calls',
-        window_sizes: List[int] = [7, 30],
+        window_sizes: list[int] = [7, 30],
         title: str = 'Trend Analysis with Moving Averages'
     ) -> go.Figure:
         """
@@ -540,16 +537,16 @@ class TrendChart:
             # Prepare data
             data[date_column] = pd.to_datetime(data[date_column])
             data = data.sort_values(date_column)
-            
+
             # Aggregate daily values
             if value_column == 'calls':
                 daily_data = data.resample('D', on=date_column).size()
             else:
                 daily_data = data.resample('D', on=date_column)[value_column].mean()
-            
+
             # Create figure
             fig = go.Figure()
-            
+
             # Add actual values
             fig.add_trace(go.Scatter(
                 x=daily_data.index,
@@ -559,13 +556,13 @@ class TrendChart:
                 line=dict(color=ChartTheme.COLORS['info'], width=1),
                 opacity=0.5
             ))
-            
+
             # Add moving averages
             colors = [ChartTheme.COLORS['primary'], ChartTheme.COLORS['secondary'], ChartTheme.COLORS['success']]
-            
-            for window, color in zip(window_sizes, colors):
+
+            for window, color in zip(window_sizes, colors, strict=False):
                 ma = daily_data.rolling(window=window, min_periods=1).mean()
-                
+
                 fig.add_trace(go.Scatter(
                     x=ma.index,
                     y=ma.values,
@@ -573,7 +570,7 @@ class TrendChart:
                     name=f'{window}-day MA',
                     line=dict(color=color, width=2)
                 ))
-            
+
             # Update layout
             layout = ChartTheme.get_layout_template()
             layout.update({
@@ -584,9 +581,9 @@ class TrendChart:
                 'showlegend': True
             })
             fig.update_layout(layout)
-            
+
             return fig
-            
+
         except Exception as e:
             logger.error(f"Error creating moving average chart: {e}")
             return go.Figure()

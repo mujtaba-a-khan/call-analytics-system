@@ -5,23 +5,24 @@ Generates text embeddings for semantic search and similarity comparison.
 Supports multiple embedding backends with fallback options.
 """
 
-import logging
 import hashlib
-import numpy as np
-from typing import List, Optional, Dict, Any
+import logging
 from abc import ABC, abstractmethod
+from typing import Any
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class EmbeddingProvider(ABC):
     """Abstract base class for embedding providers"""
-    
+
     @abstractmethod
-    def generate(self, texts: List[str]) -> np.ndarray:
+    def generate(self, texts: list[str]) -> np.ndarray:
         """Generate embeddings for texts"""
         pass
-    
+
     @abstractmethod
     def get_dimension(self) -> int:
         """Get embedding dimension"""
@@ -33,7 +34,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
     Embedding provider using Sentence Transformers.
     High quality semantic embeddings for local use.
     """
-    
+
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         """
         Initialize Sentence Transformer provider.
@@ -52,8 +53,8 @@ class SentenceTransformerProvider(EmbeddingProvider):
             self.dimension = 384  # Default dimension
             self.available = False
             logger.warning("sentence-transformers not installed")
-    
-    def generate(self, texts: List[str]) -> np.ndarray:
+
+    def generate(self, texts: list[str]) -> np.ndarray:
         """
         Generate embeddings for texts.
         
@@ -65,15 +66,15 @@ class SentenceTransformerProvider(EmbeddingProvider):
         """
         if not self.available:
             raise RuntimeError("SentenceTransformer not available")
-        
+
         embeddings = self.model.encode(
             texts,
             convert_to_numpy=True,
             show_progress_bar=False
         )
-        
+
         return embeddings
-    
+
     def get_dimension(self) -> int:
         """Get embedding dimension"""
         return self.dimension
@@ -83,8 +84,8 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     """
     Embedding provider using Ollama's embedding models.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  model: str = "nomic-embed-text",
                  endpoint: str = "http://localhost:11434"):
         """
@@ -98,12 +99,12 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         self.endpoint = endpoint
         self.dimension = self._get_dimension()
         self.available = self._test_connection()
-        
+
         if self.available:
             logger.info(f"Ollama embeddings initialized with model: {model}")
         else:
             logger.warning("Ollama embedding service not available")
-    
+
     def _test_connection(self) -> bool:
         """Test if Ollama service is available"""
         try:
@@ -112,7 +113,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             return response.status_code == 200
         except:
             return False
-    
+
     def _get_dimension(self) -> int:
         """Get embedding dimension for the model"""
         # Default dimensions for known models
@@ -122,8 +123,8 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             "all-minilm": 384
         }
         return dimensions.get(self.model, 384)
-    
-    def generate(self, texts: List[str]) -> np.ndarray:
+
+    def generate(self, texts: list[str]) -> np.ndarray:
         """
         Generate embeddings using Ollama.
         
@@ -135,11 +136,11 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         """
         if not self.available:
             raise RuntimeError("Ollama embedding service not available")
-        
+
         import requests
-        
+
         embeddings = []
-        
+
         for text in texts:
             try:
                 response = requests.post(
@@ -147,7 +148,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
                     json={"model": self.model, "prompt": text},
                     timeout=10
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     embedding = data.get('embedding', [])
@@ -155,13 +156,13 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
                 else:
                     # Fallback to zero vector
                     embeddings.append([0.0] * self.dimension)
-                    
+
             except Exception as e:
                 logger.error(f"Error generating Ollama embedding: {e}")
                 embeddings.append([0.0] * self.dimension)
-        
+
         return np.array(embeddings)
-    
+
     def get_dimension(self) -> int:
         """Get embedding dimension"""
         return self.dimension
@@ -172,7 +173,7 @@ class HashEmbeddingProvider(EmbeddingProvider):
     Simple hash-based embedding provider as fallback.
     Deterministic but not semantic.
     """
-    
+
     def __init__(self, dimension: int = 384, seed: int = 42):
         """
         Initialize hash embedding provider.
@@ -185,8 +186,8 @@ class HashEmbeddingProvider(EmbeddingProvider):
         self.seed = seed
         self.available = True
         logger.info(f"Hash embeddings initialized with dimension: {dimension}")
-    
-    def generate(self, texts: List[str]) -> np.ndarray:
+
+    def generate(self, texts: list[str]) -> np.ndarray:
         """
         Generate hash-based embeddings.
         
@@ -197,21 +198,21 @@ class HashEmbeddingProvider(EmbeddingProvider):
             Array of embeddings
         """
         embeddings = []
-        
+
         for text in texts:
             # Create deterministic hash
             text_hash = hashlib.sha256(f"{self.seed}:{text}".encode()).digest()
-            
+
             # Convert hash to embedding vector
             np.random.seed(int.from_bytes(text_hash[:4], 'little'))
             embedding = np.random.randn(self.dimension)
-            
+
             # Normalize
             embedding = embedding / np.linalg.norm(embedding)
             embeddings.append(embedding)
-        
+
         return np.array(embeddings)
-    
+
     def get_dimension(self) -> int:
         """Get embedding dimension"""
         return self.dimension
@@ -221,7 +222,7 @@ class EmbeddingManager:
     """
     Manages text embeddings with multiple provider support and caching.
     """
-    
+
     def __init__(self, config: dict):
         """
         Initialize the embedding manager.
@@ -233,12 +234,12 @@ class EmbeddingManager:
         self.provider_name = config.get('provider', 'sentence-transformers')
         self.cache = {}
         self.cache_enabled = config.get('cache_embeddings', True)
-        
+
         # Initialize provider
         self.provider = self._initialize_provider()
-        
+
         logger.info(f"EmbeddingManager initialized with provider: {self.provider_name}")
-    
+
     def _initialize_provider(self) -> EmbeddingProvider:
         """
         Initialize the appropriate embedding provider.
@@ -255,7 +256,7 @@ class EmbeddingManager:
                     return provider
             except Exception as e:
                 logger.error(f"Failed to initialize SentenceTransformer: {e}")
-        
+
         elif self.provider_name == 'ollama':
             try:
                 provider = OllamaEmbeddingProvider(
@@ -266,16 +267,16 @@ class EmbeddingManager:
                     return provider
             except Exception as e:
                 logger.error(f"Failed to initialize Ollama embeddings: {e}")
-        
+
         # Fallback to hash embeddings
         logger.info("Using hash embeddings as fallback")
         return HashEmbeddingProvider(
             dimension=self.config.get('dimension', 384),
             seed=self.config.get('seed', 42)
         )
-    
-    def generate_embeddings(self, 
-                          texts: List[str],
+
+    def generate_embeddings(self,
+                          texts: list[str],
                           use_cache: bool = True) -> np.ndarray:
         """
         Generate embeddings for texts with caching support.
@@ -289,11 +290,11 @@ class EmbeddingManager:
         """
         if not texts:
             return np.array([])
-        
+
         embeddings = []
         texts_to_generate = []
         text_indices = []
-        
+
         # Check cache
         if use_cache and self.cache_enabled:
             for i, text in enumerate(texts):
@@ -306,38 +307,38 @@ class EmbeddingManager:
         else:
             texts_to_generate = texts
             text_indices = list(range(len(texts)))
-        
+
         # Generate new embeddings
         if texts_to_generate:
             new_embeddings = self.provider.generate(texts_to_generate)
-            
+
             # Add to cache
             if self.cache_enabled:
-                for text, embedding in zip(texts_to_generate, new_embeddings):
+                for text, embedding in zip(texts_to_generate, new_embeddings, strict=False):
                     cache_key = self._get_cache_key(text)
                     self.cache[cache_key] = embedding
-            
+
             # Merge with cached embeddings
             if use_cache and self.cache_enabled:
                 result = np.zeros((len(texts), self.provider.get_dimension()))
-                
+
                 # Fill in cached embeddings
                 cache_idx = 0
                 for i, text in enumerate(texts):
                     if i not in text_indices:
                         result[i] = embeddings[cache_idx]
                         cache_idx += 1
-                
+
                 # Fill in new embeddings
                 for i, idx in enumerate(text_indices):
                     result[idx] = new_embeddings[i]
-                
+
                 return result
             else:
                 return new_embeddings
         else:
             return np.array(embeddings)
-    
+
     def _get_cache_key(self, text: str) -> str:
         """
         Generate cache key for text.
@@ -349,7 +350,7 @@ class EmbeddingManager:
             Cache key
         """
         return hashlib.md5(f"{self.provider_name}:{text}".encode()).hexdigest()
-    
+
     def compute_similarity(self,
                          embeddings1: np.ndarray,
                          embeddings2: np.ndarray,
@@ -368,24 +369,24 @@ class EmbeddingManager:
         if metric == 'cosine':
             from sklearn.metrics.pairwise import cosine_similarity
             return cosine_similarity(embeddings1, embeddings2)
-        
+
         elif metric == 'euclidean':
             from sklearn.metrics.pairwise import euclidean_distances
             # Convert distance to similarity
             distances = euclidean_distances(embeddings1, embeddings2)
             return 1 / (1 + distances)
-        
+
         elif metric == 'dot':
             return np.dot(embeddings1, embeddings2.T)
-        
+
         else:
             raise ValueError(f"Unsupported metric: {metric}")
-    
+
     def find_most_similar(self,
                          query_embedding: np.ndarray,
                          candidate_embeddings: np.ndarray,
                          top_k: int = 5,
-                         metric: str = 'cosine') -> List[Tuple[int, float]]:
+                         metric: str = 'cosine') -> list[Tuple[int, float]]:
         """
         Find most similar embeddings to query.
         
@@ -401,28 +402,28 @@ class EmbeddingManager:
         # Reshape query if needed
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)
-        
+
         # Compute similarities
         similarities = self.compute_similarity(
             query_embedding,
             candidate_embeddings,
             metric
         ).flatten()
-        
+
         # Get top-k indices
         top_indices = np.argsort(similarities)[-top_k:][::-1]
-        
+
         # Return with scores
         results = [(int(idx), float(similarities[idx])) for idx in top_indices]
-        
+
         return results
-    
+
     def clear_cache(self):
         """Clear the embedding cache"""
         self.cache.clear()
         logger.info("Embedding cache cleared")
-    
-    def get_info(self) -> Dict[str, Any]:
+
+    def get_info(self) -> dict[str, Any]:
         """
         Get information about the embedding manager.
         

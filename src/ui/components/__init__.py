@@ -20,7 +20,7 @@ __all__ = [
     'PerformanceChart',
     'TrendChart',
     'render_chart_in_streamlit',
-    
+
     # Filter components
     'FilterState',
     'DateRangeFilter',
@@ -30,7 +30,7 @@ __all__ = [
     'QuickFilters',
     'save_filter_preset',
     'load_filter_preset',
-    
+
     # Metrics components
     'MetricValue',
     'MetricCard',
@@ -39,7 +39,7 @@ __all__ = [
     'KPIDashboard',
     'PerformanceIndicator',
     'ProgressIndicator',
-    
+
     # Table components
     'DataTable',
     'CallRecordsTable',
@@ -53,28 +53,28 @@ def __getattr__(name):
     Components are only imported when accessed.
     """
     # Chart components
-    if name in ['ChartTheme', 'TimeSeriesChart', 'DistributionChart', 
+    if name in ['ChartTheme', 'TimeSeriesChart', 'DistributionChart',
                 'PerformanceChart', 'TrendChart', 'render_chart_in_streamlit']:
         from . import charts
         return getattr(charts, name)
-    
+
     # Filter components
     elif name in ['FilterState', 'DateRangeFilter', 'MultiSelectFilter',
                   'RangeSliderFilter', 'SearchFilter', 'QuickFilters',
                   'save_filter_preset', 'load_filter_preset']:
         from . import filters
         return getattr(filters, name)
-    
+
     # Metrics components
     elif name in ['MetricValue', 'MetricCard', 'MetricsGrid', 'SummaryStats',
                   'KPIDashboard', 'PerformanceIndicator', 'ProgressIndicator']:
         from . import metrics
         return getattr(metrics, name)
-    
+
     # Table components
     elif name in ['DataTable', 'CallRecordsTable', 'AgentPerformanceTable',
                   'ComparisonTable']:
         from . import tables
         return getattr(tables, name)
-    
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

@@ -6,10 +6,8 @@ to interact with the system using natural language queries, leveraging
 local LLMs for intelligent responses about call data and analytics.
 """
 
-import json
 import logging
 import sys
-import time
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,16 +18,10 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-# Import components
-from src.ui.components import (
-    MetricValue, MetricsGrid,
-    DataTable, CallRecordsTable,
-)
-
-# Import analysis modules
-from src.analysis.semantic_search import SemanticSearchEngine
 from src.analysis.query_interpreter import QueryInterpreter
+from src.analysis.semantic_search import SemanticSearchEngine
 from src.core.storage_manager import StorageManager
+from src.ui.components import MetricsGrid, MetricValue
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -237,7 +229,7 @@ class QAInterface:
                 st.metric("Total Calls", f"{total_calls:,}")
 
                 if date_range:
-                    st.caption(f"**Date Range:**")
+                    st.caption("**Date Range:**")
                     st.caption(f"{date_range[0]} to {date_range[1]}")
 
                 # Show available fields
@@ -361,8 +353,11 @@ class QAInterface:
                 logger.error(f"Error processing query: {e}")
                 error_response = {
                     'role': 'assistant',
-                    'content': f"I encountered an error processing your question: {str(e)}. Please try rephrasing or ask a different question.",
-                    'timestamp': datetime.now()
+                    'content': (
+                        "I encountered an error processing your question: "
+                        f"{e}. Please try rephrasing or ask a different question."
+                    ),
+                    'timestamp': datetime.now(),
                 }
                 st.session_state.qa_history.append(error_response)
                 st.rerun()
@@ -410,11 +405,18 @@ class QAInterface:
 
         except Exception as e:
             logger.error(f"Error generating response: {e}")
-            response['content'] = "I had trouble understanding your question. Could you please rephrase it?"
+            response['content'] = (
+                "I had trouble understanding your question. Could you please rephrase it?"
+            )
 
         return response
 
-    def _handle_metric_query(self, query: str, intent: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    def _handle_metric_query(
+        self,
+        query: str,
+        intent: dict[str, Any],
+        response: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Handle queries about metrics and statistics.
 
@@ -483,12 +485,25 @@ class QAInterface:
 
         else:
             # General metrics summary
-            metrics = {
-                'Total Calls': len(data),
-                'Avg Duration': f"{data['duration'].mean() / 60:.1f} min" if 'duration' in data.columns else 'N/A',
-                'Connection Rate': f"{(data['outcome'] == 'connected').mean() * 100:.1f}%" if 'outcome' in data.columns else 'N/A',
-                'Total Revenue': f"${data['revenue'].sum():,.2f}" if 'revenue' in data.columns else 'N/A'
-            }
+            metrics = {'Total Calls': len(data)}
+
+            if 'duration' in data.columns:
+                avg_minutes = data['duration'].mean() / 60
+                metrics['Avg Duration'] = f"{avg_minutes:.1f} min"
+            else:
+                metrics['Avg Duration'] = 'N/A'
+
+            if 'outcome' in data.columns:
+                connection_rate = (data['outcome'] == 'connected').mean() * 100
+                metrics['Connection Rate'] = f"{connection_rate:.1f}%"
+            else:
+                metrics['Connection Rate'] = 'N/A'
+
+            if 'revenue' in data.columns:
+                metrics['Total Revenue'] = f"${data['revenue'].sum():,.2f}"
+            else:
+                metrics['Total Revenue'] = 'N/A'
+
             response['content'] = "Here's a summary of the metrics:"
 
         # Add metrics to response data
@@ -500,7 +515,12 @@ class QAInterface:
 
         return response
 
-    def _handle_search_query(self, query: str, intent: dict[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    def _handle_search_query(
+        self,
+        query: str,
+        intent: dict[str, Any],
+        response: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Handle search queries using semantic search.
 
@@ -513,7 +533,9 @@ class QAInterface:
             Updated response dictionary
         """
         if not self.search_engine:
-            response['content'] = "Semantic search is not available. Please configure the vector database."
+            response['content'] = (
+                'Semantic search is not available. Please configure the vector database.'
+            )
             return response
 
         # Perform semantic search

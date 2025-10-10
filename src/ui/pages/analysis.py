@@ -6,36 +6,39 @@ custom queries, semantic search, and advanced filtering capabilities
 with export functionality.
 """
 
-import sys
 import logging
-import streamlit as st
-import pandas as pd
+import sys
+from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+from typing import Any
+
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-from io import BytesIO
+import streamlit as st
 
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-# Import components
-from src.ui.components import (
-    FilterState, DateRangeFilter, MultiSelectFilter,
-    SearchFilter, RangeSliderFilter, QuickFilters,
-    DataTable, ComparisonTable, load_filter_preset,
-    save_filter_preset, TimeSeriesChart, AgentPerformanceTable,
-    DistributionChart
-)
-
-# Import analysis modules
-from src.analysis.semantic_search import SemanticSearchEngine
-from src.analysis.query_interpreter import QueryInterpreter
 from src.analysis.aggregations import MetricsCalculator
 from src.analysis.filters import AdvancedFilters
+from src.analysis.query_interpreter import QueryInterpreter
+from src.analysis.semantic_search import SemanticSearchEngine
 from src.core.storage_manager import StorageManager
-
+from src.ui.components import (
+    AgentPerformanceTable,
+    ComparisonTable,
+    DateRangeFilter,
+    DistributionChart,
+    FilterState,
+    MultiSelectFilter,
+    RangeSliderFilter,
+    SearchFilter,
+    TimeSeriesChart,
+    load_filter_preset,
+    save_filter_preset,
+)
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -46,11 +49,11 @@ class AnalysisPage:
     Advanced analysis page for deep-dive exploration of call data
     with semantic search, custom queries, and detailed analytics.
     """
-    
+
     def __init__(self, storage_manager: StorageManager, vector_store=None):
         """
         Initialize analysis page with required components.
-        
+
         Args:
             storage_manager: Storage manager instance
             vector_store: Optional vector store for semantic search
@@ -59,7 +62,7 @@ class AnalysisPage:
         self.vector_store = vector_store
         self.metrics_calculator = MetricsCalculator()
         self.advanced_filters = AdvancedFilters
-        
+
         # Initialize semantic search if vector store available
         if vector_store:
             self.search_engine = SemanticSearchEngine(vector_store)
@@ -67,7 +70,7 @@ class AnalysisPage:
         else:
             self.search_engine = None
             self.query_interpreter = None
-    
+
     def render(self) -> None:
         """
         Render the complete analysis page with all components.
@@ -75,8 +78,10 @@ class AnalysisPage:
         try:
             # Page header
             st.title("🔍 Advanced Analysis")
-            st.markdown("Explore your call data with powerful search, filtering, and analytics tools")
-            
+            st.markdown(
+                "Explore your call data with powerful search, filtering, and analytics tools"
+            )
+
             # Create tabs for different analysis modes
             tab1, tab2, tab3, tab4 = st.tabs([
                 "🔎 Semantic Search",
@@ -84,37 +89,39 @@ class AnalysisPage:
                 "🆚 Comparison",
                 "📈 Cohort Analysis"
             ])
-            
+
             with tab1:
                 self._render_semantic_search_tab()
-            
+
             with tab2:
                 self._render_custom_analysis_tab()
-            
+
             with tab3:
                 self._render_comparison_tab()
-            
+
             with tab4:
                 self._render_cohort_analysis_tab()
-            
+
         except Exception as e:
             logger.error(f"Error rendering analysis page: {e}")
             st.error(f"Failed to load analysis page: {str(e)}")
-    
+
     def _render_semantic_search_tab(self) -> None:
         """
         Render the semantic search tab for natural language queries.
         """
         st.header("Semantic Search")
         st.markdown("Search your call transcripts and notes using natural language")
-        
+
         if not self.search_engine:
-            st.warning("Semantic search requires vector database setup. Please configure the vector store.")
+            st.warning(
+                "Semantic search requires vector database setup. Please configure the vector store."
+            )
             return
-        
+
         # Search interface
         col1, col2 = st.columns([3, 1])
-        
+
         with col1:
             query = st.text_area(
                 "Enter your search query",
@@ -122,10 +129,10 @@ class AnalysisPage:
                 height=100,
                 key="semantic_query"
             )
-        
+
         with col2:
             st.write("**Search Options**")
-            
+
             top_k = st.number_input(
                 "Results to return",
                 min_value=1,
@@ -133,7 +140,7 @@ class AnalysisPage:
                 value=10,
                 key="search_top_k"
             )
-            
+
             similarity_threshold = st.slider(
                 "Similarity threshold",
                 min_value=0.0,
@@ -141,20 +148,23 @@ class AnalysisPage:
                 value=0.35,
                 step=0.05,
                 key="search_threshold",
-                help="Lower values return more results; raise the slider when you want only the strongest matches."
+                help=(
+                    "Lower values return more results. "
+                    "Raise the slider when you want only the strongest matches."
+                ),
             )
-        
+
         # Search filters
         with st.expander("Advanced Filters", expanded=False):
             filter_state = self._render_search_filters()
-        
+
         # Execute search
         if st.button("🔍 Search", type="primary", use_container_width=True):
             if query:
                 self._execute_semantic_search(query, top_k, similarity_threshold, filter_state)
             else:
                 st.warning("Please enter a search query")
-        
+
         # Show example queries
         with st.expander("Example Queries"):
             st.markdown("""
@@ -164,25 +174,25 @@ class AnalysisPage:
             - "Customer requesting refund or cancellation"
             - "Positive feedback about customer service"
             """)
-    
+
     def _render_custom_analysis_tab(self) -> None:
         """
         Render the custom analysis tab for detailed data exploration.
         """
         st.header("Custom Analysis")
         st.markdown("Build custom queries and explore data with advanced filters")
-        
+
         # Filter configuration
         col1, col2 = st.columns([2, 1])
-        
+
         with col1:
             st.subheader("Configure Filters")
             filter_state = self._render_comprehensive_filters()
-        
+
         with col2:
             st.subheader("Filter Presets")
             self._render_filter_presets(filter_state)
-        
+
         if "custom_analysis_data" not in st.session_state:
             st.session_state["custom_analysis_data"] = None
             st.session_state["custom_analysis_status"] = "idle"
@@ -203,7 +213,9 @@ class AnalysisPage:
 
         if status == "loaded" and data is not None and not data.empty:
             st.success(
-                f"Found {st.session_state.get('custom_analysis_count', len(data))} records matching your criteria"
+                "Found "
+                f"{st.session_state.get('custom_analysis_count', len(data))} "
+                "records matching your criteria"
             )
 
             analysis_type = st.selectbox(
@@ -223,17 +235,17 @@ class AnalysisPage:
 
         elif status == "empty":
             st.warning("No records found matching your filters")
-    
+
     def _render_comparison_tab(self) -> None:
         """
         Render the comparison tab for period-over-period analysis.
         """
         st.header("Period Comparison")
         st.markdown("Compare metrics between different time periods or segments")
-        
+
         # Period selection
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.subheader("Period 1")
             period1_start, period1_end = DateRangeFilter.render(
@@ -241,7 +253,7 @@ class AnalysisPage:
                 key_prefix="period1",
                 default_range="Last 30 Days"
             )
-        
+
         with col2:
             st.subheader("Period 2")
             period2_start, period2_end = DateRangeFilter.render(
@@ -249,19 +261,19 @@ class AnalysisPage:
                 key_prefix="period2",
                 default_range="Last 7 Days"
             )
-        
+
         # Comparison dimensions
         st.subheader("Comparison Settings")
-        
+
         col1, col2, col3 = st.columns(3)
-        
+
         with col1:
             group_by = st.selectbox(
                 "Group By",
                 ["agent_id", "campaign", "outcome", "call_type"],
                 key="comparison_group"
             )
-        
+
         with col2:
             metrics = st.multiselect(
                 "Metrics to Compare",
@@ -269,14 +281,14 @@ class AnalysisPage:
                 default=["count", "revenue"],
                 key="comparison_metrics"
             )
-        
+
         with col3:
             chart_type = st.selectbox(
                 "Visualization",
                 ["Bar Chart", "Line Chart", "Table"],
                 key="comparison_chart"
             )
-        
+
         # Execute comparison
         if st.button("Compare Periods", type="primary", use_container_width=True):
             self._execute_period_comparison(
@@ -284,37 +296,37 @@ class AnalysisPage:
                 (period2_start, period2_end),
                 group_by, metrics, chart_type
             )
-    
+
     def _render_cohort_analysis_tab(self) -> None:
         """
         Render the cohort analysis tab for retention and behavior analysis.
         """
         st.header("Cohort Analysis")
         st.markdown("Analyze customer behavior patterns over time")
-        
+
         # Cohort configuration
         col1, col2 = st.columns(2)
-        
+
         with col1:
             cohort_type = st.selectbox(
                 "Cohort Type",
                 ["First Call Date", "Campaign Start", "Agent Assignment"],
                 key="cohort_type"
             )
-            
+
             cohort_period = st.selectbox(
                 "Cohort Period",
                 ["Daily", "Weekly", "Monthly"],
                 key="cohort_period"
             )
-        
+
         with col2:
             metric = st.selectbox(
                 "Metric to Track",
                 ["Retention Rate", "Average Duration", "Revenue per Cohort", "Call Frequency"],
                 key="cohort_metric"
             )
-            
+
             periods_to_analyze = st.slider(
                 "Periods to Analyze",
                 min_value=3,
@@ -322,39 +334,39 @@ class AnalysisPage:
                 value=6,
                 key="cohort_periods"
             )
-        
+
         # Date range for cohort analysis
         st.subheader("Analysis Period")
         start_date, end_date = DateRangeFilter.render(
             key_prefix="cohort",
             default_range="Last 90 Days"
         )
-        
+
         # Execute cohort analysis
         if st.button("Generate Cohort Analysis", type="primary", use_container_width=True):
             self._execute_cohort_analysis(
                 cohort_type, cohort_period, metric,
                 periods_to_analyze, start_date, end_date
             )
-    
+
     def _render_search_filters(self) -> FilterState:
         """
         Render filters for semantic search.
-        
+
         Returns:
             FilterState with search filters
         """
         filter_state = FilterState()
-        
+
         col1, col2, col3 = st.columns(3)
-        
+
         with col1:
             # Date range filter
             filter_state.date_range = DateRangeFilter.render(
                 container=st.container(),
                 key_prefix="search_date"
             )
-        
+
         with col2:
             # Campaign filter
             campaigns = self.storage_manager.get_unique_values('campaign')
@@ -364,7 +376,7 @@ class AnalysisPage:
                     options=campaigns,
                     key="search_campaigns"
                 )
-        
+
         with col3:
             # Agent filter
             agents = self.storage_manager.get_unique_values('agent_id')
@@ -374,27 +386,27 @@ class AnalysisPage:
                     options=agents,
                     key="search_agents"
                 )
-        
+
         return filter_state
-    
+
     def _render_comprehensive_filters(self) -> FilterState:
         """
         Render comprehensive filter options for custom analysis.
-        
+
         Returns:
             FilterState with all filter selections
         """
         filter_state = FilterState()
-        
+
         # Date range
         filter_state.date_range = DateRangeFilter.render(
             key_prefix="custom_date",
             default_range="Last 30 Days"
         )
-        
+
         # Multi-select filters
         col1, col2 = st.columns(2)
-        
+
         with col1:
             # Agent filter
             agents = self.storage_manager.get_unique_values('agent_id')
@@ -404,7 +416,7 @@ class AnalysisPage:
                     options=agents,
                     key="custom_agents"
                 )
-            
+
             # Campaign filter
             campaigns = self.storage_manager.get_unique_values('campaign')
             if campaigns:
@@ -413,7 +425,7 @@ class AnalysisPage:
                     options=campaigns,
                     key="custom_campaigns"
                 )
-        
+
         with col2:
             # Outcome filter
             outcomes = self.storage_manager.get_unique_values('outcome')
@@ -423,7 +435,7 @@ class AnalysisPage:
                     options=outcomes,
                     key="custom_outcomes"
                 )
-            
+
             # Call type filter
             call_types = self.storage_manager.get_unique_values('call_type')
             if call_types:
@@ -432,12 +444,12 @@ class AnalysisPage:
                     options=call_types,
                     key="custom_types"
                 )
-        
+
         # Range filters
         st.subheader("Range Filters")
-        
+
         col1, col2 = st.columns(2)
-        
+
         with col1:
             # Duration filter
             filter_state.duration_range = RangeSliderFilter.render(
@@ -448,7 +460,7 @@ class AnalysisPage:
                 key="custom_duration",
                 step=60.0
             )
-        
+
         with col2:
             # Revenue filter
             filter_state.revenue_range = RangeSliderFilter.render(
@@ -459,19 +471,19 @@ class AnalysisPage:
                 key="custom_revenue",
                 step=10.0
             )
-        
+
         # Text search
         filter_state.search_query = SearchFilter.render(
             key="custom_search",
             placeholder="Search in notes and transcripts..."
         )
-        
+
         return filter_state
-    
+
     def _render_filter_presets(self, current_state: FilterState) -> None:
         """
         Render filter preset management interface.
-        
+
         Args:
             current_state: Current filter state
         """
@@ -483,13 +495,13 @@ class AnalysisPage:
                 [""] + list(presets.keys()),
                 key="load_preset"
             )
-            
+
             if selected_preset and st.button("Load", key="load_preset_btn"):
                 loaded_state = load_filter_preset(selected_preset)
                 if loaded_state:
                     st.success(f"Loaded preset: {selected_preset}")
                     st.rerun()
-        
+
         # Save preset
         st.divider()
         preset_name = st.text_input(
@@ -497,21 +509,21 @@ class AnalysisPage:
             placeholder="Enter preset name",
             key="save_preset_name"
         )
-        
+
         if st.button("Save Preset", key="save_preset_btn"):
             if preset_name:
                 save_filter_preset(preset_name, current_state)
             else:
                 st.warning("Please enter a preset name")
-    
-    def _execute_semantic_search(self, 
+
+    def _execute_semantic_search(self,
                                  query: str,
                                  top_k: int,
                                  threshold: float,
                                  filter_state: FilterState) -> None:
         """
         Execute semantic search and display results.
-        
+
         Args:
             query: Search query
             top_k: Number of results
@@ -528,17 +540,21 @@ class AnalysisPage:
                     threshold=threshold,
                     filters=filters_dict
                 )
-                
+
                 if results:
                     st.success(f"Found {len(results)} relevant calls")
-                    
+
                     # Display results
                     for idx, result in enumerate(results, 1):
                         score = result.get('score', 0.0)
                         with st.expander(f"Result {idx} - Score: {score:.3f}"):
                             metadata = result.get('metadata', {}) or {}
                             call_id = metadata.get('call_id') or result.get('id', 'N/A')
-                            timestamp = metadata.get('timestamp') or metadata.get('start_time') or 'N/A'
+                            timestamp = (
+                                metadata.get('timestamp')
+                                or metadata.get('start_time')
+                                or 'N/A'
+                            )
                             agent = metadata.get('agent_id', 'N/A')
                             duration = metadata.get('duration')
                             outcome = metadata.get('outcome', 'N/A')
@@ -578,10 +594,10 @@ class AnalysisPage:
                         )
                         if fallback_results:
                             st.info(
-                                "Try lowering the similarity threshold – we found matches with lower scores,"
-                                " but they were filtered out."
+                                "Try lowering the similarity threshold. "
+                                "We found matches with lower scores that were filtered out."
                             )
-                
+
         except Exception as e:
             logger.error(f"Error in semantic search: {e}")
             st.error(f"Search failed: {str(e)}")
@@ -589,10 +605,10 @@ class AnalysisPage:
     def _apply_custom_filters(self, filter_state: FilterState) -> pd.DataFrame:
         """
         Apply custom filters and return filtered data.
-        
+
         Args:
             filter_state: Filter configuration
-            
+
         Returns:
             Filtered DataFrame
         """
@@ -602,21 +618,21 @@ class AnalysisPage:
                 start_date=filter_state.date_range[0],
                 end_date=filter_state.date_range[1]
             )
-            
+
             if data is not None and not data.empty:
                 # Apply filters
                 data = filter_state.apply_to_dataframe(data)
-            
+
             return data if data is not None else pd.DataFrame()
-            
+
         except Exception as e:
             logger.error(f"Error applying filters: {e}")
             return pd.DataFrame()
-    
+
     def _render_analysis_results(self, data: pd.DataFrame, analysis_type: str) -> None:
         """
         Render analysis results based on selected type.
-        
+
         Args:
             data: Filtered data
             analysis_type: Type of analysis to perform
@@ -624,7 +640,7 @@ class AnalysisPage:
         if analysis_type == "Summary Statistics":
             # Calculate and display summary stats
             metrics = self.metrics_calculator.calculate_all_metrics(data)
-            
+
             # Display metrics in expandable sections
             for category, values in metrics.items():
                 with st.expander(f"{category.replace('_', ' ').title()}", expanded=True):
@@ -635,7 +651,7 @@ class AnalysisPage:
                             label=key.replace('_', ' ').title(),
                             value=f"{value:.2f}" if isinstance(value, float) else value
                         )
-        
+
         elif analysis_type == "Time Analysis":
             # Time-based analysis
             fig = TimeSeriesChart.create_call_volume_chart(
@@ -644,56 +660,56 @@ class AnalysisPage:
                 title="Call Volume Trend"
             )
             st.plotly_chart(fig, use_container_width=True)
-        
+
         elif analysis_type == "Agent Analysis":
             # Agent performance analysis
             AgentPerformanceTable.render(data, st.container())
-        
+
         elif analysis_type == "Outcome Analysis":
             # Outcome distribution
             fig = DistributionChart.create_outcome_pie_chart(data)
             st.plotly_chart(fig, use_container_width=True)
-        
+
         elif analysis_type == "Custom Aggregation":
             # Custom aggregation interface
             self._render_custom_aggregation(data)
-    
+
     def _render_custom_aggregation(self, data: pd.DataFrame) -> None:
         """
         Render custom aggregation interface.
-        
+
         Args:
             data: Data to aggregate
         """
         col1, col2, col3 = st.columns(3)
-        
+
         with col1:
             group_by = st.selectbox(
                 "Group By",
                 data.columns.tolist(),
                 key="agg_group"
             )
-        
+
         with col2:
             agg_column = st.selectbox(
                 "Aggregate Column",
                 data.select_dtypes(include=[np.number]).columns.tolist(),
                 key="agg_column"
             )
-        
+
         with col3:
             agg_function = st.selectbox(
                 "Function",
                 ["sum", "mean", "median", "count", "min", "max"],
                 key="agg_function"
             )
-        
+
         # Perform aggregation
         result = data.groupby(group_by)[agg_column].agg(agg_function).reset_index()
-        
+
         # Display result
         st.dataframe(result, use_container_width=True)
-        
+
         # Visualization
         fig = px.bar(
             result,
@@ -702,17 +718,17 @@ class AnalysisPage:
             title=f"{agg_function.title()} of {agg_column} by {group_by}"
         )
         st.plotly_chart(fig, use_container_width=True)
-    
+
     def _render_export_options(self, data: pd.DataFrame) -> None:
         """
         Render export options for analysis results.
-        
+
         Args:
             data: Data to export
         """
         st.divider()
         st.subheader("Export Results")
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         col1, col2, col3 = st.columns(3)
 
@@ -753,16 +769,18 @@ class AnalysisPage:
                     height=200,
                     key="custom_analysis_clipboard_data"
                 )
-    
-    def _execute_period_comparison(self,
-                                   period1: Tuple[datetime, datetime],
-                                   period2: Tuple[datetime, datetime],
-                                   group_by: str,
-                                   metrics: List[str],
-                                   chart_type: str) -> None:
+
+    def _execute_period_comparison(
+        self,
+        period1: tuple[datetime, datetime],
+        period2: tuple[datetime, datetime],
+        group_by: str,
+        metrics: list[str],
+        chart_type: str,
+    ) -> None:
         """
         Execute period comparison analysis.
-        
+
         Args:
             period1: First period (start, end)
             period2: Second period (start, end)
@@ -776,16 +794,16 @@ class AnalysisPage:
                 start_date=period1[0],
                 end_date=period1[1]
             )
-            
+
             data2 = self.storage_manager.load_call_records(
                 start_date=period2[0],
                 end_date=period2[1]
             )
-            
+
             if data1.empty or data2.empty:
                 st.warning("Insufficient data for comparison")
                 return
-            
+
             comparison_data = ComparisonTable.prepare_comparison_data(
                 current_data=data2,
                 previous_data=data1,
@@ -825,14 +843,16 @@ class AnalysisPage:
             logger.error(f"Error in period comparison: {e}")
             st.error(f"Comparison failed: {str(e)}")
 
-    def _render_comparison_chart(self,
-                                 comparison: pd.DataFrame,
-                                 group_column: str,
-                                 metrics: List[str],
-                                 chart_type: str) -> None:
+    def _render_comparison_chart(
+        self,
+        comparison: pd.DataFrame,
+        group_column: str,
+        metrics: list[str],
+        chart_type: str,
+    ) -> None:
         """Render the selected visualization for the period comparison results."""
         try:
-            value_columns: List[str] = []
+            value_columns: list[str] = []
             for metric in metrics:
                 current_col = f"{metric}_Current"
                 previous_col = f"{metric}_Previous"
@@ -868,7 +888,7 @@ class AnalysisPage:
 
             melted.sort_values(["Metric", group_column, "Period"], inplace=True)
 
-            facet_args: Dict[str, Any] = {}
+            facet_args: dict[str, Any] = {}
             metric_count = melted["Metric"].nunique()
             if metric_count > 1:
                 facet_args = {"facet_col": "Metric", "facet_col_wrap": 2}
@@ -931,7 +951,7 @@ class AnalysisPage:
                                  end_date: datetime) -> None:
         """
         Execute cohort analysis.
-        
+
         Args:
             cohort_type: Type of cohort
             cohort_period: Cohort period granularity
@@ -946,11 +966,11 @@ class AnalysisPage:
                 start_date=start_date,
                 end_date=end_date
             )
-            
+
             if data.empty:
                 st.warning("No data available for cohort analysis")
                 return
-            
+
             if 'timestamp' not in data.columns:
                 st.error("Cohort analysis requires a 'timestamp' column in the dataset")
                 return
@@ -986,7 +1006,10 @@ class AnalysisPage:
                     break
 
             if customer_col is None:
-                st.error("Cohort analysis requires a customer identifier column (e.g. phone number or call id)")
+                st.error(
+                    "Cohort analysis requires a customer identifier, such as a phone "
+                    "number or call ID."
+                )
                 return
 
             cohort_start_series: pd.Series
@@ -1003,7 +1026,11 @@ class AnalysisPage:
                 campaign_first = df.groupby('campaign')['timestamp'].transform('min')
                 cohort_start_series = get_period_start(campaign_first, cohort_period)
                 cohort_labels = format_period_label(cohort_start_series, cohort_period)
-                cohort_label_series = df['campaign'].fillna('Unknown Campaign') + ' • ' + cohort_labels
+                cohort_label_series = (
+                    df['campaign'].fillna('Unknown Campaign')
+                    + ' • '
+                    + cohort_labels
+                )
             else:  # Agent Assignment
                 agent_col = 'agent_id' if 'agent_id' in df.columns else 'agent'
                 if agent_col not in df.columns:
@@ -1012,7 +1039,11 @@ class AnalysisPage:
                 agent_first = df.groupby(agent_col)['timestamp'].transform('min')
                 cohort_start_series = get_period_start(agent_first, cohort_period)
                 cohort_labels = format_period_label(cohort_start_series, cohort_period)
-                cohort_label_series = df[agent_col].fillna('Unassigned Agent') + ' • ' + cohort_labels
+                cohort_label_series = (
+                    df[agent_col].fillna('Unassigned Agent')
+                    + ' • '
+                    + cohort_labels
+                )
 
             df['cohort_start'] = cohort_start_series
             df['cohort_label'] = cohort_label_series
@@ -1073,7 +1104,9 @@ class AnalysisPage:
                 value_table = finalize_table(period_counts)
                 value_table = value_table.div(cohort_sizes, axis=0) * 100
                 value_table = value_table.round(2)
-                display_caption = "Values represent the % of the original cohort that engaged in each period."
+                display_caption = (
+                    "Values show the percentage of the original cohort active in each period."
+                )
             elif metric == "Average Duration":
                 duration_col = 'duration' if 'duration' in df.columns else 'duration_seconds'
                 if duration_col not in df.columns:
@@ -1149,7 +1182,7 @@ class AnalysisPage:
                 yaxis_title="Cohort"
             )
             st.plotly_chart(heatmap, use_container_width=True)
-            
+
         except Exception as e:
             logger.error(f"Error in cohort analysis: {e}")
             st.error(f"Cohort analysis failed: {str(e)}")
@@ -1158,7 +1191,7 @@ class AnalysisPage:
 def render_analysis_page(storage_manager: StorageManager, vector_store=None) -> None:
     """
     Main entry point for rendering the analysis page.
-    
+
     Args:
         storage_manager: Storage manager instance
         vector_store: Optional vector store for semantic search

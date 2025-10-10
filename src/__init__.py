@@ -26,10 +26,10 @@ def get_system_info():
     Returns:
         Dict[str, Any]: Dictionary containing system information and status
     """
-    from datetime import datetime
     import platform
     import sys
-    
+    from datetime import datetime
+
     system_info = {
         'version': __version__,
         'title': __title__,
@@ -39,14 +39,14 @@ def get_system_info():
         'timestamp': datetime.now().isoformat(),
         'python_3_13_compatible': sys.version_info >= (3, 13)
     }
-    
+
     # Try to get ML capabilities if available
     try:
         from .ml import get_ml_capabilities
         system_info['capabilities'] = get_ml_capabilities()
     except ImportError:
         system_info['capabilities'] = {'ml_available': False}
-    
+
     return system_info
 
 
@@ -127,7 +127,7 @@ def __getattr__(name):
     elif name == 'LabelingEngine':
         from .core.labeling_engine import LabelingEngine
         return LabelingEngine
-    
+
     # Analysis module imports
     elif name == 'MetricsCalculator':
         from .analysis.aggregations import MetricsCalculator
@@ -141,7 +141,7 @@ def __getattr__(name):
     elif name == 'AdvancedFilters':
         from .analysis.filters import AdvancedFilters
         return AdvancedFilters
-    
+
     # ML module imports
     elif name == 'WhisperSTT':
         from .ml.whisper_stt import WhisperSTT
@@ -152,7 +152,7 @@ def __getattr__(name):
     elif name == 'get_ml_capabilities':
         from .ml import get_ml_capabilities
         return get_ml_capabilities
-    
+
     # Vector DB imports
     elif name == 'ChromaDBClient':
         from .vectordb.chroma_client import ChromaDBClient
@@ -163,7 +163,7 @@ def __getattr__(name):
     elif name == 'VectorRetriever':
         from .vectordb.retriever import VectorRetriever
         return VectorRetriever
-    
+
     # Utility imports
     elif name == 'get_logger':
         from .utils.logger import get_logger
@@ -174,5 +174,5 @@ def __getattr__(name):
     elif name == 'format_duration':
         from .utils.formatters import format_duration
         return format_duration
-    
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

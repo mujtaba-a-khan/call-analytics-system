@@ -27,5 +27,5 @@ def __getattr__(name):
     elif name == 'AdvancedFilters':
         from .filters import AdvancedFilters
         return AdvancedFilters
-    
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
