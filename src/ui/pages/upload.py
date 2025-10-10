@@ -6,31 +6,23 @@ from various sources including CSV files, audio recordings, and
 batch processing with progress tracking and validation.
 """
 
-import sys
 import logging
-from typing import Any, Optional, Tuple
-import streamlit as st
-import pandas as pd
-import numpy as np
+import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
-import tempfile
-import shutil
-from io import BytesIO
+from typing import Any
+
+import pandas as pd
+import streamlit as st
 
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 # Import core modules
-from src.core.csv_processor import CSVProcessor, CSVExporter
+from src.core.csv_processor import CSVProcessor
 from src.core.audio_processor import AudioProcessor
 from src.core.storage_manager import StorageManager
 from src.ml.whisper_stt import WhisperSTT
-
-# Import components
-from src.ui.components import (
-    MetricValue, MetricsGrid,
-    DataTable, ProgressIndicator
-)
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -41,11 +33,11 @@ class UploadPage:
     Upload interface for importing call data from various sources
     with validation, processing, and storage capabilities.
     """
-    
+
     def __init__(self, storage_manager: StorageManager, config: dict[str, Any]):
         """
         Initialize upload page with required components.
-        
+
         Args:
             storage_manager: Storage manager instance
             config: Application configuration dictionary
@@ -66,10 +58,16 @@ class UploadPage:
         # Initialize audio processor with derived configuration
         audio_config = dict(config.get('audio', {}))
         paths_config = config.get('paths', {})
-        audio_config.setdefault('processed_dir', paths_config.get('processed_audio', 'data/processed'))
-        audio_config.setdefault('cache_dir', paths_config.get('cache', 'data/cache'))
+        audio_config.setdefault(
+            'processed_dir',
+            paths_config.get('processed_audio', 'data/processed'),
+        )
+        audio_config.setdefault(
+            'cache_dir',
+            paths_config.get('cache', 'data/cache'),
+        )
         self.audio_processor = AudioProcessor(audio_config)
-        
+
         # Initialize STT if configured
         whisper_config = dict(config.get('whisper', {}))
         if whisper_config.get('enabled', True):
@@ -82,16 +80,14 @@ class UploadPage:
             self.stt_engine = WhisperSTT(whisper_config)
         else:
             self.stt_engine = None
-    
+
     def render(self) -> None:
-        """
-        Render the complete upload page with all upload options.
-        """
+        """Render the complete upload page with all upload options."""
         try:
             # Page header
             st.title("📤 Data Upload")
             st.markdown("Import call data from CSV files or audio recordings")
-            
+
             # Create tabs for different upload types
             tab1, tab2, tab3, tab4 = st.tabs([
                 "📄 CSV Upload",
@@ -99,30 +95,30 @@ class UploadPage:
                 "📁 Batch Processing",
                 "🔄 Import History"
             ])
-            
+
             with tab1:
                 self._render_csv_upload_tab()
-            
+
             with tab2:
                 self._render_audio_upload_tab()
-            
+
             with tab3:
                 self._render_batch_processing_tab()
-            
+
             with tab4:
                 self._render_import_history_tab()
-            
+
         except Exception as e:
             logger.error(f"Error rendering upload page: {e}")
             st.error(f"Failed to load upload page: {str(e)}")
-    
+
     def _render_csv_upload_tab(self) -> None:
         """
         Render CSV file upload interface with validation and mapping.
         """
         st.header("CSV File Upload")
         st.markdown("Upload call records from CSV files with automatic field mapping")
-        
+
         # File uploader
         uploaded_file = st.file_uploader(
             "Choose a CSV file",
@@ -130,35 +126,35 @@ class UploadPage:
             key="csv_uploader",
             help="Select a CSV file containing call records"
         )
-        
+
         if uploaded_file is not None:
             # Save uploaded file temporarily
             temp_path = Path(tempfile.gettempdir()) / uploaded_file.name
             with open(temp_path, 'wb') as f:
                 f.write(uploaded_file.getbuffer())
-            
+
             # Preview and validation
             st.subheader("File Preview")
-            
+
             try:
                 # Get preview
                 preview_df = self.csv_processor.get_csv_preview(temp_path, num_rows=5)
                 st.dataframe(preview_df, use_container_width=True)
-                
+
                 # Show detected fields
                 st.subheader("Field Mapping")
                 headers = list(preview_df.columns)
                 field_mapping = self.csv_processor.auto_map_fields(headers)
-                
+
                 # Display mapping
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
                     st.write("**Detected Mappings:**")
                     for standard, csv_field in field_mapping.items():
                         label = self.csv_processor.get_field_label(standard)
                         st.success(f"✓ {label} → {csv_field}")
-                
+
                 with col2:
                     st.write("**Unmapped Fields:**")
                     mapped_csv_fields = set(field_mapping.values())
@@ -167,37 +163,37 @@ class UploadPage:
                         st.info(f"? {field}")
                     if len(unmapped) > 5:
                         st.info(f"... and {len(unmapped) - 5} more")
-                
+
                 # Manual mapping option
                 with st.expander("Adjust Field Mapping", expanded=False):
                     self._render_manual_mapping(headers, field_mapping)
-                
+
                 # Import options
                 st.subheader("Import Options")
-                
+
                 col1, col2, col3 = st.columns(3)
-                
+
                 with col1:
                     skip_errors = st.checkbox(
                         "Skip invalid rows",
                         value=True,
                         help="Continue import even if some rows fail validation"
                     )
-                
+
                 with col2:
                     deduplicate = st.checkbox(
                         "Remove duplicates",
                         value=True,
                         help="Remove duplicate records based on phone and timestamp"
                     )
-                
+
                 with col3:
                     validate_phones = st.checkbox(
                         "Validate phone numbers",
                         value=True,
                         help="Validate and normalize phone numbers"
                     )
-                
+
                 # Import button
                 if st.button("Import CSV", type="primary", use_container_width=True):
                     self._process_csv_import(
@@ -206,28 +202,28 @@ class UploadPage:
                         deduplicate,
                         validate_phones
                     )
-                
+
             except Exception as e:
                 logger.error(f"Error processing CSV: {e}")
                 st.error(f"Failed to process CSV: {str(e)}")
-            
+
             finally:
                 # Clean up temp file
                 if temp_path.exists():
                     temp_path.unlink()
-    
+
     def _render_audio_upload_tab(self) -> None:
         """
         Render audio file upload interface with transcription options.
         """
         st.header("Audio File Upload")
-        
+
         if not self.stt_engine:
             st.warning("Speech-to-text is not configured. Please set up Whisper STT in settings.")
             return
-        
+
         st.markdown("Upload call recordings for automatic transcription and analysis")
-        
+
         # File uploader
         uploaded_files = st.file_uploader(
             "Choose audio files",
@@ -236,67 +232,67 @@ class UploadPage:
             key="audio_uploader",
             help="Select one or more audio files"
         )
-        
+
         if uploaded_files:
             st.info(f"Selected {len(uploaded_files)} file(s) for processing")
-            
+
             # Transcription options
             st.subheader("Transcription Settings")
-            
+
             col1, col2, col3 = st.columns(3)
-            
+
             with col1:
                 language = st.selectbox(
                     "Language",
                     ["auto", "en", "es", "fr", "de", "it", "pt", "nl", "ru", "zh", "ja"],
                     help="Language of the audio (auto-detect if unsure)"
                 )
-            
+
             with col2:
                 enable_timestamps = st.checkbox(
                     "Word timestamps",
                     value=False,
                     help="Extract word-level timestamps"
                 )
-            
+
             with col3:
                 enable_vad = st.checkbox(
                     "Voice Activity Detection",
                     value=True,
                     help="Use VAD to filter out silence"
                 )
-            
+
             # Metadata for audio files
             st.subheader("Call Metadata")
-            
+
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 default_campaign = st.text_input(
                     "Campaign",
                     value="audio_upload",
                     help="Campaign name for these recordings"
                 )
-                
+
                 default_agent = st.text_input(
                     "Agent ID",
                     value="unknown",
                     help="Agent ID if known"
                 )
-            
+
             with col2:
                 default_outcome = st.selectbox(
                     "Call Outcome",
                     ["connected", "voicemail", "no_answer", "busy", "failed"],
                     help="Call outcome if known"
                 )
-                
+
                 default_type = st.selectbox(
                     "Call Type",
                     ["inbound", "outbound", "internal", "unknown"],
                     help="Type of call"
                 )
-            
+
             # Process button
             if st.button("Process Audio Files", type="primary", use_container_width=True):
                 self._process_audio_files(
@@ -311,54 +307,54 @@ class UploadPage:
                         'call_type': default_type
                     }
                 )
-    
+
     def _render_batch_processing_tab(self) -> None:
         """
         Render batch processing interface for multiple files.
         """
         st.header("Batch Processing")
         st.markdown("Process multiple files from a directory")
-        
+
         # Directory selection
         st.subheader("Select Source")
-        
+
         source_type = st.radio(
             "Source Type",
             ["Local Directory", "Upload ZIP", "Cloud Storage"],
             horizontal=True
         )
-        
+
         if source_type == "Local Directory":
             directory_path = st.text_input(
                 "Directory Path",
                 placeholder="/path/to/call/data",
                 help="Enter the full path to the directory containing files"
             )
-            
+
             if directory_path and Path(directory_path).exists():
                 # Scan directory
                 path = Path(directory_path)
                 csv_files = list(path.glob("**/*.csv"))
                 audio_files = list(path.glob("**/*.wav")) + list(path.glob("**/*.mp3"))
-                
+
                 st.info(f"Found {len(csv_files)} CSV files and {len(audio_files)} audio files")
-                
+
                 # Processing options
                 st.subheader("Processing Options")
-                
+
                 process_csv = st.checkbox(
                     f"Process {len(csv_files)} CSV files",
                     value=len(csv_files) > 0
                 )
-                
+
                 process_audio = st.checkbox(
                     f"Process {len(audio_files)} audio files",
                     value=len(audio_files) > 0 and self.stt_engine is not None
                 )
-                
+
                 # Batch settings
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
                     batch_size = st.number_input(
                         "Batch Size",
@@ -367,14 +363,14 @@ class UploadPage:
                         value=10,
                         help="Number of files to process at once"
                     )
-                
+
                 with col2:
                     parallel_processing = st.checkbox(
                         "Parallel Processing",
                         value=False,
                         help="Process multiple files simultaneously"
                     )
-                
+
                 # Start batch processing
                 if st.button("Start Batch Processing", type="primary", use_container_width=True):
                     self._start_batch_processing(
@@ -384,44 +380,44 @@ class UploadPage:
                         batch_size,
                         parallel_processing
                     )
-        
+
         elif source_type == "Upload ZIP":
             uploaded_zip = st.file_uploader(
                 "Choose a ZIP file",
                 type=['zip'],
                 key="zip_uploader"
             )
-            
+
             if uploaded_zip:
                 st.info(f"Uploaded: {uploaded_zip.name} ({uploaded_zip.size / 1024 / 1024:.1f} MB)")
-                
+
                 if st.button("Extract and Process", type="primary"):
                     self._process_zip_file(uploaded_zip)
-        
+
         elif source_type == "Cloud Storage":
             st.info("Cloud storage integration coming soon!")
-    
+
     def _render_import_history_tab(self) -> None:
         """
         Render import history and management interface.
         """
         st.header("Import History")
         st.markdown("View and manage previously imported data")
-        
+
         # Load import history
         history_df = self.storage_manager.get_import_history()
-        
+
         if not history_df.empty:
-            
+
             # Format columns
             if 'timestamp' in history_df.columns:
                 history_df['timestamp'] = pd.to_datetime(history_df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
-            
+
             if 'file_size' in history_df.columns:
                 history_df['file_size'] = history_df['file_size'].apply(
                     lambda x: f"{x / 1024 / 1024:.1f} MB" if x > 1024 * 1024 else f"{x / 1024:.1f} KB"
                 )
-            
+
             # Display table
             st.dataframe(
                 history_df,
@@ -436,32 +432,32 @@ class UploadPage:
                     'status': st.column_config.TextColumn('Status')
                 }
             )
-            
+
             # Summary statistics
             st.subheader("Import Summary")
-            
+
             col1, col2, col3, col4 = st.columns(4)
-            
+
             with col1:
                 st.metric("Total Imports", len(history_df))
-            
+
             with col2:
                 total_records = history_df.get('records_imported', pd.Series(dtype=float)).fillna(0).sum()
                 st.metric("Total Records", f"{int(total_records):,}")
-            
+
             with col3:
                 successful = int((history_df.get('status') == 'success').sum()) if 'status' in history_df.columns else 0
                 st.metric("Successful", successful)
-            
+
             with col4:
                 failed = int((history_df.get('status') == 'failed').sum()) if 'status' in history_df.columns else 0
                 st.metric("Failed", failed)
-            
+
             # Management options
             st.divider()
-            
+
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 if st.button("Clear Import History", type="secondary", key="clear_history_btn"):
                     st.session_state.show_clear_history_confirm = True
@@ -479,7 +475,7 @@ class UploadPage:
                     if st.button("Cancel", key="cancel_clear_history_btn"):
                         st.session_state.show_clear_history_confirm = False
                         st.info("Import history not cleared")
-            
+
             with col2:
                 if st.button("Export History", type="secondary"):
                     csv = history_df.to_csv(index=False)
@@ -491,17 +487,17 @@ class UploadPage:
                     )
         else:
             st.info("No import history available yet. Start by uploading some data!")
-    
+
     def _render_manual_mapping(self, headers: list[str], current_mapping: dict[str, str]) -> None:
         """
         Render manual field mapping interface.
-        
+
         Args:
             headers: List of CSV headers
             current_mapping: Current field mapping
         """
         st.write("Manually adjust field mappings:")
-        
+
         schema_fields = self.csv_processor.get_mappable_fields()
         if schema_fields:
             standard_fields = schema_fields
@@ -532,18 +528,18 @@ class UploadPage:
 
             current = current_mapping.get(field_name, '')
             options = [''] + headers
-            
+
             # Ensure current value is in options
             if current and current not in options:
                 options.append(current)
-            
+
             selected = st.selectbox(
                 f"{field_label}:",
                 options=options,
                 index=options.index(current) if current in options else 0,
                 key=f"map_{field_name}"
             )
-            
+
             if selected:
                 new_mapping[field_name] = selected
 
@@ -551,7 +547,7 @@ class UploadPage:
         if st.button("Apply Mapping"):
             self.csv_processor.field_mapping = new_mapping
             st.success("Field mapping updated")
-    
+
     def _process_csv_import(self,
                            file_path: Path,
                            skip_errors: bool,
@@ -559,7 +555,7 @@ class UploadPage:
                            validate_phones: bool) -> None:
         """
         Process CSV file import with progress tracking.
-        
+
         Args:
             file_path: Path to CSV file
             skip_errors: Whether to skip invalid rows
@@ -599,30 +595,30 @@ class UploadPage:
                     else:
                         raise
                 total_processed += added
-                
+
                 # Update progress
                 progress_bar.progress(min(total_processed / max(processed_target, 1), 1.0))
                 status_text.text(f"Processed {total_processed} records...")
-            
+
             # Process file
             status_text.text("Processing CSV file...")
             processed, errors = self.csv_processor.process_csv_batch(
                 file_path,
                 batch_callback=process_batch
             )
-            
+
             # Complete progress
             progress_bar.progress(1.0)
             status_text.text(f"Import complete: {processed} records imported")
-            
+
             # Show results
             if errors > 0:
                 st.warning(f"Import completed with {errors} errors")
-                
+
                 # Export error report
                 error_report_path = Path(tempfile.gettempdir()) / "import_errors.csv"
                 self.csv_processor.export_errors_report(error_report_path)
-                
+
                 with open(error_report_path, 'rb') as f:
                     st.download_button(
                         label="Download Error Report",
@@ -632,7 +628,7 @@ class UploadPage:
                     )
             else:
                 st.success(f"Successfully imported {processed} records")
-            
+
             # Update import history
             self.storage_manager.add_import_record({
                 'timestamp': datetime.now(),
@@ -655,9 +651,11 @@ class UploadPage:
             logger.error(f"Error importing CSV: {e}")
             st.error(f"Import failed: {str(e)}")
 
-    def _batch_process_csv_file(self,
-                                file_path: Path,
-                                deduplicate: bool = True) -> Tuple[int, int]:
+    def _batch_process_csv_file(
+        self,
+        file_path: Path,
+        deduplicate: bool = True,
+    ) -> tuple[int, int]:
         """Process a CSV file during batch processing without UI widgets."""
         total_processed = 0
 
@@ -715,7 +713,7 @@ class UploadPage:
                             metadata: dict[str, Any]) -> None:
         """
         Process uploaded audio files with transcription.
-        
+
         Args:
             files: List of uploaded audio files
             language: Language code or 'auto'
@@ -726,31 +724,31 @@ class UploadPage:
         if not self.stt_engine:
             st.error("Speech-to-text engine not configured")
             return
-        
+
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         processed_records = []
         metadata_lookup = self._load_audio_metadata()
-        
+
         for idx, file in enumerate(files):
             try:
                 status_text.text(f"Processing {file.name}...")
-                
+
                 # Save audio file temporarily
                 temp_audio = Path(tempfile.gettempdir()) / file.name
                 with open(temp_audio, 'wb') as f:
                     f.write(file.getbuffer())
-                
+
                 # Process audio
                 processed_path = self.audio_processor.process_audio(temp_audio)
-                
+
                 # Transcribe
                 result = self.stt_engine.transcribe(
                     processed_path,
                     language=None if language == 'auto' else language
                 )
-                
+
                 record_metadata = metadata_lookup.get(file.name.lower(), {})
 
                 metadata_duration_seconds = record_metadata.get('duration_seconds')
@@ -776,27 +774,27 @@ class UploadPage:
                     **metadata,
                     **{k: v for k, v in record_metadata.items() if k not in {'audio_file', 'transcript_file', 'transcript'}}
                 }
-                
+
                 processed_records.append(record)
-                
+
                 # Update progress
                 progress_bar.progress((idx + 1) / len(files))
-                
+
                 # Clean up
                 temp_audio.unlink()
-                
+
             except Exception as e:
                 logger.error(f"Error processing {file.name}: {e}")
                 st.error(f"Failed to process {file.name}: {str(e)}")
-        
+
         # Store records
         if processed_records:
             self.storage_manager.store_call_records(processed_records)
             status_text.text(f"Successfully processed {len(processed_records)} audio files")
             st.success(f"Imported {len(processed_records)} transcribed calls")
-        
+
         progress_bar.progress(1.0)
-    
+
     def _start_batch_processing(self,
                                directory: Path,
                                process_csv: bool,
@@ -805,7 +803,7 @@ class UploadPage:
                                parallel: bool) -> None:
         """
         Start batch processing of files from directory.
-        
+
         Args:
             directory: Source directory
             process_csv: Whether to process CSV files
@@ -858,7 +856,8 @@ class UploadPage:
         if audio_files:
             status_text.text("Audio batch processing is not yet implemented in batch mode.")
             audio_errors.append(
-                "Audio batch processing is not currently supported. Please process audio files individually."
+                "Audio batch processing is not supported in batch mode. "
+                "Please process audio files individually."
             )
             completed += len(audio_files)
             progress_bar.progress(min(completed / total_files, 1.0))
@@ -931,11 +930,11 @@ class UploadPage:
             logger.warning(f"Unable to load audio metadata: {exc}")
 
         return lookup
-    
+
     def _process_zip_file(self, zip_file: Any) -> None:
         """
         Process uploaded ZIP file.
-        
+
         Args:
             zip_file: Uploaded ZIP file
         """
@@ -948,7 +947,7 @@ class UploadPage:
 def render_upload_page(storage_manager: StorageManager, config: dict[str, Any]) -> None:
     """
     Main entry point for rendering the upload page.
-    
+
     Args:
         storage_manager: Storage manager instance
         config: Application configuration

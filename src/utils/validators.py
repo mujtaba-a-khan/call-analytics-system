@@ -4,9 +4,9 @@ Data Validation Utilities
 Functions for validating and sanitizing data inputs.
 """
 
+import re
 from datetime import date, datetime
 from typing import Any
-import re
 
 import pandas as pd
 
@@ -80,10 +80,7 @@ def validate_date(
         if min_date is not None and parsed_date < min_date:
             return False
 
-        if max_date is not None and parsed_date > max_date:
-            return False
-
-        return True
+        return not (max_date is not None and parsed_date > max_date)
 
     except (ValueError, TypeError):
         return False
@@ -116,10 +113,7 @@ def validate_number(
         if min_value is not None and num < min_value:
             return False
 
-        if max_value is not None and num > max_value:
-            return False
-
-        return True
+        return not (max_value is not None and num > max_value)
 
     except (ValueError, TypeError):
         return False
@@ -152,10 +146,7 @@ def validate_text(
     if max_length is not None and len(text) > max_length:
         return False
 
-    if pattern and not re.match(pattern, text):
-        return False
-
-    return True
+    return not (pattern and not re.match(pattern, text))
 
 
 def validate_url(url: str) -> bool:
