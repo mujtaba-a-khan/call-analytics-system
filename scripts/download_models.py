@@ -278,49 +278,62 @@ class ModelDownloader:
             except Exception as e:
                 self.logger.error(f"Error pulling {model_name}: {e}")
 
+    def _gather_whisper_registry(self) -> dict[str, dict[str, Any]]:
+        registry: dict[str, dict[str, Any]] = {}
+        whisper_dir = self.models_dir / "whisper"
+        if not whisper_dir.exists():
+            return registry
+
+        for model_file in whisper_dir.glob("*.pt"):
+            registry[model_file.stem] = {
+                "path": str(model_file),
+                "size": model_file.stat().st_size,
+            }
+        return registry
+
+    def _gather_sentence_transformer_registry(self) -> dict[str, Any]:
+        registry: dict[str, Any] = {}
+        st_dir = self.models_dir / "sentence_transformers"
+        if not st_dir.exists():
+            return registry
+
+        for info_file in st_dir.glob("*_info.json"):
+            with open(info_file) as f:
+                info = json.load(f)
+                registry[info["name"]] = info
+        return registry
+
+    def _gather_ollama_registry(self) -> dict[str, dict[str, Any]]:
+        registry: dict[str, dict[str, Any]] = {}
+        try:
+            result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
+        except Exception:
+            return registry
+
+        if result.returncode != 0:
+            return registry
+
+        lines = result.stdout.strip().splitlines()
+        for line in lines[1:]:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            parts = stripped.split()
+            if parts:
+                registry[parts[0]] = {"installed": True}
+
+        return registry
+
     def create_model_registry(self) -> None:
         """
         Create a registry file with information about all downloaded models.
         """
         registry: dict[str, dict[str, Any]] = {
-            "whisper": {},
-            "sentence_transformers": {},
-            "ollama": {},
+            "whisper": self._gather_whisper_registry(),
+            "sentence_transformers": self._gather_sentence_transformer_registry(),
+            "ollama": self._gather_ollama_registry(),
         }
-
-        # Check Whisper models
-        whisper_dir = self.models_dir / "whisper"
-        if whisper_dir.exists():
-            for model_file in whisper_dir.glob("*.pt"):
-                size = model_file.stem
-                registry["whisper"][size] = {
-                    "path": str(model_file),
-                    "size": model_file.stat().st_size,
-                }
-
-        # Check sentence transformer models
-        st_dir = self.models_dir / "sentence_transformers"
-        if st_dir.exists():
-            for info_file in st_dir.glob("*_info.json"):
-                with open(info_file) as f:
-                    info = json.load(f)
-                    registry["sentence_transformers"][info["name"]] = info
-
-        # Check Ollama models
-        try:
-            result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
-
-            if result.returncode == 0:
-                # Parse Ollama list output
-                lines = result.stdout.strip().split("\n")[1:]  # Skip header
-                for line in lines:
-                    if line:
-                        parts = line.split()
-                        if parts:
-                            model_name = parts[0]
-                            registry["ollama"][model_name] = {"installed": True}
-        except Exception:
-            pass
 
         # Save registry
         registry_path = self.models_dir / "model_registry.json"
