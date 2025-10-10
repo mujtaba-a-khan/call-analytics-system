@@ -143,7 +143,7 @@ def load_vector_config(config_path: Path, persist_dir: Path | None) -> dict[str,
     return vector_cfg
 
 
-def main():
+def main() -> None:
     """
     Main function to run the index rebuild script.
     """

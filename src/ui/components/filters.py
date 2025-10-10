@@ -7,6 +7,7 @@ and advanced search capabilities with state management.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -388,7 +389,7 @@ class RangeSliderFilter:
         container: Any = None,
         key: str = "range_slider",
         step: float = 1.0,
-        format_func: callable | None = None,
+        format_func: Callable | None = None,
     ) -> tuple[float, float]:
         """
         Render range slider filter component.

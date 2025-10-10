@@ -11,11 +11,27 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, TypedDict
 
 import toml
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+
+
+class SampleVoiceScript(TypedDict):
+    """Typed representation of a synthetic voice sample specification."""
+
+    call_id: str
+    script: str
+    notes: str
+    call_topic: str
+    campaign: str
+    outcome: str
+    call_type: str
+    revenue: float
+    tags: list[str]
+    sentiment: str
 
 
 class EnvironmentSetup:
@@ -427,7 +443,7 @@ SECRET_KEY=your_secret_key_here
                 {"id": "agent_537", "name": "Jamie Patel"},
             ]
 
-            sample_scripts = [
+            sample_scripts: list[SampleVoiceScript] = [
                 {
                     "call_id": "CALL_AUDIO_001",
                     "script": (
@@ -511,8 +527,8 @@ SECRET_KEY=your_secret_key_here
                 },
             ]
 
-            metadata_rows = []
-            method_stats = {"pyttsx3": 0, "say": 0, "tone_fallback": 0}
+            metadata_rows: list[dict[str, Any]] = []
+            method_stats: dict[str, int] = {"pyttsx3": 0, "say": 0, "tone_fallback": 0}
 
             for idx, sample in enumerate(sample_scripts, start=1):
                 audio_name = f"sample_call_{idx:02d}.wav"
@@ -662,16 +678,23 @@ SECRET_KEY=your_secret_key_here
             import contextlib
             import wave
 
-            import aifc
+            import aifc  # type: ignore[import-untyped]
 
             try:
-                import soundfile as sf  # type: ignore
+                import soundfile as sf  # type: ignore[import-untyped]
 
                 info = sf.info(str(audio_path))
-                if info.frames and info.samplerate:
-                    return round(info.frames / float(info.samplerate), 2)
-                if getattr(info, "duration", 0):
-                    return round(info.duration, 2)
+                frames = getattr(info, "frames", 0)
+                samplerate = getattr(info, "samplerate", 0)
+                if (
+                    isinstance(frames, (int, float))
+                    and isinstance(samplerate, (int, float))
+                    and samplerate
+                ):
+                    return round(float(frames) / float(samplerate), 2)
+                duration_value = getattr(info, "duration", None)
+                if isinstance(duration_value, (int, float)):
+                    return round(float(duration_value), 2)
             except (ImportError, RuntimeError):
                 # soundfile not available or unsupported format; fall back to stdlib readers
                 pass
@@ -699,7 +722,7 @@ SECRET_KEY=your_secret_key_here
         """
         self.logger.info("Verifying installation...")
 
-        status = {}
+        status: dict[str, bool] = {}
 
         # Check directories
         status["directories"] = all(
@@ -767,7 +790,7 @@ def setup_logging_simple() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     """
     Main function to run the environment setup.
     """

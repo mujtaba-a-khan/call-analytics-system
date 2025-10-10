@@ -12,9 +12,10 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import requests
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore[import-untyped]
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -22,7 +23,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.utils.logger import get_logger, setup_logging
 
 # Model configurations
-MODELS_CONFIG = {
+MODELS_CONFIG: dict[str, Any] = {
     "whisper": {
         "models": {
             "tiny": {
@@ -281,7 +282,11 @@ class ModelDownloader:
         """
         Create a registry file with information about all downloaded models.
         """
-        registry = {"whisper": {}, "sentence_transformers": {}, "ollama": {}}
+        registry: dict[str, dict[str, Any]] = {
+            "whisper": {},
+            "sentence_transformers": {},
+            "ollama": {},
+        }
 
         # Check Whisper models
         whisper_dir = self.models_dir / "whisper"
@@ -331,7 +336,7 @@ class ModelDownloader:
         Returns:
             Dictionary of model types and their installation status
         """
-        status = {}
+        status: dict[str, bool] = {}
 
         # Check Whisper
         whisper_dir = self.models_dir / "whisper"
@@ -351,7 +356,7 @@ class ModelDownloader:
         return status
 
 
-def main():
+def main() -> None:
     """
     Main function to run the model download script.
     """

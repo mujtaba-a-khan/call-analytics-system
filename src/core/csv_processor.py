@@ -8,6 +8,7 @@ containing call transcripts and metadata.
 import json
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -529,7 +530,7 @@ class CSVProcessor:
             return pd.DataFrame()
 
     def process_csv_batch(
-        self, file_path: Path, batch_size: int = 1000, batch_callback: callable | None = None
+        self, file_path: Path, batch_size: int = 1000, batch_callback: Callable | None = None
     ) -> tuple[int, int]:
         """
         Process CSV file in batches for large files.
