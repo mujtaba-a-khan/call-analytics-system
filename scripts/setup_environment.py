@@ -828,88 +828,93 @@ def setup_logging_simple() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def main() -> None:
-    """
-    Main function to run the environment setup.
-    """
+def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Setup environment for Call Analytics System")
 
     parser.add_argument(
-        "--base-dir", type=Path, default=Path.cwd(), help="Base directory for the project"
+        "--base-dir",
+        type=Path,
+        default=Path.cwd(),
+        help="Base directory for the project",
     )
 
     parser.add_argument(
-        "--skip-packages", action="store_true", help="Skip Python package installation"
+        "--skip-packages",
+        action="store_true",
+        help="Skip Python package installation",
     )
-
-    parser.add_argument("--skip-sample-data", action="store_true", help="Skip creating sample data")
-
-    parser.add_argument("--upgrade-packages", action="store_true", help="Upgrade existing packages")
 
     parser.add_argument(
-        "--verify-only", action="store_true", help="Only verify existing installation"
+        "--skip-sample-data",
+        action="store_true",
+        help="Skip creating sample data",
     )
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "--upgrade-packages",
+        action="store_true",
+        help="Upgrade existing packages",
+    )
 
-    # Setup logging
-    logger = setup_logging_simple()
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Only verify existing installation",
+    )
 
-    # Create setup instance
-    setup = EnvironmentSetup(args.base_dir, logger)
+    return parser.parse_args(argv)
 
-    if args.verify_only:
-        # Verification only
-        overall, status = setup.verify_installation()
 
-        logger.info("\nInstallation status:")
-        for component, installed in status.items():
-            status_icon = "✓" if installed else "✗"
-            logger.info(f"  {status_icon} {component}")
+def log_component_status(header: str, status: dict[str, bool], logger: logging.Logger) -> None:
+    logger.info(header)
+    for component, installed in status.items():
+        icon = "✓" if installed else "✗"
+        logger.info(f"  {icon} {component}")
 
-        if overall:
-            logger.info("\n✓ Installation verified successfully!")
-            sys.exit(0)
-        else:
-            logger.error("\n✗ Installation incomplete")
-            sys.exit(1)
 
-    # Run full setup
+def run_verification_only(setup: EnvironmentSetup, logger: logging.Logger) -> int:
+    overall, status = setup.verify_installation()
+    log_component_status("\nInstallation status:", status, logger)
+
+    if overall:
+        logger.info("\n✓ Installation verified successfully!")
+        return 0
+
+    logger.error("\n✗ Installation incomplete")
+    return 1
+
+
+def run_full_setup(
+    args: argparse.Namespace,
+    setup: EnvironmentSetup,
+    logger: logging.Logger,
+) -> int:
     logger.info("Starting Call Analytics System environment setup...")
     logger.info(f"Base directory: {args.base_dir}")
 
-    # Check Python version
     if not setup.check_python_version():
-        sys.exit(1)
+        return 1
 
-    # Create directories
     if not setup.create_directories():
-        sys.exit(1)
+        return 1
 
-    # Install packages
-    if not args.skip_packages and not setup.install_packages(upgrade=args.upgrade_packages):
-        logger.error("Package installation failed")
-        sys.exit(1)
+    if not args.skip_packages:
+        installed = setup.install_packages(upgrade=args.upgrade_packages)
+        if not installed:
+            logger.error("Package installation failed")
+            return 1
 
-    # Create config files
     if not setup.create_config_files():
-        sys.exit(1)
+        return 1
 
-    # Setup Streamlit
     if not setup.setup_streamlit_config():
-        sys.exit(1)
+        return 1
 
-    # Create sample data
     if not args.skip_sample_data:
         setup.create_sample_data()
 
-    # Verify installation
     overall, status = setup.verify_installation()
-
-    logger.info("\nInstallation summary:")
-    for component, installed in status.items():
-        status_icon = "✓" if installed else "✗"
-        logger.info(f"  {status_icon} {component}")
+    log_component_status("\nInstallation summary:", status, logger)
 
     if overall:
         setup.print_next_steps()
@@ -917,6 +922,26 @@ def main() -> None:
         logger.warning("\nSetup completed with some optional components missing.")
         logger.info("The core system should work, but some features may be limited.")
         setup.print_next_steps()
+
+    return 0
+
+
+def main() -> None:
+    """
+    Main function to run the environment setup.
+    """
+    args = parse_arguments()
+    logger = setup_logging_simple()
+    setup = EnvironmentSetup(args.base_dir, logger)
+
+    exit_code = (
+        run_verification_only(setup, logger)
+        if args.verify_only
+        else run_full_setup(args, setup, logger)
+    )
+
+    if exit_code:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

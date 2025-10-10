@@ -369,10 +369,7 @@ class ModelDownloader:
         return status
 
 
-def main() -> None:
-    """
-    Main function to run the model download script.
-    """
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download and setup ML models for Call Analytics System"
     )
@@ -400,7 +397,10 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--ollama-models", nargs="+", default=["nomic-embed-text"], help="Ollama models to pull"
+        "--ollama-models",
+        nargs="+",
+        default=["nomic-embed-text"],
+        help="Ollama models to pull",
     )
 
     parser.add_argument(
@@ -419,63 +419,94 @@ def main() -> None:
         "--verify-only", action="store_true", help="Only verify existing installations"
     )
 
-    args = parser.parse_args()
+    return parser.parse_args(argv)
 
-    # Setup logging
+
+def configure_logger() -> logging.Logger:
     setup_logging(log_level="INFO", console_output=True)
-    logger = get_logger(__name__)
+    return get_logger(__name__)
 
-    # Create downloader
+
+def log_verify_status(status: dict[str, bool], logger: logging.Logger) -> bool:
+    all_installed = True
+    for model_type, installed in status.items():
+        status_str = "✓ Installed" if installed else "✗ Not installed"
+        logger.info(f"{model_type}: {status_str}")
+        all_installed &= installed
+    return all_installed
+
+
+def log_download_status(status: dict[str, bool], logger: logging.Logger) -> bool:
+    all_installed = True
+    for model_type, installed in status.items():
+        if installed:
+            logger.info(f"✓ {model_type} models ready")
+        else:
+            logger.warning(f"✗ {model_type} models not found")
+            all_installed = False
+    return all_installed
+
+
+def download_selected_models(
+    args: argparse.Namespace,
+    downloader: ModelDownloader,
+    logger: logging.Logger,
+) -> None:
+    if not args.skip_whisper:
+        logger.info("Downloading Whisper models...")
+        downloader.download_whisper_models(args.whisper_sizes)
+
+    if not args.skip_sentence_transformers:
+        logger.info("Downloading sentence transformer models...")
+        downloader.download_sentence_transformers(args.sentence_transformers)
+
+    if not args.skip_ollama:
+        logger.info("Setting up Ollama models...")
+        downloader.setup_ollama_models(args.ollama_models)
+
+
+def handle_verify_only(downloader: ModelDownloader, logger: logging.Logger) -> int:
+    logger.info("Verifying model installations...")
+    status = downloader.verify_installations()
+    return 0 if log_verify_status(status, logger) else 1
+
+
+def handle_download(
+    args: argparse.Namespace,
+    downloader: ModelDownloader,
+    logger: logging.Logger,
+) -> int:
+    logger.info("Starting model download process...")
+    download_selected_models(args, downloader, logger)
+
+    downloader.create_model_registry()
+
+    logger.info("\nVerifying installations...")
+    status = downloader.verify_installations()
+    if log_download_status(status, logger):
+        logger.info("\n✓ All models successfully installed!")
+        return 0
+
+    logger.warning("\n⚠ Some models are missing. Please check the logs above.")
+    return 1
+
+
+def main() -> None:
+    """
+    Main function to run the model download script.
+    """
+    args = parse_arguments()
+    logger = configure_logger()
     downloader = ModelDownloader(args.models_dir, logger)
 
-    if args.verify_only:
-        # Verify installations
-        logger.info("Verifying model installations...")
-        status = downloader.verify_installations()
+    exit_code = (
+        handle_verify_only(downloader, logger)
+        if args.verify_only
+        else handle_download(args, downloader, logger)
+    )
 
-        for model_type, installed in status.items():
-            status_str = "✓ Installed" if installed else "✗ Not installed"
-            logger.info(f"{model_type}: {status_str}")
-
-        # Exit with error if any required models missing
-        if not all(status.values()):
-            sys.exit(1)
-    else:
-        # Download models
-        logger.info("Starting model download process...")
-
-        if not args.skip_whisper:
-            logger.info("Downloading Whisper models...")
-            downloader.download_whisper_models(args.whisper_sizes)
-
-        if not args.skip_sentence_transformers:
-            logger.info("Downloading sentence transformer models...")
-            downloader.download_sentence_transformers(args.sentence_transformers)
-
-        if not args.skip_ollama:
-            logger.info("Setting up Ollama models...")
-            downloader.setup_ollama_models(args.ollama_models)
-
-        # Create model registry
-        downloader.create_model_registry()
-
-        # Verify installations
-        logger.info("\nVerifying installations...")
-        status = downloader.verify_installations()
-
-        all_good = True
-        for model_type, installed in status.items():
-            if installed:
-                logger.info(f"✓ {model_type} models ready")
-            else:
-                logger.warning(f"✗ {model_type} models not found")
-                all_good = False
-
-        if all_good:
-            logger.info("\n✓ All models successfully installed!")
-        else:
-            logger.warning("\n⚠ Some models are missing. Please check the logs above.")
-            sys.exit(1)
+    if exit_code:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

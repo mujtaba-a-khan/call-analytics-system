@@ -143,16 +143,16 @@ def load_vector_config(config_path: Path, persist_dir: Path | None) -> dict[str,
     return vector_cfg
 
 
-def main() -> None:
-    """
-    Main function to run the index rebuild script.
-    """
+def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Rebuild vector database index for Call Analytics System"
     )
 
     parser.add_argument(
-        "--data-dir", type=Path, default=Path("data"), help="Data directory containing call records"
+        "--data-dir",
+        type=Path,
+        default=Path("data"),
+        help="Data directory containing call records",
     )
 
     parser.add_argument(
@@ -170,110 +170,159 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--backup-dir", type=Path, default=Path("backups"), help="Directory for index backups"
+        "--backup-dir",
+        type=Path,
+        default=Path("backups"),
+        help="Directory for index backups",
     )
 
-    parser.add_argument("--batch-size", type=int, default=100, help="Batch size for indexing")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=100,
+        help="Batch size for indexing",
+    )
 
-    parser.add_argument("--no-backup", action="store_true", help="Skip backup of existing index")
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Skip backup of existing index",
+    )
 
-    parser.add_argument("--no-clear", action="store_true", help="Do not clear existing index")
+    parser.add_argument(
+        "--no-clear",
+        action="store_true",
+        help="Do not clear existing index",
+    )
 
-    parser.add_argument("--verify", action="store_true", help="Verify index after rebuild")
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify index after rebuild",
+    )
 
-    parser.add_argument("--stats-only", action="store_true", help="Only show index statistics")
+    parser.add_argument(
+        "--stats-only",
+        action="store_true",
+        help="Only show index statistics",
+    )
 
-    args = parser.parse_args()
+    return parser.parse_args(argv)
 
-    # Setup logging
+
+def initialize_components(args: argparse.Namespace, logger: logging.Logger) -> IndexRebuilder:
+    logger.info("Initializing components...")
+
+    storage_manager = StorageManager(base_path=args.data_dir)
+    vector_config = load_vector_config(args.vector_config, args.vector_db_path)
+    vector_client = ChromaClient(vector_config)
+
+    indexing_config = dict(vector_config.get("indexing", {}))
+    indexing_config.setdefault("text_fields", ["transcript", "notes"])
+    indexing_config.setdefault("min_text_length", 10)
+    indexing_config.setdefault(
+        "metadata_fields",
+        [
+            "call_id",
+            "agent_id",
+            "campaign",
+            "call_type",
+            "outcome",
+            "timestamp",
+            "duration",
+            "revenue",
+        ],
+    )
+
+    indexer = DocumentIndexer(vector_client, config=indexing_config)
+    return IndexRebuilder(
+        storage_manager=storage_manager,
+        vector_client=vector_client,
+        indexer=indexer,
+        logger=logger,
+    )
+
+
+def handle_stats_only(rebuilder: IndexRebuilder, logger: logging.Logger) -> None:
+    stats = rebuilder.generate_index_stats()
+    logger.info("Current index statistics:")
+    logger.info(json.dumps(stats, indent=2))
+
+
+def perform_backup_if_needed(
+    rebuilder: IndexRebuilder,
+    args: argparse.Namespace,
+    logger: logging.Logger,
+) -> bool:
+    if args.no_backup:
+        return True
+
+    if rebuilder.backup_existing_index(args.backup_dir):
+        return True
+
+    logger.error("Backup failed, aborting rebuild")
+    return False
+
+
+def load_records_or_exit(rebuilder: IndexRebuilder, logger: logging.Logger) -> pd.DataFrame:
+    records = rebuilder.load_records()
+    if records is None or records.empty:
+        logger.warning("No records to index")
+        sys.exit(0)
+    return records
+
+
+def run_rebuild(
+    rebuilder: IndexRebuilder,
+    args: argparse.Namespace,
+    logger: logging.Logger,
+) -> None:
+    records = load_records_or_exit(rebuilder, logger)
+
+    indexed_count = rebuilder.rebuild_index(
+        records,
+        batch_size=args.batch_size,
+        clear_existing=not args.no_clear,
+    )
+
+    if indexed_count == 0:
+        logger.warning("No documents were indexed")
+
+    if args.verify:
+        if rebuilder.verify_index():
+            logger.info("✓ Index verification passed")
+        else:
+            logger.warning("⚠ Index verification failed")
+
+    stats = rebuilder.generate_index_stats()
+    logger.info("\nFinal index statistics:")
+    logger.info(json.dumps(stats, indent=2))
+
+    stats_file = args.data_dir / "index_stats.json"
+    with open(stats_file, "w") as f:
+        json.dump(stats, f, indent=2)
+    logger.info(f"Statistics saved to {stats_file}")
+    logger.info("\n✓ Index rebuild completed successfully!")
+
+
+def main() -> None:
+    """
+    Main function to run the index rebuild script.
+    """
+    args = parse_arguments()
     setup_logging(log_level="INFO", console_output=True)
     logger = get_logger(__name__)
 
     try:
-        # Initialize components
-        logger.info("Initializing components...")
-
-        # Storage manager
-        storage_manager = StorageManager(base_path=args.data_dir)
-
-        # Vector database client + indexer
-        vector_config = load_vector_config(args.vector_config, args.vector_db_path)
-        vector_client = ChromaClient(vector_config)
-
-        indexing_config = dict(vector_config.get("indexing", {}))
-        indexing_config.setdefault("text_fields", ["transcript", "notes"])
-        indexing_config.setdefault("min_text_length", 10)
-        indexing_config.setdefault(
-            "metadata_fields",
-            [
-                "call_id",
-                "agent_id",
-                "campaign",
-                "call_type",
-                "outcome",
-                "timestamp",
-                "duration",
-                "revenue",
-            ],
-        )
-
-        indexer = DocumentIndexer(vector_client, config=indexing_config)
-
-        rebuilder = IndexRebuilder(
-            storage_manager=storage_manager,
-            vector_client=vector_client,
-            indexer=indexer,
-            logger=logger,
-        )
-
+        rebuilder = initialize_components(args, logger)
         if args.stats_only:
-            # Show statistics only
-            stats = rebuilder.generate_index_stats()
-            logger.info("Current index statistics:")
-            logger.info(json.dumps(stats, indent=2))
+            handle_stats_only(rebuilder, logger)
+            return
 
-        else:
-            # Backup existing index
-            if not args.no_backup and not rebuilder.backup_existing_index(args.backup_dir):
-                logger.error("Backup failed, aborting rebuild")
-                sys.exit(1)
+        if not perform_backup_if_needed(rebuilder, args, logger):
+            sys.exit(1)
 
-            # Load records
-            records = rebuilder.load_records()
-
-            if records is None or records.empty:
-                logger.warning("No records to index")
-                sys.exit(0)
-
-            # Rebuild index
-            indexed_count = rebuilder.rebuild_index(
-                records,
-                batch_size=args.batch_size,
-                clear_existing=not args.no_clear,
-            )
-
-            if indexed_count == 0:
-                logger.warning("No documents were indexed")
-
-            # Verify if requested
-            if args.verify:
-                if rebuilder.verify_index():
-                    logger.info("✓ Index verification passed")
-                else:
-                    logger.warning("⚠ Index verification failed")
-
-            # Generate and show statistics
-            stats = rebuilder.generate_index_stats()
-            logger.info("\nFinal index statistics:")
-            logger.info(json.dumps(stats, indent=2))
-
-            # Save stats to file
-            stats_file = args.data_dir / "index_stats.json"
-            with open(stats_file, "w") as f:
-                json.dump(stats, f, indent=2)
-            logger.info(f"Statistics saved to {stats_file}")
-
-            logger.info("\n✓ Index rebuild completed successfully!")
+        run_rebuild(rebuilder, args, logger)
 
     except Exception as e:
         logger.error(f"Script failed: {e}", exc_info=True)
