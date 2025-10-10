@@ -8,9 +8,10 @@ __version__ = '1.0.0'
 
 __all__ = [
     'ChromaDBClient',
-    'VectorIndexer', 
-    'VectorRetriever'
+    'VectorIndexer',
+    'VectorRetriever',
 ]
+
 
 def __getattr__(name):
     """Lazy loading for vector database modules"""
@@ -23,5 +24,5 @@ def __getattr__(name):
     elif name == 'VectorRetriever':
         from .retriever import VectorRetriever
         return VectorRetriever
-    
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

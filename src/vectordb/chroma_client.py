@@ -6,7 +6,6 @@ and document retrieval. Handles embedding generation and similarity search.
 """
 
 import hashlib
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -255,7 +254,12 @@ class ChromaClient:
                         'metadata': results['metadatas'][0][i] if results['metadatas'] else {}
                     })
 
-            logger.debug(f"Search returned {len(formatted_results)} results for query: {query_text[:50]}...")
+            query_preview = query_text[:50]
+            logger.debug(
+                "Search returned %s results for query: %s...",
+                len(formatted_results),
+                query_preview,
+            )
             return formatted_results
 
         except Exception as e:
