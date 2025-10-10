@@ -5,16 +5,12 @@ This script sets up the complete environment including directories,
 configuration files, dependencies, and initial data structures.
 """
 
-import sys
-import os
-import logging
 import argparse
+import logging
 import subprocess
+import sys
 from pathlib import Path
-import json
-import shutil
-import platform
-from typing import Dict, List, Optional, Tuple
+
 import toml
 
 # Add parent directory to path for imports
@@ -25,10 +21,10 @@ class EnvironmentSetup:
     """
     Handles complete environment setup for the Call Analytics System.
     """
-    
+
     # Required Python version
     REQUIRED_PYTHON = (3, 13)
-    
+
     # Required directories
     REQUIRED_DIRS = [
         'data',
@@ -44,7 +40,7 @@ class EnvironmentSetup:
         'config',
         'temp'
     ]
-    
+
     # Required Python packages
     REQUIRED_PACKAGES = [
         'streamlit>=1.28.0',
@@ -71,7 +67,7 @@ class EnvironmentSetup:
         'black>=23.0.0',
         'pylint>=3.0.0'
     ]
-    
+
     # Optional packages
     OPTIONAL_PACKAGES = [
         'ollama>=0.1.0',
@@ -79,7 +75,7 @@ class EnvironmentSetup:
         'transformers>=4.30.0',
         'accelerate>=0.20.0'
     ]
-    
+
     def __init__(self, base_dir: Path, logger: logging.Logger):
         """
         Initialize environment setup.
@@ -90,7 +86,7 @@ class EnvironmentSetup:
         """
         self.base_dir = base_dir
         self.logger = logger
-        
+
     def check_python_version(self) -> bool:
         """
         Check if Python version meets requirements.
@@ -100,19 +96,19 @@ class EnvironmentSetup:
         """
         current_version = sys.version_info[:2]
         required = self.REQUIRED_PYTHON
-        
+
         self.logger.info(f"Python version: {sys.version}")
-        
+
         if current_version < required:
             self.logger.error(
                 f"Python {required[0]}.{required[1]} or higher is required. "
                 f"Current version: {current_version[0]}.{current_version[1]}"
             )
             return False
-        
+
         self.logger.info("✓ Python version check passed")
         return True
-    
+
     def create_directories(self) -> bool:
         """
         Create required directory structure.
@@ -121,20 +117,20 @@ class EnvironmentSetup:
             True if successful, False otherwise
         """
         self.logger.info("Creating directory structure...")
-        
+
         try:
             for dir_path in self.REQUIRED_DIRS:
                 full_path = self.base_dir / dir_path
                 full_path.mkdir(parents=True, exist_ok=True)
                 self.logger.debug(f"Created directory: {full_path}")
-            
+
             self.logger.info("✓ Directory structure created")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to create directories: {e}")
             return False
-    
+
     def install_packages(self, upgrade: bool = False) -> bool:
         """
         Install required Python packages.
@@ -146,12 +142,12 @@ class EnvironmentSetup:
             True if successful, False otherwise
         """
         self.logger.info("Installing required packages...")
-        
+
         # Prepare pip command
         pip_cmd = [sys.executable, '-m', 'pip', 'install']
         if upgrade:
             pip_cmd.append('--upgrade')
-        
+
         # Install required packages
         for package in self.REQUIRED_PACKAGES:
             try:
@@ -161,15 +157,15 @@ class EnvironmentSetup:
                     capture_output=True,
                     text=True
                 )
-                
+
                 if result.returncode != 0:
                     self.logger.error(f"Failed to install {package}: {result.stderr}")
                     return False
-                    
+
             except Exception as e:
                 self.logger.error(f"Error installing {package}: {e}")
                 return False
-        
+
         # Try to install optional packages
         self.logger.info("Installing optional packages...")
         for package in self.OPTIONAL_PACKAGES:
@@ -179,18 +175,18 @@ class EnvironmentSetup:
                     capture_output=True,
                     text=True
                 )
-                
+
                 if result.returncode == 0:
                     self.logger.info(f"✓ Installed optional package: {package}")
                 else:
                     self.logger.warning(f"Could not install optional package: {package}")
-                    
+
             except Exception as e:
                 self.logger.warning(f"Skipping optional package {package}: {e}")
-        
+
         self.logger.info("✓ Package installation complete")
         return True
-    
+
     def create_config_files(self) -> bool:
         """
         Create default configuration files.
@@ -199,7 +195,7 @@ class EnvironmentSetup:
             True if successful, False otherwise
         """
         self.logger.info("Creating configuration files...")
-        
+
         try:
             # Create app.toml
             app_config = {
@@ -222,12 +218,12 @@ class EnvironmentSetup:
                     'max_concurrent_jobs': 5
                 }
             }
-            
+
             app_config_path = self.base_dir / 'config' / 'app.toml'
             with open(app_config_path, 'w') as f:
                 toml.dump(app_config, f)
             self.logger.info(f"Created {app_config_path}")
-            
+
             # Create models.toml
             models_config = {
                 'whisper': {
@@ -251,12 +247,12 @@ class EnvironmentSetup:
                     'max_tokens': 2000
                 }
             }
-            
+
             models_config_path = self.base_dir / 'config' / 'models.toml'
             with open(models_config_path, 'w') as f:
                 toml.dump(models_config, f)
             self.logger.info(f"Created {models_config_path}")
-            
+
             # Create .env.example
             env_example = """# Environment variables for Call Analytics System
 
@@ -279,19 +275,19 @@ STREAMLIT_SERVER_ADDRESS=localhost
 # Security
 SECRET_KEY=your_secret_key_here
 """
-            
+
             env_path = self.base_dir / '.env.example'
             with open(env_path, 'w') as f:
                 f.write(env_example)
             self.logger.info(f"Created {env_path}")
-            
+
             self.logger.info("✓ Configuration files created")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to create config files: {e}")
             return False
-    
+
     def setup_streamlit_config(self) -> bool:
         """
         Create Streamlit configuration.
@@ -300,12 +296,12 @@ SECRET_KEY=your_secret_key_here
             True if successful, False otherwise
         """
         self.logger.info("Setting up Streamlit configuration...")
-        
+
         try:
             # Create .streamlit directory
             streamlit_dir = self.base_dir / '.streamlit'
             streamlit_dir.mkdir(exist_ok=True)
-            
+
             # Create config.toml for Streamlit
             streamlit_config = {
                 'theme': {
@@ -326,18 +322,18 @@ SECRET_KEY=your_secret_key_here
                     'gatherUsageStats': False
                 }
             }
-            
+
             config_path = streamlit_dir / 'config.toml'
             with open(config_path, 'w') as f:
                 toml.dump(streamlit_config, f)
-            
+
             self.logger.info("✓ Streamlit configuration created")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to setup Streamlit config: {e}")
             return False
-    
+
     def create_sample_data(self) -> bool:
         """
         Create sample assets (tabular and audio) for testing.
@@ -361,9 +357,10 @@ SECRET_KEY=your_secret_key_here
     def _create_sample_csv_data(self) -> bool:
         """Create CSV sample data matching the call import format."""
         try:
-            import pandas as pd
-            from datetime import datetime, timedelta
             import random
+            from datetime import datetime, timedelta
+
+            import pandas as pd
 
             num_records = 100
 
@@ -416,11 +413,10 @@ SECRET_KEY=your_secret_key_here
     def _create_sample_voice_data(self) -> bool:
         """Create sample audio files with transcripts for voice ingestion demos."""
         try:
-            import pandas as pd
-            from datetime import datetime, timedelta
             import random
-            import contextlib
-            import wave
+            from datetime import datetime, timedelta
+
+            import pandas as pd
 
             audio_dir = self.base_dir / 'data' / 'raw' / 'sample_audio'
             transcripts_dir = audio_dir / 'transcripts'
@@ -594,7 +590,7 @@ SECRET_KEY=your_secret_key_here
             self.logger.error(f"Failed to create sample voice data: {e}")
             return False
 
-    def _generate_voice_sample(self, text: str, output_path: Path) -> Tuple[bool, str]:
+    def _generate_voice_sample(self, text: str, output_path: Path) -> tuple[bool, str]:
         """Create a spoken WAV file for the provided text.
 
         Returns a tuple of (success flag, method label).
@@ -641,8 +637,8 @@ SECRET_KEY=your_secret_key_here
     def _write_tone_sample(self, output_path: Path, duration: float = 3.0) -> None:
         """Write a simple sine wave tone when no TTS engine is available."""
         import math
-        import wave
         import struct
+        import wave
 
         sample_rate = 16000
         frequency = 440
@@ -664,6 +660,7 @@ SECRET_KEY=your_secret_key_here
         try:
             import contextlib
             import wave
+
             import aifc
 
             try:
@@ -690,8 +687,8 @@ SECRET_KEY=your_secret_key_here
         except Exception as exc:
             logging.getLogger(__name__).debug("Unable to measure duration for %s: %s", audio_path, exc)
         return 0.0
-    
-    def verify_installation(self) -> Tuple[bool, Dict[str, bool]]:
+
+    def verify_installation(self) -> tuple[bool, dict[str, bool]]:
         """
         Verify the installation is complete and functional.
         
@@ -699,49 +696,49 @@ SECRET_KEY=your_secret_key_here
             Tuple of (overall success, detailed status dict)
         """
         self.logger.info("Verifying installation...")
-        
+
         status = {}
-        
+
         # Check directories
         status['directories'] = all(
             (self.base_dir / dir_path).exists()
             for dir_path in self.REQUIRED_DIRS
         )
-        
+
         # Check config files
         status['config_files'] = all([
             (self.base_dir / 'config' / 'app.toml').exists(),
             (self.base_dir / 'config' / 'models.toml').exists()
         ])
-        
+
         # Check Python packages
         try:
-            import streamlit
             import pandas
             import plotly
+            import streamlit
             status['core_packages'] = True
         except ImportError:
             status['core_packages'] = False
-        
+
         # Check optional components
         try:
             import torch
             status['pytorch'] = True
         except ImportError:
             status['pytorch'] = False
-        
+
         try:
             import ollama
             status['ollama'] = True
         except ImportError:
             status['ollama'] = False
-        
+
         # Overall status
         required_checks = ['directories', 'config_files', 'core_packages']
         overall = all(status.get(check, False) for check in required_checks)
-        
+
         return overall, status
-    
+
     def print_next_steps(self) -> None:
         """
         Print next steps for the user after setup.
@@ -785,100 +782,100 @@ def main():
     parser = argparse.ArgumentParser(
         description='Setup environment for Call Analytics System'
     )
-    
+
     parser.add_argument(
         '--base-dir',
         type=Path,
         default=Path.cwd(),
         help='Base directory for the project'
     )
-    
+
     parser.add_argument(
         '--skip-packages',
         action='store_true',
         help='Skip Python package installation'
     )
-    
+
     parser.add_argument(
         '--skip-sample-data',
         action='store_true',
         help='Skip creating sample data'
     )
-    
+
     parser.add_argument(
         '--upgrade-packages',
         action='store_true',
         help='Upgrade existing packages'
     )
-    
+
     parser.add_argument(
         '--verify-only',
         action='store_true',
         help='Only verify existing installation'
     )
-    
+
     args = parser.parse_args()
-    
+
     # Setup logging
     logger = setup_logging_simple()
-    
+
     # Create setup instance
     setup = EnvironmentSetup(args.base_dir, logger)
-    
+
     if args.verify_only:
         # Verification only
         overall, status = setup.verify_installation()
-        
+
         logger.info("\nInstallation status:")
         for component, installed in status.items():
             status_icon = "✓" if installed else "✗"
             logger.info(f"  {status_icon} {component}")
-        
+
         if overall:
             logger.info("\n✓ Installation verified successfully!")
             sys.exit(0)
         else:
             logger.error("\n✗ Installation incomplete")
             sys.exit(1)
-    
+
     # Run full setup
     logger.info("Starting Call Analytics System environment setup...")
     logger.info(f"Base directory: {args.base_dir}")
-    
+
     # Check Python version
     if not setup.check_python_version():
         sys.exit(1)
-    
+
     # Create directories
     if not setup.create_directories():
         sys.exit(1)
-    
+
     # Install packages
     if not args.skip_packages:
         if not setup.install_packages(upgrade=args.upgrade_packages):
             logger.error("Package installation failed")
             sys.exit(1)
-    
+
     # Create config files
     if not setup.create_config_files():
         sys.exit(1)
-    
+
     # Setup Streamlit
     if not setup.setup_streamlit_config():
         sys.exit(1)
-    
+
     # Create sample data
     if not args.skip_sample_data:
         setup.create_sample_data()
-    
+
     # Verify installation
     overall, status = setup.verify_installation()
-    
+
     logger.info("\nInstallation summary:")
     for component, installed in status.items():
         status_icon = "✓" if installed else "✗"
         logger.info(f"  {status_icon} {component}")
-    
+
     if overall:
         setup.print_next_steps()
     else:
