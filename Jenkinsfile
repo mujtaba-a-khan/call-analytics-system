@@ -19,7 +19,13 @@ pipeline {
         sh '''
           set -euxo pipefail
           apt-get update
-          apt-get install -y --no-install-recommends ffmpeg git graphviz
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            gfortran \
+            python3-dev \
+            ffmpeg \
+            git \
+            graphviz
           rm -rf /var/lib/apt/lists/*
         '''
       }
