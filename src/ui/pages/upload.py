@@ -8,7 +8,7 @@ batch processing with progress tracking and validation.
 
 import sys
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Optional, Tuple
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -42,7 +42,7 @@ class UploadPage:
     with validation, processing, and storage capabilities.
     """
     
-    def __init__(self, storage_manager: StorageManager, config: Dict[str, Any]):
+    def __init__(self, storage_manager: StorageManager, config: dict[str, Any]):
         """
         Initialize upload page with required components.
         
@@ -492,7 +492,7 @@ class UploadPage:
         else:
             st.info("No import history available yet. Start by uploading some data!")
     
-    def _render_manual_mapping(self, headers: List[str], current_mapping: Dict[str, str]) -> None:
+    def _render_manual_mapping(self, headers: list[str], current_mapping: dict[str, str]) -> None:
         """
         Render manual field mapping interface.
         
@@ -708,11 +708,11 @@ class UploadPage:
         return processed, errors
 
     def _process_audio_files(self,
-                            files: List[Any],
+                            files: list[Any],
                             language: str,
                             enable_timestamps: bool,
                             enable_vad: bool,
-                            metadata: Dict[str, Any]) -> None:
+                            metadata: dict[str, Any]) -> None:
         """
         Process uploaded audio files with transcription.
         
@@ -815,8 +815,8 @@ class UploadPage:
         """
         st.info(f"Starting batch processing from {directory}")
 
-        csv_files: List[Path] = []
-        audio_files: List[Path] = []
+        csv_files: list[Path] = []
+        audio_files: list[Path] = []
 
         if process_csv:
             csv_files = sorted(directory.glob('**/*.csv'))
@@ -836,8 +836,8 @@ class UploadPage:
         status_text = st.empty()
 
         completed = 0
-        csv_results: List[str] = []
-        csv_errors: List[str] = []
+        csv_results: list[str] = []
+        csv_errors: list[str] = []
 
         for csv_path in csv_files:
             completed += 1
@@ -853,26 +853,33 @@ class UploadPage:
                 csv_errors.append(f"{csv_path.name}: {exc}")
             progress_bar.progress(min(completed / total_files, 1.0))
 
-        audio_results: List[str] = []
-        audio_errors: List[str] = []
+        audio_errors: list[str] = []
 
         if audio_files:
             status_text.text("Audio batch processing is not yet implemented in batch mode.")
             audio_errors.append(
-                "Audio batch processing is not currently supported; please process audio files individually."
+                "Audio batch processing is not currently supported. Please process audio files individually."
             )
             completed += len(audio_files)
             progress_bar.progress(min(completed / total_files, 1.0))
 
         status_text.text("Batch processing complete")
+
+        if csv_results:
+            st.success("\n".join(["CSV files processed:"] + csv_results))
+        if csv_errors:
+            st.warning("\n".join(["CSV processing issues:"] + csv_errors))
+        if audio_errors:
+            st.warning("\n".join(audio_errors))
+
         progress_bar.progress(1.0)
 
-    def _load_audio_metadata(self) -> Dict[str, Dict[str, Any]]:
+    def _load_audio_metadata(self) -> dict[str, dict[str, Any]]:
         """Load metadata for sample audio files if available."""
         paths_config = self.config.get('paths', {}) if isinstance(self.config, dict) else {}
         data_root = paths_config.get('data', 'data')
         metadata_file = Path(data_root) / 'raw' / 'sample_audio' / 'sample_audio_metadata.csv'
-        lookup: Dict[str, Dict[str, Any]] = {}
+        lookup: dict[str, dict[str, Any]] = {}
 
         if not metadata_file.exists():
             return lookup
@@ -924,15 +931,6 @@ class UploadPage:
             logger.warning(f"Unable to load audio metadata: {exc}")
 
         return lookup
-
-        if csv_results:
-            st.success("\n".join(["CSV files processed:"] + csv_results))
-        if csv_errors:
-            st.warning("\n".join(["CSV processing issues:"] + csv_errors))
-        if audio_results:
-            st.success("\n".join(["Audio files processed:"] + audio_results))
-        if audio_errors:
-            st.warning("\n".join(audio_errors))
     
     def _process_zip_file(self, zip_file: Any) -> None:
         """
@@ -947,7 +945,7 @@ class UploadPage:
         st.success("ZIP file processed")
 
 
-def render_upload_page(storage_manager: StorageManager, config: Dict[str, Any]) -> None:
+def render_upload_page(storage_manager: StorageManager, config: dict[str, Any]) -> None:
     """
     Main entry point for rendering the upload page.
     

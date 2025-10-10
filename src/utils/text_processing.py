@@ -4,12 +4,12 @@ Text Processing Utilities
 Common text processing functions used throughout the application.
 """
 
-from collections import Counter
-from typing import Any
-
+import math
 import re
 import string
 import unicodedata
+from collections import Counter
+from typing import Any
 
 
 def clean_text(
@@ -339,9 +339,6 @@ def calculate_similarity(text1: str, text2: str, method: str = 'jaccard') -> flo
 
     elif method == 'cosine':
         # Simple cosine similarity based on word frequency
-        from collections import Counter
-        import math
-
         words1 = Counter(text1.lower().split())
         words2 = Counter(text2.lower().split())
 

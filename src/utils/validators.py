@@ -6,7 +6,6 @@ Functions for validating and sanitizing data inputs.
 
 from datetime import date, datetime
 from typing import Any
-
 import re
 
 import pandas as pd

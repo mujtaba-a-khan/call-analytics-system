@@ -5,193 +5,134 @@ Functions for file I/O operations, format detection,
 and safe file handling.
 """
 
-import os
+import hashlib
 import json
-import yaml
-import toml
+import logging
+import mimetypes
+import os
 import pickle
 import shutil
-import hashlib
-import mimetypes
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-import logging
+from typing import Any
+
+import toml
+import yaml
 
 logger = logging.getLogger(__name__)
 
 
-def ensure_directory(path: Union[str, Path]) -> Path:
-    """
-    Ensure a directory exists, creating it if necessary.
-    
-    Args:
-        path: Directory path
-    
-    Returns:
-        Path object
-    """
+def ensure_directory(path: str | Path) -> Path:
+    """Ensure a directory exists, creating it if necessary."""
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def safe_file_write(filepath: Union[str, Path], 
-                   content: Union[str, bytes],
-                   mode: str = 'w') -> bool:
-    """
-    Safely write to a file using atomic operations.
-    
-    Args:
-        filepath: Path to file
-        content: Content to write
-        mode: Write mode ('w' for text, 'wb' for binary)
-    
-    Returns:
-        True if successful
-    """
+def safe_file_write(
+    filepath: str | Path,
+    content: str | bytes,
+    mode: str = 'w',
+) -> bool:
+    """Safely write to a file using atomic operations."""
     filepath = Path(filepath)
     temp_file = filepath.with_suffix('.tmp')
-    
+
     try:
-        # Ensure directory exists
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Write to temporary file
-        with open(temp_file, mode) as f:
-            f.write(content)
-        
-        # Atomic rename
+
+        with open(temp_file, mode) as handle:
+            handle.write(content)
+
         temp_file.replace(filepath)
         return True
-        
-    except Exception as e:
-        logger.error(f"Error writing file {filepath}: {e}")
-        # Clean up temp file if it exists
+
+    except Exception as exc:
+        logger.error("Error writing file %s: %s", filepath, exc)
         if temp_file.exists():
             temp_file.unlink()
         return False
 
 
-def safe_file_read(filepath: Union[str, Path],
-                  mode: str = 'r',
-                  default: Any = None) -> Any:
-    """
-    Safely read from a file with error handling.
-    
-    Args:
-        filepath: Path to file
-        mode: Read mode ('r' for text, 'rb' for binary)
-        default: Default value if read fails
-    
-    Returns:
-        File content or default value
-    """
+def safe_file_read(
+    filepath: str | Path,
+    mode: str = 'r',
+    default: Any = None,
+) -> Any:
+    """Safely read from a file with error handling."""
     filepath = Path(filepath)
-    
+
     if not filepath.exists():
         return default
-    
+
     try:
-        with open(filepath, mode) as f:
-            return f.read()
-    except Exception as e:
-        logger.error(f"Error reading file {filepath}: {e}")
+        with open(filepath, mode) as handle:
+            return handle.read()
+    except Exception as exc:
+        logger.error("Error reading file %s: %s", filepath, exc)
         return default
 
 
-def load_config_file(filepath: Union[str, Path]) -> Dict[str, Any]:
-    """
-    Load configuration from various file formats.
-    
-    Args:
-        filepath: Path to configuration file
-    
-    Returns:
-        Configuration dictionary
-    """
+def load_config_file(filepath: str | Path) -> dict[str, Any]:
+    """Load configuration from JSON, YAML, or TOML files."""
     filepath = Path(filepath)
-    
+
     if not filepath.exists():
-        logger.warning(f"Config file not found: {filepath}")
+        logger.warning("Config file not found: %s", filepath)
         return {}
-    
+
     suffix = filepath.suffix.lower()
-    
+
     try:
         if suffix == '.json':
-            with open(filepath, 'r') as f:
-                return json.load(f)
-        
-        elif suffix in ['.yaml', '.yml']:
-            with open(filepath, 'r') as f:
-                return yaml.safe_load(f) or {}
-        
-        elif suffix == '.toml':
-            with open(filepath, 'r') as f:
-                return toml.load(f)
-        
-        else:
-            logger.error(f"Unsupported config format: {suffix}")
-            return {}
-            
-    except Exception as e:
-        logger.error(f"Error loading config {filepath}: {e}")
+            with open(filepath, encoding='utf-8') as handle:
+                return json.load(handle)
+
+        if suffix in {'.yaml', '.yml'}:
+            with open(filepath, encoding='utf-8') as handle:
+                return yaml.safe_load(handle) or {}
+
+        if suffix == '.toml':
+            with open(filepath, encoding='utf-8') as handle:
+                return toml.load(handle)
+
+        logger.error("Unsupported config format: %s", suffix)
+        return {}
+
+    except Exception as exc:
+        logger.error("Error loading config %s: %s", filepath, exc)
         return {}
 
 
-def save_config_file(config: Dict[str, Any],
-                    filepath: Union[str, Path]) -> bool:
-    """
-    Save configuration to file.
-    
-    Args:
-        config: Configuration dictionary
-        filepath: Path to save file
-    
-    Returns:
-        True if successful
-    """
+def save_config_file(config: dict[str, Any], filepath: str | Path) -> bool:
+    """Save configuration to JSON, YAML, or TOML files."""
     filepath = Path(filepath)
     suffix = filepath.suffix.lower()
-    
+
     try:
         if suffix == '.json':
             content = json.dumps(config, indent=2)
-        
-        elif suffix in ['.yaml', '.yml']:
+        elif suffix in {'.yaml', '.yml'}:
             content = yaml.dump(config, default_flow_style=False)
-        
         elif suffix == '.toml':
             content = toml.dumps(config)
-        
         else:
-            logger.error(f"Unsupported config format: {suffix}")
+            logger.error("Unsupported config format: %s", suffix)
             return False
-        
+
         return safe_file_write(filepath, content)
-        
-    except Exception as e:
-        logger.error(f"Error saving config {filepath}: {e}")
+
+    except Exception as exc:
+        logger.error("Error saving config %s: %s", filepath, exc)
         return False
 
 
-def get_file_hash(filepath: Union[str, Path],
-                 algorithm: str = 'sha256') -> Optional[str]:
-    """
-    Calculate hash of a file.
-    
-    Args:
-        filepath: Path to file
-        algorithm: Hash algorithm ('md5', 'sha1', 'sha256')
-    
-    Returns:
-        Hex digest or None if error
-    """
+def get_file_hash(filepath: str | Path, algorithm: str = 'sha256') -> str | None:
+    """Calculate the hash of a file."""
     filepath = Path(filepath)
-    
+
     if not filepath.exists():
         return None
-    
+
     try:
         if algorithm == 'md5':
             hasher = hashlib.md5()
@@ -201,38 +142,30 @@ def get_file_hash(filepath: Union[str, Path],
             hasher = hashlib.sha256()
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
-        
-        with open(filepath, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b''):
+
+        with open(filepath, 'rb') as handle:
+            for chunk in iter(lambda: handle.read(4096), b''):
                 hasher.update(chunk)
-        
+
         return hasher.hexdigest()
-        
-    except Exception as e:
-        logger.error(f"Error hashing file {filepath}: {e}")
+
+    except Exception as exc:
+        logger.error("Error hashing file %s: %s", filepath, exc)
         return None
 
 
-def get_file_info(filepath: Union[str, Path]) -> Dict[str, Any]:
-    """
-    Get detailed information about a file.
-    
-    Args:
-        filepath: Path to file
-    
-    Returns:
-        Dictionary with file information
-    """
+def get_file_info(filepath: str | Path) -> dict[str, Any]:
+    """Return detailed information about a file."""
     filepath = Path(filepath)
-    
+
     if not filepath.exists():
         return {'exists': False}
-    
+
     stat = filepath.stat()
-    
-    info = {
+
+    return {
         'exists': True,
-        'path': str(filepath.absolute()),
+        'path': str(filepath.resolve()),
         'name': filepath.name,
         'suffix': filepath.suffix,
         'size_bytes': stat.st_size,
@@ -241,257 +174,170 @@ def get_file_info(filepath: Union[str, Path]) -> Dict[str, Any]:
         'modified': stat.st_mtime,
         'is_file': filepath.is_file(),
         'is_dir': filepath.is_dir(),
-        'mime_type': mimetypes.guess_type(str(filepath))[0]
+        'mime_type': mimetypes.guess_type(str(filepath))[0],
     }
-    
-    return info
 
 
-def copy_file(source: Union[str, Path],
-             destination: Union[str, Path],
-             overwrite: bool = False) -> bool:
-    """
-    Copy a file with safety checks.
-    
-    Args:
-        source: Source file path
-        destination: Destination file path
-        overwrite: Whether to overwrite existing file
-    
-    Returns:
-        True if successful
-    """
-    source = Path(source)
-    destination = Path(destination)
-    
-    if not source.exists():
-        logger.error(f"Source file not found: {source}")
+def copy_file(
+    source: str | Path,
+    destination: str | Path,
+    overwrite: bool = False,
+) -> bool:
+    """Copy a file with safety checks."""
+    source_path = Path(source)
+    destination_path = Path(destination)
+
+    if not source_path.exists():
+        logger.error("Source file not found: %s", source_path)
         return False
-    
-    if destination.exists() and not overwrite:
-        logger.warning(f"Destination exists and overwrite=False: {destination}")
+
+    if destination_path.exists() and not overwrite:
+        logger.warning("Destination exists and overwrite=False: %s", destination_path)
         return False
-    
+
     try:
-        # Ensure destination directory exists
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Copy file
-        shutil.copy2(source, destination)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, destination_path)
         return True
-        
-    except Exception as e:
-        logger.error(f"Error copying file: {e}")
+    except Exception as exc:
+        logger.error("Error copying file from %s to %s: %s", source_path, destination_path, exc)
         return False
 
 
-def move_file(source: Union[str, Path],
-             destination: Union[str, Path],
-             overwrite: bool = False) -> bool:
-    """
-    Move a file with safety checks.
-    
-    Args:
-        source: Source file path
-        destination: Destination file path
-        overwrite: Whether to overwrite existing file
-    
-    Returns:
-        True if successful
-    """
-    source = Path(source)
-    destination = Path(destination)
-    
-    if not source.exists():
-        logger.error(f"Source file not found: {source}")
+def move_file(
+    source: str | Path,
+    destination: str | Path,
+    overwrite: bool = False,
+) -> bool:
+    """Move a file with safety checks."""
+    source_path = Path(source)
+    destination_path = Path(destination)
+
+    if not source_path.exists():
+        logger.error("Source file not found: %s", source_path)
         return False
-    
-    if destination.exists() and not overwrite:
-        logger.warning(f"Destination exists and overwrite=False: {destination}")
+
+    if destination_path.exists() and not overwrite:
+        logger.warning("Destination exists and overwrite=False: %s", destination_path)
         return False
-    
+
     try:
-        # Ensure destination directory exists
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Move file
-        shutil.move(str(source), str(destination))
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source_path), str(destination_path))
         return True
-        
-    except Exception as e:
-        logger.error(f"Error moving file: {e}")
+    except Exception as exc:
+        logger.error("Error moving file from %s to %s: %s", source_path, destination_path, exc)
         return False
 
 
-def delete_file(filepath: Union[str, Path],
-               secure: bool = False) -> bool:
-    """
-    Delete a file.
-    
-    Args:
-        filepath: Path to file
-        secure: Whether to securely overwrite before deletion
-    
-    Returns:
-        True if successful
-    """
+def delete_file(filepath: str | Path, secure: bool = False) -> bool:
+    """Delete a file with optional secure overwrite."""
     filepath = Path(filepath)
-    
+
     if not filepath.exists():
-        return True  # Already deleted
-    
+        return True
+
     try:
         if secure and filepath.is_file():
-            # Overwrite with random data before deletion
             size = filepath.stat().st_size
-            with open(filepath, 'wb') as f:
-                f.write(os.urandom(size))
-        
+            with open(filepath, 'wb') as handle:
+                handle.write(os.urandom(size))
+
         if filepath.is_file():
             filepath.unlink()
         elif filepath.is_dir():
             shutil.rmtree(filepath)
-        
+
         return True
-        
-    except Exception as e:
-        logger.error(f"Error deleting {filepath}: {e}")
+
+    except Exception as exc:
+        logger.error("Error deleting %s: %s", filepath, exc)
         return False
 
 
-def list_files(directory: Union[str, Path],
-              pattern: str = '*',
-              recursive: bool = False) -> List[Path]:
-    """
-    List files in a directory.
-    
-    Args:
-        directory: Directory path
-        pattern: File pattern (glob)
-        recursive: Whether to search recursively
-    
-    Returns:
-        List of file paths
-    """
-    directory = Path(directory)
-    
-    if not directory.exists() or not directory.is_dir():
+def list_files(directory: str | Path, pattern: str = '*', recursive: bool = False) -> list[Path]:
+    """List files in a directory."""
+    directory_path = Path(directory)
+
+    if not directory_path.exists() or not directory_path.is_dir():
         return []
-    
-    if recursive:
-        return list(directory.rglob(pattern))
-    else:
-        return list(directory.glob(pattern))
+
+    return list(directory_path.rglob(pattern) if recursive else directory_path.glob(pattern))
 
 
-def save_pickle(obj: Any,
-               filepath: Union[str, Path]) -> bool:
-    """
-    Save object as pickle file.
-    
-    Args:
-        obj: Object to pickle
-        filepath: Path to save file
-    
-    Returns:
-        True if successful
-    """
+def save_pickle(obj: Any, filepath: str | Path) -> bool:
+    """Serialize an object to a pickle file."""
     filepath = Path(filepath)
-    
+
     try:
-        with open(filepath, 'wb') as f:
-            pickle.dump(obj, f)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, 'wb') as handle:
+            pickle.dump(obj, handle)
         return True
-    except Exception as e:
-        logger.error(f"Error pickling object: {e}")
+    except Exception as exc:
+        logger.error("Error saving pickle %s: %s", filepath, exc)
         return False
 
 
-def load_pickle(filepath: Union[str, Path],
-               default: Any = None) -> Any:
-    """
-    Load object from pickle file.
-    
-    Args:
-        filepath: Path to pickle file
-        default: Default value if load fails
-    
-    Returns:
-        Unpickled object or default
-    """
+def load_pickle(filepath: str | Path, default: Any = None) -> Any:
+    """Load an object from a pickle file."""
     filepath = Path(filepath)
-    
+
     if not filepath.exists():
         return default
-    
+
     try:
-        with open(filepath, 'rb') as f:
-            return pickle.load(f)
-    except Exception as e:
-        logger.error(f"Error unpickling file: {e}")
+        with open(filepath, 'rb') as handle:
+            return pickle.load(handle)
+    except Exception as exc:
+        logger.error("Error loading pickle %s: %s", filepath, exc)
         return default
 
 
-def get_directory_size(directory: Union[str, Path]) -> int:
-    """
-    Calculate total size of a directory.
-    
-    Args:
-        directory: Directory path
-    
-    Returns:
-        Size in bytes
-    """
-    directory = Path(directory)
-    
-    if not directory.exists() or not directory.is_dir():
+def get_directory_size(directory: str | Path) -> int:
+    """Calculate the total size of a directory in bytes."""
+    directory_path = Path(directory)
+
+    if not directory_path.exists() or not directory_path.is_dir():
         return 0
-    
+
     total_size = 0
-    for file in directory.rglob('*'):
+    for file in directory_path.rglob('*'):
         if file.is_file():
             total_size += file.stat().st_size
-    
+
     return total_size
 
 
-def clean_directory(directory: Union[str, Path],
-                   older_than_days: Optional[int] = None,
-                   pattern: str = '*') -> int:
-    """
-    Clean files from a directory.
-    
-    Args:
-        directory: Directory path
-        older_than_days: Only delete files older than this
-        pattern: File pattern to match
-    
-    Returns:
-        Number of files deleted
-    """
-    directory = Path(directory)
-    
-    if not directory.exists() or not directory.is_dir():
+def clean_directory(
+    directory: str | Path,
+    older_than_days: int | None = None,
+    pattern: str = '*',
+) -> int:
+    """Delete files from a directory according to the provided filters."""
+    directory_path = Path(directory)
+
+    if not directory_path.exists() or not directory_path.is_dir():
         return 0
-    
+
     import time
+
     current_time = time.time()
     deleted_count = 0
-    
-    for file in directory.glob(pattern):
+
+    for file in directory_path.glob(pattern):
         if not file.is_file():
             continue
-        
-        # Check age if specified
-        if older_than_days:
+
+        if older_than_days is not None:
             file_age_days = (current_time - file.stat().st_mtime) / 86400
             if file_age_days < older_than_days:
                 continue
-        
+
         try:
             file.unlink()
             deleted_count += 1
-        except Exception as e:
-            logger.error(f"Error deleting {file}: {e}")
-    
+        except Exception as exc:
+            logger.error("Error deleting %s: %s", file, exc)
+
     return deleted_count

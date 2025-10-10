@@ -15,7 +15,7 @@ from contextvars import ContextVar, Token
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class StructuredFormatter(logging.Formatter):
@@ -133,7 +133,7 @@ class PerformanceFilter(logging.Filter):
 
 def setup_logging(
     log_level: str = 'INFO',
-    log_dir: Optional[Path] = None,
+    log_dir: Path | None = None,
     console_output: bool = True,
     file_output: bool = True,
     structured_logs: bool = False,
