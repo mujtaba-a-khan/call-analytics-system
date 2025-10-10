@@ -8,15 +8,56 @@ configuration files, dependencies, and initial data structures.
 import argparse
 import importlib.util
 import logging
+import secrets
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Sequence, TypeVar, TypedDict
 
 import toml
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+
+_T = TypeVar("_T")
+
+
+def secure_choice(options: Sequence[_T]) -> _T:
+    """
+    Select a value using a cryptographically secure random generator.
+
+    Args:
+        options: Sequence of candidate values
+
+    Returns:
+        A securely selected value from the sequence
+    """
+    if not options:
+        raise ValueError("The options sequence must not be empty.")
+    return secrets.choice(options)
+
+
+def secure_randint(min_value: int, max_value: int) -> int:
+    """
+    Generate a secure random integer between min_value and max_value inclusive.
+    """
+    if min_value > max_value:
+        raise ValueError("min_value must be less than or equal to max_value.")
+    return min_value + secrets.randbelow(max_value - min_value + 1)
+
+
+def secure_amount(min_value: float, max_value: float) -> float:
+    """
+    Generate a secure random monetary amount between min_value and max_value.
+
+    Values are rounded to two decimal places to mimic currency precision.
+    """
+    if min_value > max_value:
+        raise ValueError("min_value must be less than or equal to max_value.")
+    cents_min = int(round(min_value * 100))
+    cents_max = int(round(max_value * 100))
+    amount_cents = secure_randint(cents_min, cents_max)
+    return round(amount_cents / 100.0, 2)
 
 
 class SampleVoiceScript(TypedDict):
@@ -364,14 +405,13 @@ SECRET_KEY=your_secret_key_here
     def _create_sample_csv_data(self) -> bool:
         """Create CSV sample data matching the call import format."""
         try:
-            import random
             from datetime import datetime, timedelta
 
             import pandas as pd
 
             num_records = 100
 
-            phone_numbers = [f"+1{random.randint(2000000000, 9999999999)}" for _ in range(50)]
+            phone_numbers = [f"+1{secure_randint(2000000000, 9999999999)}" for _ in range(50)]
             agents = [f"agent_{i:03d}" for i in range(1, 11)]
             campaigns = ["sales", "support", "billing", "retention", "survey"]
             outcomes = ["connected", "no_answer", "voicemail", "busy", "failed"]
@@ -383,20 +423,20 @@ SECRET_KEY=your_secret_key_here
             for i in range(num_records):
                 record = {
                     "call_id": f"CALL_{i:06d}",
-                    "phone_number": random.choice(phone_numbers),
+                    "phone_number": secure_choice(phone_numbers),
                     "timestamp": base_date
                     + timedelta(
-                        days=random.randint(0, 30),
-                        hours=random.randint(8, 18),
-                        minutes=random.randint(0, 59),
+                        days=secure_randint(0, 30),
+                        hours=secure_randint(8, 18),
+                        minutes=secure_randint(0, 59),
                     ),
-                    "duration": random.randint(30, 600),
-                    "agent_id": random.choice(agents),
-                    "campaign": random.choice(campaigns),
-                    "outcome": random.choice(outcomes),
-                    "call_type": random.choice(call_types),
-                    "revenue": random.choice([0, 0, 0, random.uniform(10, 500)]),
-                    "notes": random.choice(
+                    "duration": secure_randint(30, 600),
+                    "agent_id": secure_choice(agents),
+                    "campaign": secure_choice(campaigns),
+                    "outcome": secure_choice(outcomes),
+                    "call_type": secure_choice(call_types),
+                    "revenue": secure_choice([0.0, 0.0, 0.0, secure_amount(10, 500)]),
+                    "notes": secure_choice(
                         [
                             "",
                             "Customer satisfied",
@@ -423,7 +463,6 @@ SECRET_KEY=your_secret_key_here
     def _create_sample_voice_data(self) -> bool:
         """Create sample audio files with transcripts for voice ingestion demos."""
         try:
-            import random
             from datetime import datetime, timedelta
 
             import pandas as pd
@@ -434,7 +473,7 @@ SECRET_KEY=your_secret_key_here
             transcripts_dir.mkdir(parents=True, exist_ok=True)
 
             base_date = datetime.now() - timedelta(days=7)
-            phone_numbers = [f"+1{random.randint(2000000000, 9999999999)}" for _ in range(20)]
+            phone_numbers = [f"+1{secure_randint(2000000000, 9999999999)}" for _ in range(20)]
             agents = [
                 {"id": "agent_101", "name": "Alex Rivera"},
                 {"id": "agent_204", "name": "Priya Malhotra"},
@@ -488,7 +527,7 @@ SECRET_KEY=your_secret_key_here
                     "campaign": "customer_success",
                     "outcome": "resolved",
                     "call_type": "outbound",
-                    "revenue": random.choice([0.0, 149.0, 299.0]),
+                    "revenue": secure_choice([0.0, 149.0, 299.0]),
                     "tags": ["support", "firmware"],
                     "sentiment": "positive",
                 },
@@ -547,18 +586,18 @@ SECRET_KEY=your_secret_key_here
                 # Compute duration if possible
                 duration_seconds = self._measure_audio_duration(audio_path)
 
-                agent = random.choice(agents)
+                agent = secure_choice(agents)
                 record = {
                     "call_id": sample["call_id"],
                     "audio_file": audio_name,
                     "transcript_file": str(transcript_path.relative_to(audio_dir)),
                     "transcript": sample["script"],
-                    "phone_number": random.choice(phone_numbers),
+                    "phone_number": secure_choice(phone_numbers),
                     "timestamp": base_date
                     + timedelta(
-                        days=random.randint(0, 7),
-                        hours=random.randint(8, 18),
-                        minutes=random.randint(0, 59),
+                        days=secure_randint(0, 7),
+                        hours=secure_randint(8, 18),
+                        minutes=secure_randint(0, 59),
                     ),
                     "duration_seconds": duration_seconds,
                     "agent_id": agent["id"],
