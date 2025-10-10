@@ -60,7 +60,7 @@ class WhisperSTT:
     def __init__(self, config: dict):
         """
         Initialize the Whisper STT engine.
-        
+
         Args:
             config: Configuration dictionary with model settings
         """
@@ -109,7 +109,7 @@ class WhisperSTT:
 
         except Exception as e:
             logger.error(f"Failed to load Whisper model: {e}")
-            raise RuntimeError(f"Could not load Whisper model: {e}")
+            raise RuntimeError(f"Could not load Whisper model: {e}") from e
 
     def transcribe(
         self,
@@ -119,12 +119,12 @@ class WhisperSTT:
     ) -> TranscriptionResult:
         """
         Transcribe an audio file to text.
-        
+
         Args:
             audio_path: Path to the audio file (should be WAV 16kHz mono)
             language: Preferred language code (None uses defaults)
             use_cache: Whether to use cached transcriptions
-        
+
         Returns:
             TranscriptionResult containing transcript and metadata
         """
@@ -204,15 +204,15 @@ class WhisperSTT:
 
         except Exception as e:
             logger.error(f"Transcription failed for {audio_path}: {e}")
-            raise TranscriptionError(f"Failed to transcribe audio: {e}")
+            raise TranscriptionError(f"Failed to transcribe audio: {e}") from e
 
     def batch_transcribe(self, audio_paths: list[Path]) -> list[TranscriptionResult]:
         """
         Transcribe multiple audio files in batch.
-        
+
         Args:
             audio_paths: List of paths to audio files
-        
+
         Returns:
             List of TranscriptionResult objects
         """
@@ -243,10 +243,10 @@ class WhisperSTT:
     def _generate_cache_key(self, audio_path: Path) -> str:
         """
         Generate a unique cache key for the audio file and model settings.
-        
+
         Args:
             audio_path: Path to the audio file
-        
+
         Returns:
             Hexadecimal cache key string
         """
@@ -267,7 +267,7 @@ class WhisperSTT:
     def _save_to_cache(self, audio_path: Path, result: TranscriptionResult):
         """
         Save transcription result to cache.
-        
+
         Args:
             audio_path: Path to the original audio file
             result: TranscriptionResult to cache
@@ -285,10 +285,10 @@ class WhisperSTT:
     def _load_from_cache(self, audio_path: Path) -> TranscriptionResult | None:
         """
         Load transcription result from cache if available.
-        
+
         Args:
             audio_path: Path to the original audio file
-        
+
         Returns:
             Cached TranscriptionResult or None if not found
         """
@@ -310,7 +310,7 @@ class WhisperSTT:
     def clear_cache(self) -> int:
         """
         Clear the transcription cache.
-        
+
         Returns:
             Number of cache files removed
         """
@@ -328,11 +328,11 @@ class WhisperSTT:
     def validate_transcript(self, transcript: str, min_tokens: int = 20) -> bool:
         """
         Validate that a transcript meets minimum quality standards.
-        
+
         Args:
             transcript: The transcript text to validate
             min_tokens: Minimum number of tokens required
-        
+
         Returns:
             True if transcript is valid, False otherwise
         """

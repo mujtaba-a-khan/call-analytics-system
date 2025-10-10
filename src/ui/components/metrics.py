@@ -40,7 +40,7 @@ class MetricValue:
     def format_value(self) -> str:
         """
         Format the metric value based on its type.
-        
+
         Returns:
             Formatted string representation of the value
         """
@@ -128,7 +128,7 @@ class MetricCard:
                label_visibility: str = 'visible') -> None:
         """
         Render a single metric card.
-        
+
         Args:
             metric: MetricValue object with metric data
             container: Streamlit container to render in
@@ -137,10 +137,7 @@ class MetricCard:
         container = container or st
 
         # Create column if requested
-        if use_column:
-            col = container.columns(1)[0]
-        else:
-            col = container
+        col = container.columns(1)[0] if use_column else container
 
         # Render metric with icon if provided
         metric_label = metric.label or "Metric"
@@ -189,7 +186,7 @@ class MetricsGrid:
                label_visibility: str = 'visible') -> None:
         """
         Render metrics in a grid layout.
-        
+
         Args:
             metrics: List of MetricValue objects
             container: Streamlit container to render in
@@ -275,19 +272,23 @@ class SummaryStats:
     """
 
     @classmethod
-    def calculate_stats(cls,
-                       data: pd.Series,
-                       percentiles: list[int] = [25, 50, 75, 95]) -> dict[str, float]:
+    def calculate_stats(
+        cls,
+        data: pd.Series,
+        percentiles: list[int] | None = None,
+    ) -> dict[str, float]:
         """
         Calculate comprehensive statistics for a data series.
-        
+
         Args:
             data: Pandas Series with numeric data
             percentiles: List of percentiles to calculate
-            
+
         Returns:
             Dictionary of calculated statistics
         """
+        percentiles = percentiles or [25, 50, 75, 95]
+
         stats = {
             'count': len(data),
             'mean': data.mean(),
@@ -315,7 +316,7 @@ class SummaryStats:
                show_distribution: bool = True) -> None:
         """
         Render statistical summary display.
-        
+
         Args:
             data: Pandas Series with numeric data
             title: Title for the summary
@@ -378,7 +379,7 @@ class KPIDashboard:
                            compare_period: pd.DataFrame | None = None) -> None:
         """
         Render call-related KPI metrics.
-        
+
         Args:
             data: Current period DataFrame
             container: Streamlit container to render in
@@ -453,13 +454,15 @@ class KPIDashboard:
         MetricsGrid.render(metrics, container, label_visibility='visible')
 
     @classmethod
-    def render_revenue_metrics(cls,
-                              data: pd.DataFrame,
-                              container: Any = None,
-                              compare_period: pd.DataFrame | None = None) -> None:
+    def render_revenue_metrics(
+        cls,
+        data: pd.DataFrame,
+        container: Any = None,
+        compare_period: pd.DataFrame | None = None,
+    ) -> None:
         """
         Render revenue-related KPI metrics.
-        
+
         Args:
             data: Current period DataFrame
             container: Streamlit container to render in
@@ -481,7 +484,11 @@ class KPIDashboard:
             'conversion': 0
         }
 
-        if compare_period is not None and len(compare_period) > 0 and 'revenue' in compare_period.columns:
+        if (
+            compare_period is not None
+            and len(compare_period) > 0
+            and 'revenue' in compare_period.columns
+        ):
             prev_revenue = compare_period['revenue'].sum()
             prev_revenue_calls = len(compare_period[compare_period['revenue'] > 0])
             prev_avg = prev_revenue / len(compare_period)
@@ -547,7 +554,7 @@ class PerformanceIndicator:
                     ranges: list[tuple[float, str]] | None = None) -> None:
         """
         Render a gauge chart for performance indication.
-        
+
         Args:
             value: Current value
             target: Target value
@@ -599,7 +606,7 @@ class PerformanceIndicator:
                            color: str = 'blue') -> None:
         """
         Render a progress bar indicator.
-        
+
         Args:
             value: Current value
             max_value: Maximum value

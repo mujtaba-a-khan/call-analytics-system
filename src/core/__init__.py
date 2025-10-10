@@ -44,28 +44,40 @@ def __getattr__(name):
     Lazy loading implementation for core modules.
     Only imports modules when they are actually accessed.
     """
+    schema_exports = {
+        'CallRecord',
+        'AudioFile',
+        'TranscriptionResult',
+        'AnalyticsMetrics',
+        'ValidationError',
+    }
+    audio_exports = {'AudioProcessor', 'AudioFormat', 'AudioMetadata'}
+    csv_exports = {'CSVProcessor', 'CSVExporter'}
+    labeling_exports = {'LabelingEngine', 'CallLabeler', 'LabelingRule', 'RuleCondition'}
+    storage_exports = {'StorageManager', 'DataStore', 'StorageBackend'}
+
     # Data schema imports
-    if name in ['CallRecord', 'AudioFile', 'TranscriptionResult', 'AnalyticsMetrics', 'ValidationError']:
+    if name in schema_exports:
         from . import data_schema
         return getattr(data_schema, name)
 
     # Audio processor imports
-    elif name in ['AudioProcessor', 'AudioFormat', 'AudioMetadata']:
+    if name in audio_exports:
         from . import audio_processor
         return getattr(audio_processor, name)
 
     # CSV processor imports
-    elif name in ['CSVProcessor', 'CSVExporter']:
+    if name in csv_exports:
         from . import csv_processor
         return getattr(csv_processor, name)
 
     # Labeling engine imports
-    elif name in ['LabelingEngine', 'CallLabeler', 'LabelingRule', 'RuleCondition']:
+    if name in labeling_exports:
         from . import labeling_engine
         return getattr(labeling_engine, name)
 
     # Storage manager imports
-    elif name in ['StorageManager', 'DataStore', 'StorageBackend']:
+    if name in storage_exports:
         from . import storage_manager
         return getattr(storage_manager, name)
 

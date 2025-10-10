@@ -64,14 +64,14 @@ class CallRecord(BaseModel):
     outcome: CallOutcome | None = None
 
     @validator('duration_seconds')
-    def validate_duration(cls, v):
+    def validate_duration(cls, v):  # noqa: N805
         """Ensure duration is non-negative"""
         if v < 0:
             raise ValueError("Duration cannot be negative")
         return v
 
     @validator('transcript')
-    def validate_transcript(cls, v):
+    def validate_transcript(cls, v):  # noqa: N805
         """Ensure transcript is not empty"""
         if not v or not v.strip():
             raise ValueError("Transcript cannot be empty")
@@ -129,7 +129,7 @@ class CallDataFrame:
             raise ValueError(f"Missing required columns: {missing_cols}")
 
         # Add missing optional columns with appropriate NA values
-        for col, dtype in self.OPTIONAL_COLUMNS.items():
+        for col, _dtype in self.OPTIONAL_COLUMNS.items():
             if col not in df.columns:
                 df[col] = pd.NA
 
@@ -147,10 +147,9 @@ class CallDataFrame:
                     print(f"Warning: Could not convert column {col} to {dtype}: {e}")
 
         # Sort columns in a consistent order
-        column_order = (
-            list(self.REQUIRED_COLUMNS.keys()) +
-            [col for col in self.OPTIONAL_COLUMNS.keys() if col in df.columns]
-        )
+        column_order = list(self.REQUIRED_COLUMNS) + [
+            col for col in self.OPTIONAL_COLUMNS if col in df.columns
+        ]
         df = df[column_order]
 
         return df
@@ -158,7 +157,7 @@ class CallDataFrame:
     def add_labels(self, labels: dict[str, Any]) -> None:
         """
         Add derived labels to the DataFrame.
-        
+
         Args:
             labels: Dictionary mapping call_id to label dictionaries
         """
@@ -171,11 +170,11 @@ class CallDataFrame:
     def filter_by_date_range(self, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """
         Filter calls by date range.
-        
+
         Args:
             start_date: Start of date range (inclusive)
             end_date: End of date range (inclusive)
-        
+
         Returns:
             Filtered DataFrame
         """
@@ -188,7 +187,7 @@ class CallDataFrame:
     def get_statistics(self) -> dict[str, Any]:
         """
         Calculate basic statistics for the dataset.
-        
+
         Returns:
             Dictionary containing various statistics
         """
@@ -229,7 +228,7 @@ class CallDataFrame:
     def to_records(self) -> list[CallRecord]:
         """
         Convert DataFrame to list of CallRecord objects.
-        
+
         Returns:
             List of validated CallRecord instances
         """
@@ -246,7 +245,7 @@ class CallDataFrame:
     def export_to_csv(self, filepath: str) -> None:
         """
         Export the DataFrame to CSV file.
-        
+
         Args:
             filepath: Path where CSV should be saved
         """
@@ -256,7 +255,7 @@ class CallDataFrame:
     def export_to_parquet(self, filepath: str) -> None:
         """
         Export the DataFrame to Parquet file for efficient storage.
-        
+
         Args:
             filepath: Path where Parquet file should be saved
         """

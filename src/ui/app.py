@@ -13,11 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# Ensure we're using Python 3.13+
-if sys.version_info < (3, 13):
-    print(f"Error: Python 3.13 or higher is required. Current version: {sys.version}")
-    sys.exit(1)
-
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -171,9 +166,12 @@ def _configure_streamlit_page() -> None:
         }
 
         /* Style the "View" cells in the recent calls table */
-        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] [data-testid="stDataFrameSelectionHeader"],
-        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] [data-testid="stDataFrameRowCheckbox"],
-        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] [aria-label="Select rows"] {
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"]
+        [data-testid="stDataFrameSelectionHeader"],
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"]
+        [data-testid="stDataFrameRowCheckbox"],
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"]
+        [aria-label="Select rows"] {
             display: none !important;
         }
         div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child {
@@ -195,10 +193,12 @@ def _configure_streamlit_page() -> None:
             cursor: pointer;
             transition: background 0.15s ease, border-color 0.15s ease;
         }
-        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child a::before {
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"]
+        tbody tr td:last-child a::before {
             content: '🔍';
         }
-        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"] tbody tr td:last-child a:hover {
+        div[data-testid="stDataFrame"][data-st-key="recent_calls_table"]
+        tbody tr td:last-child a:hover {
             background: rgba(255, 255, 255, 0.18);
             border-color: rgba(255, 255, 255, 0.2);
             color: rgba(255, 255, 255, 0.95);
@@ -359,7 +359,7 @@ class CallAnalyticsApp:
     def load_configuration(self) -> dict[str, Any]:
         """
         Load configuration from TOML files.
-        
+
         Returns:
             Dict[str, Any]: Merged configuration dictionary
         """
@@ -385,7 +385,7 @@ class CallAnalyticsApp:
     def get_default_config(self) -> dict[str, Any]:
         """
         Get default configuration.
-        
+
         Returns:
             Dict[str, Any]: Default configuration
         """
@@ -456,7 +456,7 @@ class CallAnalyticsApp:
         """
         try:
             # Create required directories
-            for path_key, path_value in self.config.get('paths', {}).items():
+            for _path_key, path_value in self.config.get('paths', {}).items():
                 Path(path_value).mkdir(parents=True, exist_ok=True)
 
             # Initialize storage manager if not already done
@@ -542,7 +542,10 @@ class CallAnalyticsApp:
                     )
 
             # Initialize LLM client if enabled
-            if st.session_state.llm_client is None and self.config.get('ollama', {}).get('enabled', False):
+            if (
+                st.session_state.llm_client is None
+                and self.config.get('ollama', {}).get('enabled', False)
+            ):
                 try:
                     from ml.llm_interface import LocalLLMInterface
 
@@ -552,7 +555,11 @@ class CallAnalyticsApp:
                     provider = llm_config.get('provider', 'ollama')
                     llm_config['provider'] = provider
 
-                    model_name = llm_config.pop('model', None) or llm_config.get('model_name') or ollama_cfg.get('model', 'llama3')
+                    model_name = (
+                        llm_config.pop('model', None)
+                        or llm_config.get('model_name')
+                        or ollama_cfg.get('model', 'llama3')
+                    )
                     llm_config['model_name'] = model_name
 
                     llm_config.setdefault('endpoint', ollama_cfg.get('api_base', 'http://localhost:11434'))
@@ -579,7 +586,7 @@ class CallAnalyticsApp:
     def render_sidebar(self) -> str:
         """
         Render the sidebar navigation.
-        
+
         Returns:
             str: Selected page name
         """
@@ -664,6 +671,16 @@ class CallAnalyticsApp:
             f"<span class=\"status-chip {cls}\">{text}</span>" for text, cls in status_badges
         ) or "<span class=\"status-chip status-info\">ℹ️ Status pending</span>"
 
+        footer_links = [
+            ("Repository", "https://github.com/mujtaba-a-khan/call-analytics-system"),
+            ("Support", "https://github.com/mujtaba-a-khan/call-analytics-system/issues"),
+            ("Streamlit Docs", "https://docs.streamlit.io"),
+        ]
+        links_html = ''.join(
+            f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
+            for label, url in footer_links
+        )
+
         st.markdown(
             f"""
             <div class="app-footer">
@@ -672,11 +689,7 @@ class CallAnalyticsApp:
                     <span>{python_version} · v{version_text}</span>
                 </div>
                 <div class="app-footer__status">{status_html}</div>
-                <div class="app-footer__links">
-                    <a href="https://github.com/mujtaba-a-khan/call-analytics-system" target="_blank" rel="noopener noreferrer">Repository</a>
-                    <a href="https://github.com/mujtaba-a-khan/call-analytics-system/issues" target="_blank" rel="noopener noreferrer">Support</a>
-                    <a href="https://docs.streamlit.io" target="_blank" rel="noopener noreferrer">Streamlit Docs</a>
-                </div>
+                <div class="app-footer__links">{links_html}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -685,7 +698,7 @@ class CallAnalyticsApp:
     def render_page(self, page_name: str) -> None:
         """
         Render the selected page with lazy loading.
-        
+
         Args:
             page_name: Name of the page to render
         """
@@ -818,7 +831,12 @@ class CallAnalyticsApp:
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("Python Version", f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+            python_version = (
+                f"{sys.version_info.major}."
+                f"{sys.version_info.minor}."
+                f"{sys.version_info.micro}"
+            )
+            st.metric("Python Version", python_version)
 
         with col2:
             st.metric("Streamlit Version", st.__version__)

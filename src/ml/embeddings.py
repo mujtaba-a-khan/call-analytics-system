@@ -38,7 +38,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         """
         Initialize Sentence Transformer provider.
-        
+
         Args:
             model_name: Name of the sentence transformer model
         """
@@ -57,10 +57,10 @@ class SentenceTransformerProvider(EmbeddingProvider):
     def generate(self, texts: list[str]) -> np.ndarray:
         """
         Generate embeddings for texts.
-        
+
         Args:
             texts: List of texts to embed
-        
+
         Returns:
             Array of embeddings
         """
@@ -90,7 +90,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
                  endpoint: str = "http://localhost:11434"):
         """
         Initialize Ollama embedding provider.
-        
+
         Args:
             model: Ollama embedding model name
             endpoint: Ollama API endpoint
@@ -109,9 +109,13 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         """Test if Ollama service is available"""
         try:
             import requests
+        except ImportError:
+            return False
+
+        try:
             response = requests.get(f"{self.endpoint}/api/tags", timeout=2)
             return response.status_code == 200
-        except:
+        except requests.RequestException:
             return False
 
     def _get_dimension(self) -> int:
@@ -127,10 +131,10 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     def generate(self, texts: list[str]) -> np.ndarray:
         """
         Generate embeddings using Ollama.
-        
+
         Args:
             texts: List of texts to embed
-        
+
         Returns:
             Array of embeddings
         """
@@ -177,7 +181,7 @@ class HashEmbeddingProvider(EmbeddingProvider):
     def __init__(self, dimension: int = 384, seed: int = 42):
         """
         Initialize hash embedding provider.
-        
+
         Args:
             dimension: Embedding dimension
             seed: Random seed for reproducibility
@@ -190,10 +194,10 @@ class HashEmbeddingProvider(EmbeddingProvider):
     def generate(self, texts: list[str]) -> np.ndarray:
         """
         Generate hash-based embeddings.
-        
+
         Args:
             texts: List of texts to embed
-        
+
         Returns:
             Array of embeddings
         """
@@ -226,7 +230,7 @@ class EmbeddingManager:
     def __init__(self, config: dict):
         """
         Initialize the embedding manager.
-        
+
         Args:
             config: Configuration dictionary
         """
@@ -243,7 +247,7 @@ class EmbeddingManager:
     def _initialize_provider(self) -> EmbeddingProvider:
         """
         Initialize the appropriate embedding provider.
-        
+
         Returns:
             Embedding provider instance
         """
@@ -275,16 +279,18 @@ class EmbeddingManager:
             seed=self.config.get('seed', 42)
         )
 
-    def generate_embeddings(self,
-                          texts: list[str],
-                          use_cache: bool = True) -> np.ndarray:
+    def generate_embeddings(
+        self,
+        texts: list[str],
+        use_cache: bool = True,
+    ) -> np.ndarray:
         """
         Generate embeddings for texts with caching support.
-        
+
         Args:
             texts: List of texts to embed
             use_cache: Whether to use cached embeddings
-        
+
         Returns:
             Array of embeddings
         """
@@ -324,7 +330,7 @@ class EmbeddingManager:
 
                 # Fill in cached embeddings
                 cache_idx = 0
-                for i, text in enumerate(texts):
+                for i, _text in enumerate(texts):
                     if i not in text_indices:
                         result[i] = embeddings[cache_idx]
                         cache_idx += 1
@@ -342,27 +348,29 @@ class EmbeddingManager:
     def _get_cache_key(self, text: str) -> str:
         """
         Generate cache key for text.
-        
+
         Args:
             text: Input text
-        
+
         Returns:
             Cache key
         """
         return hashlib.md5(f"{self.provider_name}:{text}".encode()).hexdigest()
 
-    def compute_similarity(self,
-                         embeddings1: np.ndarray,
-                         embeddings2: np.ndarray,
-                         metric: str = 'cosine') -> np.ndarray:
+    def compute_similarity(
+        self,
+        embeddings1: np.ndarray,
+        embeddings2: np.ndarray,
+        metric: str = 'cosine',
+    ) -> np.ndarray:
         """
         Compute similarity between embedding sets.
-        
+
         Args:
             embeddings1: First set of embeddings
             embeddings2: Second set of embeddings
             metric: Similarity metric ('cosine', 'euclidean', 'dot')
-        
+
         Returns:
             Similarity matrix
         """
@@ -382,20 +390,22 @@ class EmbeddingManager:
         else:
             raise ValueError(f"Unsupported metric: {metric}")
 
-    def find_most_similar(self,
-                         query_embedding: np.ndarray,
-                         candidate_embeddings: np.ndarray,
-                         top_k: int = 5,
-                         metric: str = 'cosine') -> list[Tuple[int, float]]:
+    def find_most_similar(
+        self,
+        query_embedding: np.ndarray,
+        candidate_embeddings: np.ndarray,
+        top_k: int = 5,
+        metric: str = 'cosine',
+    ) -> list[tuple[int, float]]:
         """
         Find most similar embeddings to query.
-        
+
         Args:
             query_embedding: Query embedding vector
             candidate_embeddings: Candidate embedding matrix
             top_k: Number of results to return
             metric: Similarity metric
-        
+
         Returns:
             List of (index, score) tuples
         """
@@ -426,7 +436,7 @@ class EmbeddingManager:
     def get_info(self) -> dict[str, Any]:
         """
         Get information about the embedding manager.
-        
+
         Returns:
             Information dictionary
         """

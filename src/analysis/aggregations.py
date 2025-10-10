@@ -41,7 +41,7 @@ class MetricsCalculator:
 
         Args:
             df: DataFrame with call data
-            
+
         Returns:
             Dictionary of calculated metrics
         """
@@ -128,7 +128,12 @@ class MetricsCalculator:
             if not timestamps.empty:
                 span_days = max((timestamps.max() - timestamps.min()).days, 0) + 1
                 temporal_metrics['active_days'] = span_days
-                temporal_metrics['calls_per_day'] = basic_metrics['total_calls'] / span_days if span_days else basic_metrics['total_calls']
+                per_day = (
+                    basic_metrics['total_calls'] / span_days
+                    if span_days
+                    else basic_metrics['total_calls']
+                )
+                temporal_metrics['calls_per_day'] = per_day
                 temporal_metrics['first_call'] = timestamps.min().strftime('%Y-%m-%d')
                 temporal_metrics['last_call'] = timestamps.max().strftime('%Y-%m-%d')
             if temporal_metrics:
@@ -147,10 +152,10 @@ class MetricsCalculator:
     def calculate_agent_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate per-agent performance metrics.
-        
+
         Args:
             df: DataFrame with call data
-            
+
         Returns:
             DataFrame with agent metrics
         """
@@ -175,10 +180,10 @@ class MetricsCalculator:
     def calculate_hourly_distribution(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate call distribution by hour of day.
-        
+
         Args:
             df: DataFrame with call data
-            
+
         Returns:
             DataFrame with hourly distribution
         """
@@ -206,10 +211,10 @@ class MetricsCalculator:
     def calculate_campaign_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate per-campaign performance metrics.
-        
+
         Args:
             df: DataFrame with call data
-            
+
         Returns:
             DataFrame with campaign metrics
         """
@@ -238,11 +243,11 @@ class MetricsCalculator:
     def calculate_trends(self, df: pd.DataFrame, period: str = 'daily') -> pd.DataFrame:
         """
         Calculate time-based trends.
-        
+
         Args:
             df: DataFrame with call data
             period: Aggregation period ('daily', 'weekly', 'monthly')
-            
+
         Returns:
             DataFrame with trend data
         """
@@ -280,10 +285,10 @@ class MetricsCalculator:
     def calculate_outcome_distribution(self, df: pd.DataFrame) -> pd.Series:
         """
         Calculate distribution of call outcomes.
-        
+
         Args:
             df: DataFrame with call data
-            
+
         Returns:
             Series with outcome counts
         """
@@ -292,21 +297,27 @@ class MetricsCalculator:
 
         return df['outcome'].value_counts()
 
-    def calculate_percentiles(self, df: pd.DataFrame, column: str,
-                            percentiles: list[int] = [25, 50, 75, 90, 95]) -> dict[str, float]:
+    def calculate_percentiles(
+        self,
+        df: pd.DataFrame,
+        column: str,
+        percentiles: list[int] | None = None,
+    ) -> dict[str, float]:
         """
         Calculate percentiles for a numeric column.
-        
+
         Args:
             df: DataFrame with call data
             column: Column name to calculate percentiles for
             percentiles: List of percentiles to calculate
-            
+
         Returns:
             Dictionary of percentile values
         """
         if column not in df.columns:
             return {}
+
+        percentiles = percentiles or [25, 50, 75, 90, 95]
 
         result = {}
         for p in percentiles:
@@ -318,11 +329,11 @@ class MetricsCalculator:
                                    stages: list[str] = None) -> pd.DataFrame:
         """
         Calculate conversion funnel metrics.
-        
+
         Args:
             df: DataFrame with call data
             stages: List of outcome stages in order
-            
+
         Returns:
             DataFrame with funnel metrics
         """
@@ -352,11 +363,11 @@ class MetricsCalculator:
                                      previous_df: pd.DataFrame) -> dict[str, Any]:
         """
         Calculate comparative metrics between two periods.
-        
+
         Args:
             current_df: Current period DataFrame
             previous_df: Previous period DataFrame
-            
+
         Returns:
             Dictionary with comparative metrics
         """

@@ -24,7 +24,7 @@ class DataFilter:
     def __init__(self, df: pd.DataFrame):
         """
         Initialize with a DataFrame.
-        
+
         Args:
             df: DataFrame to filter
         """
@@ -36,7 +36,7 @@ class DataFilter:
     def reset_filters(self) -> 'DataFilter':
         """
         Reset all filters and restore original data.
-        
+
         Returns:
             Self for method chaining
         """
@@ -50,11 +50,11 @@ class DataFilter:
                         end_date: datetime | None = None) -> 'DataFilter':
         """
         Apply date range filter to the data.
-        
+
         Args:
             start_date: Start date for filtering
             end_date: End date for filtering
-        
+
         Returns:
             Self for method chaining
         """
@@ -80,10 +80,10 @@ class DataFilter:
     def apply_call_type_filter(self, call_types: list[str]) -> 'DataFilter':
         """
         Filter by call types.
-        
+
         Args:
             call_types: List of call types to include
-        
+
         Returns:
             Self for method chaining
         """
@@ -104,10 +104,10 @@ class DataFilter:
     def apply_outcome_filter(self, outcomes: list[str]) -> 'DataFilter':
         """
         Filter by call outcomes.
-        
+
         Args:
             outcomes: List of outcomes to include
-        
+
         Returns:
             Self for method chaining
         """
@@ -128,10 +128,10 @@ class DataFilter:
     def apply_agent_filter(self, agent_ids: list[str]) -> 'DataFilter':
         """
         Filter by agent IDs.
-        
+
         Args:
             agent_ids: List of agent IDs to include
-        
+
         Returns:
             Self for method chaining
         """
@@ -152,10 +152,10 @@ class DataFilter:
     def apply_campaign_filter(self, campaigns: list[str]) -> 'DataFilter':
         """
         Filter by campaigns.
-        
+
         Args:
             campaigns: List of campaigns to include
-        
+
         Returns:
             Self for method chaining
         """
@@ -178,11 +178,11 @@ class DataFilter:
                             max_duration: float | None = None) -> 'DataFilter':
         """
         Filter by call duration.
-        
+
         Args:
             min_duration: Minimum duration in seconds
             max_duration: Maximum duration in seconds
-        
+
         Returns:
             Self for method chaining
         """
@@ -211,11 +211,11 @@ class DataFilter:
                           max_amount: float | None = None) -> 'DataFilter':
         """
         Filter by transaction amount.
-        
+
         Args:
             min_amount: Minimum amount
             max_amount: Maximum amount
-        
+
         Returns:
             Self for method chaining
         """
@@ -244,11 +244,11 @@ class DataFilter:
                          columns: list[str] | None = None) -> 'DataFilter':
         """
         Apply text search across specified columns.
-        
+
         Args:
             search_query: Search query string
             columns: Columns to search in (default: all text columns)
-        
+
         Returns:
             Self for method chaining
         """
@@ -281,7 +281,7 @@ class DataFilter:
     def get_filtered_data(self) -> pd.DataFrame:
         """
         Get the filtered DataFrame.
-        
+
         Returns:
             Filtered DataFrame
         """
@@ -290,14 +290,18 @@ class DataFilter:
     def get_filter_summary(self) -> dict[str, Any]:
         """
         Get summary of applied filters.
-        
+
         Returns:
             Dictionary containing filter summary
         """
         return {
             'original_count': len(self.original_df),
             'filtered_count': len(self.filtered_df),
-            'reduction_percentage': (1 - len(self.filtered_df) / len(self.original_df)) * 100 if len(self.original_df) > 0 else 0,
+            'reduction_percentage': (
+                (1 - len(self.filtered_df) / len(self.original_df)) * 100
+                if len(self.original_df) > 0
+                else 0
+            ),
             'active_filters': self.active_filters,
             'columns_affected': list(self.active_filters.keys())
         }
@@ -305,7 +309,7 @@ class DataFilter:
     def export_filtered_data(self, filepath: str, format: str = 'csv'):
         """
         Export filtered data to file.
-        
+
         Args:
             filepath: Path to save the file
             format: Export format ('csv', 'excel', 'parquet')
@@ -336,23 +340,32 @@ class AdvancedFilters:
     def _compile_patterns(self) -> dict[str, re.Pattern]:
         """Compile regex patterns for query interpretation"""
         return {
-            'date_range': re.compile(r'between\s+(\d{4}-\d{2}-\d{2})\s+and\s+(\d{4}-\d{2}-\d{2})', re.IGNORECASE),
+            'date_range': re.compile(
+                r'between\s+(\d{4}-\d{2}-\d{2})\s+and\s+(\d{4}-\d{2}-\d{2})',
+                re.IGNORECASE,
+            ),
             'last_n_days': re.compile(r'last\s+(\d+)\s+days?', re.IGNORECASE),
             'call_type': re.compile(r'(inquiry|billing|sales|support|complaint)', re.IGNORECASE),
-            'outcome': re.compile(r'(resolved|callback|refund|sale|connected|failed)', re.IGNORECASE),
+            'outcome': re.compile(
+                r'(resolved|callback|refund|sale|connected|failed)',
+                re.IGNORECASE,
+            ),
             'duration': re.compile(r'duration\s*([<>])\s*(\d+)', re.IGNORECASE),
-            'amount': re.compile(r'\$(\d+(?:\.\d{2})?)\s*(?:to|-)\s*\$(\d+(?:\.\d{2})?)', re.IGNORECASE)
+            'amount': re.compile(
+                r'\$(\d+(?:\.\d{2})?)\s*(?:to|-)\s*\$(\d+(?:\.\d{2})?)',
+                re.IGNORECASE,
+            )
         }
 
     def apply_complex_filter(self, df: pd.DataFrame,
                             filter_config: dict[str, Any]) -> pd.DataFrame:
         """
         Apply complex filter configuration to DataFrame.
-        
+
         Args:
             df: DataFrame to filter
             filter_config: Dictionary with filter configuration
-            
+
         Returns:
             Filtered DataFrame
         """
@@ -397,11 +410,11 @@ class AdvancedFilters:
     def parse_natural_language_query(self, query: str, df: pd.DataFrame) -> pd.DataFrame:
         """
         Parse a natural language query and apply filters.
-        
+
         Args:
             query: Natural language filter query
             df: DataFrame to filter
-            
+
         Returns:
             Filtered DataFrame
         """
@@ -456,10 +469,10 @@ class AdvancedFilters:
     def create_smart_segments(self, df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         """
         Create smart customer segments based on behavior patterns.
-        
+
         Args:
             df: DataFrame with call data
-            
+
         Returns:
             Dictionary of segment DataFrames
         """

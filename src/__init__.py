@@ -22,7 +22,7 @@ __copyright__ = 'Copyright 2025'
 def get_system_info():
     """
     Get comprehensive system information and capabilities.
-    
+
     Returns:
         Dict[str, Any]: Dictionary containing system information and status
     """
@@ -53,7 +53,7 @@ def get_system_info():
 def run_app():
     """
     Launch the Streamlit application.
-    
+
     This is the main entry point for the UI.
     """
     try:
@@ -65,17 +65,17 @@ def run_app():
         raise RuntimeError(
             "UI modules not available. Please ensure Streamlit is installed: "
             "pip install streamlit>=1.35.0"
-        )
+        ) from e
 
 
 def setup_logging(level='INFO', log_file=None):
     """
     Initialize logging for the application.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_file: Optional path to log file
-    
+
     Returns:
         logging.Logger: Configured logger instance
     """
@@ -108,7 +108,7 @@ __all__ = [
 def __getattr__(name):
     """
     Lazy loading of heavy modules to prevent circular imports and reduce startup time.
-    
+
     This is called when an attribute is accessed but not found in the module.
     """
     # Core module imports

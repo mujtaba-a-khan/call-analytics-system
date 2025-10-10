@@ -261,8 +261,10 @@ def main():
 
         else:
             # Backup existing index
-            if not args.no_backup:
-                if not rebuilder.backup_existing_index(args.backup_dir):
+            if (
+                not args.no_backup
+                and not rebuilder.backup_existing_index(args.backup_dir)
+            ):
                     logger.error("Backup failed, aborting rebuild")
                     sys.exit(1)
 

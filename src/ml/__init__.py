@@ -4,30 +4,26 @@ Machine Learning Package for Call Analytics System
 This package contains ML models and inference engines.
 """
 
+import importlib.util
+
 __version__ = '1.0.0'
 
 def get_ml_capabilities():
     """
     Check available ML capabilities.
-    
+
     Returns:
         Dict[str, bool]: Available capabilities
     """
     capabilities = {}
 
     # Check Whisper
-    try:
-        import whisper
-        capabilities['whisper'] = True
-    except ImportError:
-        capabilities['whisper'] = False
+    capabilities['whisper'] = importlib.util.find_spec('whisper') is not None
 
     # Check sentence transformers
-    try:
-        import sentence_transformers
-        capabilities['sentence_transformers'] = True
-    except ImportError:
-        capabilities['sentence_transformers'] = False
+    capabilities['sentence_transformers'] = (
+        importlib.util.find_spec('sentence_transformers') is not None
+    )
 
     # Check Torch
     try:
@@ -39,11 +35,7 @@ def get_ml_capabilities():
         capabilities['cuda'] = False
 
     # Check Ollama
-    try:
-        import ollama
-        capabilities['ollama'] = True
-    except ImportError:
-        capabilities['ollama'] = False
+    capabilities['ollama'] = importlib.util.find_spec('ollama') is not None
 
     return capabilities
 

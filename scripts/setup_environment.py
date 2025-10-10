@@ -6,6 +6,7 @@ configuration files, dependencies, and initial data structures.
 """
 
 import argparse
+import importlib.util
 import logging
 import subprocess
 import sys
@@ -79,7 +80,7 @@ class EnvironmentSetup:
     def __init__(self, base_dir: Path, logger: logging.Logger):
         """
         Initialize environment setup.
-        
+
         Args:
             base_dir: Base directory for the project
             logger: Logger instance
@@ -90,7 +91,7 @@ class EnvironmentSetup:
     def check_python_version(self) -> bool:
         """
         Check if Python version meets requirements.
-        
+
         Returns:
             True if version is adequate, False otherwise
         """
@@ -112,7 +113,7 @@ class EnvironmentSetup:
     def create_directories(self) -> bool:
         """
         Create required directory structure.
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -134,10 +135,10 @@ class EnvironmentSetup:
     def install_packages(self, upgrade: bool = False) -> bool:
         """
         Install required Python packages.
-        
+
         Args:
             upgrade: Whether to upgrade existing packages
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -190,7 +191,7 @@ class EnvironmentSetup:
     def create_config_files(self) -> bool:
         """
         Create default configuration files.
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -291,7 +292,7 @@ SECRET_KEY=your_secret_key_here
     def setup_streamlit_config(self) -> bool:
         """
         Create Streamlit configuration.
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -337,7 +338,7 @@ SECRET_KEY=your_secret_key_here
     def create_sample_data(self) -> bool:
         """
         Create sample assets (tabular and audio) for testing.
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -454,7 +455,8 @@ SECRET_KEY=your_secret_key_here
                     'call_id': 'CALL_AUDIO_002',
                     'script': (
                         "Good afternoon, you've reached the Acme sales desk. This is Priya. "
-                        "I'm calling to follow up on the demo you attended last week and see if you had any questions."
+                        "I'm calling to follow up on the demo you attended last week "
+                        "and see if you had any questions."
                     ),
                     'notes': 'Left voicemail requesting callback.',
                     'call_topic': 'sales_follow_up',
@@ -469,7 +471,8 @@ SECRET_KEY=your_secret_key_here
                     'call_id': 'CALL_AUDIO_003',
                     'script': (
                         "Hi Jamie, it's Taylor from Acme Customer Success. "
-                        "I'm checking in to confirm that the latest firmware update resolved the disconnect issue you reported."
+                        "I'm checking in to confirm that the latest firmware update "
+                        "resolved the disconnect issue you reported."
                     ),
                     'notes': 'Customer confirmed issue resolved; scheduled follow-up email.',
                     'call_topic': 'technical_support',
@@ -483,8 +486,9 @@ SECRET_KEY=your_secret_key_here
                 {
                     'call_id': 'CALL_AUDIO_004',
                     'script': (
-                        "Hi, this is Morgan from Acme Renewals. I'm reaching out to discuss your upcoming "
-                        "subscription renewal and share the loyalty discount that's available this quarter."
+                        "Hi, this is Morgan from Acme Renewals. "
+                        "I'm reaching out to discuss your upcoming subscription renewal "
+                        "and share the loyalty discount that's available this quarter."
                     ),
                     'notes': 'Customer agreed to renew with discount applied.',
                     'call_topic': 'renewal_negotiation',
@@ -498,10 +502,14 @@ SECRET_KEY=your_secret_key_here
                 {
                     'call_id': 'CALL_AUDIO_005',
                     'script': (
-                        "Hello, you've reached Acme Surveys. We're collecting quick feedback about your "
-                        "recent installation appointment. Do you have two minutes to answer three questions?"
+                        "Hello, you've reached Acme Surveys. "
+                        "We're collecting quick feedback about your recent "
+                        "installation appointment. "
+                        "Do you have two minutes to answer three questions?"
                     ),
-                    'notes': 'Captured NPS response and forwarded to analytics team.',
+                    'notes': (
+                        'Captured NPS response and forwarded to analytics team.'
+                    ),
                     'call_topic': 'customer_feedback',
                     'campaign': 'nps_automation',
                     'outcome': 'completed',
@@ -564,8 +572,9 @@ SECRET_KEY=your_secret_key_here
 
                 if not generated:
                     self.logger.warning(
-                        "Generated synthetic tone for %s; install pyttsx3 or use macOS 'say' for real speech",
-                        audio_name
+                        "Generated synthetic tone for %s; install pyttsx3 or use "
+                        "macOS 'say' for real speech",
+                        audio_name,
                     )
 
             metadata_df = pd.DataFrame(metadata_rows)
@@ -651,7 +660,8 @@ SECRET_KEY=your_secret_key_here
             wav_file.setframerate(sample_rate)
 
             for frame_index in range(frame_count):
-                value = int(amplitude * math.sin(2 * math.pi * frequency * (frame_index / sample_rate)))
+                angle = 2 * math.pi * frequency * (frame_index / sample_rate)
+                value = int(amplitude * math.sin(angle))
                 wav_file.writeframes(struct.pack('<h', value))
 
     @staticmethod
@@ -685,13 +695,14 @@ SECRET_KEY=your_secret_key_here
                 except (wave.Error, aifc.Error, FileNotFoundError):
                     continue
         except Exception as exc:
-            logging.getLogger(__name__).debug("Unable to measure duration for %s: %s", audio_path, exc)
+            logger = logging.getLogger(__name__)
+            logger.debug("Unable to measure duration for %s: %s", audio_path, exc)
         return 0.0
 
     def verify_installation(self) -> tuple[bool, dict[str, bool]]:
         """
         Verify the installation is complete and functional.
-        
+
         Returns:
             Tuple of (overall success, detailed status dict)
         """
@@ -711,27 +722,19 @@ SECRET_KEY=your_secret_key_here
             (self.base_dir / 'config' / 'models.toml').exists()
         ])
 
-        # Check Python packages
-        try:
-            import pandas
-            import plotly
-            import streamlit
-            status['core_packages'] = True
-        except ImportError:
-            status['core_packages'] = False
+        # Check Python packages via module availability
+        core_modules = ['pandas', 'plotly', 'streamlit']
+        status['core_packages'] = all(
+            importlib.util.find_spec(module) is not None
+            for module in core_modules
+        )
 
-        # Check optional components
-        try:
-            import torch
-            status['pytorch'] = True
-        except ImportError:
-            status['pytorch'] = False
-
-        try:
-            import ollama
-            status['ollama'] = True
-        except ImportError:
-            status['ollama'] = False
+        optional_modules = {
+            'pytorch': 'torch',
+            'ollama': 'ollama',
+        }
+        for status_key, module_name in optional_modules.items():
+            status[status_key] = importlib.util.find_spec(module_name) is not None
 
         # Overall status
         required_checks = ['directories', 'config_files', 'core_packages']
@@ -763,7 +766,7 @@ SECRET_KEY=your_secret_key_here
 def setup_logging_simple() -> logging.Logger:
     """
     Simple logging setup for the setup script.
-    
+
     Returns:
         Logger instance
     """
@@ -851,10 +854,12 @@ def main():
         sys.exit(1)
 
     # Install packages
-    if not args.skip_packages:
-        if not setup.install_packages(upgrade=args.upgrade_packages):
-            logger.error("Package installation failed")
-            sys.exit(1)
+    if (
+        not args.skip_packages
+        and not setup.install_packages(upgrade=args.upgrade_packages)
+    ):
+        logger.error("Package installation failed")
+        sys.exit(1)
 
     # Create config files
     if not setup.create_config_files():

@@ -36,7 +36,7 @@ class QueryInterpreter:
     def __init__(self, config: dict = None):
         """
         Initialize the query interpreter.
-        
+
         Args:
             config: Configuration dictionary
         """
@@ -49,7 +49,7 @@ class QueryInterpreter:
     def _compile_patterns(self) -> dict[str, re.Pattern]:
         """
         Compile regex patterns for query parsing.
-        
+
         Returns:
             Dictionary of compiled patterns
         """
@@ -81,7 +81,10 @@ class QueryInterpreter:
             'min': re.compile(r'\b(min|minimum|lowest)\b', re.IGNORECASE),
 
             # Comparison patterns
-            'greater_than': re.compile(r'(greater than|more than|over|above|>)\s*(\d+)', re.IGNORECASE),
+            'greater_than': re.compile(
+                r'(greater than|more than|over|above|>)\s*(\d+)',
+                re.IGNORECASE,
+            ),
             'less_than': re.compile(r'(less than|fewer than|under|below|<)\s*(\d+)', re.IGNORECASE),
             'between': re.compile(r'between\s+(\d+)\s+and\s+(\d+)', re.IGNORECASE),
 
@@ -97,7 +100,7 @@ class QueryInterpreter:
     def _initialize_extractors(self) -> dict[str, Any]:
         """
         Initialize entity extractors.
-        
+
         Returns:
             Dictionary of extractor functions
         """
@@ -112,10 +115,10 @@ class QueryInterpreter:
     def interpret(self, query: str) -> QueryIntent:
         """
         Interpret a natural language query.
-        
+
         Args:
             query: Natural language query string
-        
+
         Returns:
             QueryIntent object with parsed information
         """
@@ -149,10 +152,10 @@ class QueryInterpreter:
     def _extract_action(self, query: str) -> str:
         """
         Extract the primary action from the query.
-        
+
         Args:
             query: Query string
-        
+
         Returns:
             Action type
         """
@@ -170,10 +173,10 @@ class QueryInterpreter:
     def _extract_entities(self, query: str) -> dict[str, list[str]]:
         """
         Extract entities from the query.
-        
+
         Args:
             query: Query string
-        
+
         Returns:
             Dictionary of entity types to values
         """
@@ -206,10 +209,10 @@ class QueryInterpreter:
     def _extract_time_range(self, query: str) -> tuple[datetime, datetime] | None:
         """
         Extract time range from the query.
-        
+
         Args:
             query: Query string
-        
+
         Returns:
             Tuple of (start_date, end_date) or None
         """
@@ -290,7 +293,10 @@ class QueryInterpreter:
             'nov': 11, 'november': 11,
             'dec': 12, 'december': 12
         }
-        month_words_pattern = re.compile(r'\b(' + '|'.join(month_name_map.keys()) + r')\b\s*(\d{4})', re.IGNORECASE)
+        month_words_pattern = re.compile(
+            r'\b(' + '|'.join(month_name_map.keys()) + r')\b\s*(\d{4})',
+            re.IGNORECASE,
+        )
         month_words_match = month_words_pattern.search(query)
         if month_words_match:
             month_word, year = month_words_match.groups()
@@ -336,7 +342,13 @@ class QueryInterpreter:
                 has_explicit_day = bool(day_pattern.search(query))
 
                 if contains_month and not has_explicit_day:
-                    start_date = parsed_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    start_date = parsed_date.replace(
+                        day=1,
+                        hour=0,
+                        minute=0,
+                        second=0,
+                        microsecond=0,
+                    )
                     if start_date.month == 12:
                         next_month = start_date.replace(year=start_date.year + 1, month=1)
                     else:
@@ -344,7 +356,12 @@ class QueryInterpreter:
                     end_date = next_month - timedelta(microseconds=1)
                 else:
                     start_date = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                    end_date = parsed_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    end_date = parsed_date.replace(
+                        hour=23,
+                        minute=59,
+                        second=59,
+                        microsecond=999999,
+                    )
                 return (start_date, end_date)
         except Exception as e:
             logger.debug(f"dateparser failed for query '{query}': {e}")
@@ -354,10 +371,10 @@ class QueryInterpreter:
     def _extract_filters(self, query: str) -> dict[str, Any]:
         """
         Extract filter conditions from the query.
-        
+
         Args:
             query: Query string
-        
+
         Returns:
             Dictionary of filter conditions
         """
@@ -398,10 +415,10 @@ class QueryInterpreter:
     def _extract_aggregations(self, query: str) -> list[str]:
         """
         Extract aggregation operations from the query.
-        
+
         Args:
             query: Query string
-        
+
         Returns:
             List of aggregation operations
         """
@@ -432,14 +449,14 @@ class QueryInterpreter:
                              aggregations: list[str]) -> float:
         """
         Calculate confidence score for the interpretation.
-        
+
         Args:
             action: Extracted action
             entities: Extracted entities
             time_range: Extracted time range
             filters: Extracted filters
             aggregations: Extracted aggregations
-        
+
         Returns:
             Confidence score between 0 and 1
         """
@@ -473,20 +490,21 @@ class QueryInterpreter:
             components += 1
 
         # Calculate final confidence
-        if components > 0:
-            confidence = min(1.0, score + (components * 0.1))
-        else:
-            confidence = 0.1  # Minimum confidence
+        confidence = (
+            min(1.0, score + (components * 0.1))
+            if components > 0
+            else 0.1
+        )
 
         return confidence
 
     def to_filter_spec(self, intent: QueryIntent) -> dict[str, Any]:
         """
         Convert QueryIntent to a filter specification.
-        
+
         Args:
             intent: QueryIntent object
-        
+
         Returns:
             Filter specification dictionary
         """
@@ -523,10 +541,10 @@ class QueryInterpreter:
     def generate_explanation(self, intent: QueryIntent) -> str:
         """
         Generate a human-readable explanation of the interpretation.
-        
+
         Args:
             intent: QueryIntent object
-        
+
         Returns:
             Explanation string
         """

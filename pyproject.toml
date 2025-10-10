@@ -144,6 +144,15 @@ extend-exclude = '''
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
@@ -159,15 +168,8 @@ ignore = [
     "E203",  # Whitespace before ':'
     "B008",  # Do not perform function calls in argument defaults
 ]
-exclude = [
-    ".git",
-    ".venv",
-    "__pycache__",
-    "build",
-    "dist",
-]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["src", "scripts"]
 
 [tool.mypy]

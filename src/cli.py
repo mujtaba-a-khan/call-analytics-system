@@ -3,7 +3,6 @@ Command Line Interface for Call Analytics System
 
 Provides CLI commands for various operations like starting the UI,
 rebuilding indexes, processing files, and system management.
-Compatible with Python 3.13+
 """
 
 import argparse
@@ -11,11 +10,6 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-
-# Ensure Python 3.13+
-if sys.version_info < (3, 13):
-    print(f"Error: Python 3.13+ required. Current: {sys.version}")
-    sys.exit(1)
 
 # Setup logging
 logging.basicConfig(
@@ -35,7 +29,7 @@ class CallAnalyticsCLI:
     def create_parser(self) -> argparse.ArgumentParser:
         """
         Create and configure argument parser.
-        
+
         Returns:
             argparse.ArgumentParser: Configured parser
         """
@@ -188,10 +182,10 @@ class CallAnalyticsCLI:
     def run_ui(self, args: argparse.Namespace) -> int:
         """
         Start the Streamlit UI.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -217,10 +211,10 @@ class CallAnalyticsCLI:
     def process_files(self, args: argparse.Namespace) -> int:
         """
         Process call data files.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -232,14 +226,26 @@ class CallAnalyticsCLI:
 
         try:
             # Lazy import to avoid loading heavy modules
-            if args.type == 'csv' or (args.type == 'auto' and input_path.suffix.lower() == '.csv'):
+            csv_suffixes = {'.csv'}
+            audio_suffixes = {'.wav', '.mp3', '.m4a'}
+
+            is_csv = (
+                args.type == 'csv'
+                or (args.type == 'auto' and input_path.suffix.lower() in csv_suffixes)
+            )
+            is_audio = (
+                args.type == 'audio'
+                or (args.type == 'auto' and input_path.suffix.lower() in audio_suffixes)
+            )
+
+            if is_csv:
                 from src.core.csv_processor import CSVProcessor
                 processor = CSVProcessor({'encoding': 'utf-8'})
                 logger.info(f"Processing CSV file: {input_path}")
                 df = processor.read_csv(input_path)
                 logger.info(f"Processed {len(df)} records")
 
-            elif args.type == 'audio' or (args.type == 'auto' and input_path.suffix.lower() in ['.wav', '.mp3', '.m4a']):
+            elif is_audio:
                 from src.core.audio_processor import AudioProcessor
                 processor = AudioProcessor(output_dir=Path(args.output or 'data/processed'))
                 logger.info(f"Processing audio file: {input_path}")
@@ -260,10 +266,10 @@ class CallAnalyticsCLI:
     def manage_index(self, args: argparse.Namespace) -> int:
         """
         Manage vector database index.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -293,10 +299,10 @@ class CallAnalyticsCLI:
     def manage_models(self, args: argparse.Namespace) -> int:
         """
         Manage ML models.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -313,7 +319,8 @@ class CallAnalyticsCLI:
                     for model_file in models_dir.rglob('*'):
                         if model_file.is_file():
                             size_mb = model_file.stat().st_size / (1024 * 1024)
-                            logger.info(f"  - {model_file.relative_to(models_dir)} ({size_mb:.1f} MB)")
+                            rel_path = model_file.relative_to(models_dir)
+                            logger.info("  - %s (%.1f MB)", rel_path, size_mb)
                 else:
                     logger.info("  No models found")
 
@@ -334,10 +341,10 @@ class CallAnalyticsCLI:
     def setup_environment(self, args: argparse.Namespace) -> int:
         """
         Setup environment and dependencies.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -353,10 +360,10 @@ class CallAnalyticsCLI:
     def manage_config(self, args: argparse.Namespace) -> int:
         """
         Manage configuration.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -400,10 +407,10 @@ class CallAnalyticsCLI:
     def export_data(self, args: argparse.Namespace) -> int:
         """
         Export data and analytics.
-        
+
         Args:
             args: Parsed command arguments
-            
+
         Returns:
             int: Exit code
         """
@@ -437,10 +444,10 @@ class CallAnalyticsCLI:
     def run(self, argv: list[str] | None = None) -> int:
         """
         Main CLI entry point.
-        
+
         Args:
             argv: Command line arguments (defaults to sys.argv)
-            
+
         Returns:
             int: Exit code
         """
@@ -473,10 +480,10 @@ class CallAnalyticsCLI:
 def main(argv: list[str] | None = None) -> int:
     """
     Main CLI entry point.
-    
+
     Args:
         argv: Command line arguments
-        
+
     Returns:
         int: Exit code
     """

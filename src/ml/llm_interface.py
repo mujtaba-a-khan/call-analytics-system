@@ -42,7 +42,7 @@ class LocalLLMInterface:
     def __init__(self, config: dict):
         """
         Initialize the LLM interface.
-        
+
         Args:
             config: Configuration dictionary with LLM settings
         """
@@ -62,7 +62,7 @@ class LocalLLMInterface:
     def _test_connection(self) -> bool:
         """
         Test if the LLM service is available.
-        
+
         Returns:
             True if service is available
         """
@@ -76,7 +76,7 @@ class LocalLLMInterface:
                     timeout=2
                 )
                 return response.status_code == 200
-            except:
+            except requests.RequestException:
                 logger.warning("Ollama service not available")
                 return False
 
@@ -89,13 +89,13 @@ class LocalLLMInterface:
                 max_tokens: int | None = None) -> LLMResponse:
         """
         Generate text using the LLM.
-        
+
         Args:
             prompt: User prompt
             system_prompt: Optional system prompt
             temperature: Override default temperature
             max_tokens: Override default max tokens
-        
+
         Returns:
             LLMResponse with generated text
         """
@@ -133,13 +133,13 @@ class LocalLLMInterface:
                         max_tokens: int) -> LLMResponse:
         """
         Generate text using Ollama.
-        
+
         Args:
             prompt: User prompt
             system_prompt: System prompt
             temperature: Temperature setting
             max_tokens: Maximum tokens
-        
+
         Returns:
             LLMResponse
         """
@@ -212,12 +212,12 @@ class LocalLLMInterface:
                        max_tokens: int | None = None) -> str:
         """
         Answer a question based on provided context.
-        
+
         Args:
             question: User question
             context: Relevant context
             max_tokens: Maximum response length
-        
+
         Returns:
             Answer text
         """
@@ -227,9 +227,14 @@ class LocalLLMInterface:
 
         prompt = template.format(context=context, question=question)
 
+        system_instruction = (
+            "You are a helpful assistant analyzing call transcripts. "
+            "Answer based only on the provided context."
+        )
+
         response = self.generate(
             prompt=prompt,
-            system_prompt="You are a helpful assistant analyzing call transcripts. Answer based only on the provided context.",
+            system_prompt=system_instruction,
             max_tokens=max_tokens or self.max_tokens
         )
 
@@ -240,11 +245,11 @@ class LocalLLMInterface:
                  max_length: int = 100) -> str:
         """
         Summarize text.
-        
+
         Args:
             text: Text to summarize
             max_length: Maximum summary length in tokens
-        
+
         Returns:
             Summary text
         """
@@ -266,11 +271,11 @@ class LocalLLMInterface:
                         focus_areas: list[str] = None) -> dict[str, Any]:
         """
         Extract insights from a call transcript.
-        
+
         Args:
             transcript: Call transcript
             focus_areas: Specific areas to focus on
-        
+
         Returns:
             Dictionary of insights
         """
@@ -294,10 +299,10 @@ class LocalLLMInterface:
     def _analyze_sentiment(self, text: str) -> str:
         """
         Analyze sentiment of text.
-        
+
         Args:
             text: Text to analyze
-        
+
         Returns:
             Sentiment analysis result
         """
@@ -305,9 +310,9 @@ class LocalLLMInterface:
         Analyze the sentiment of this call transcript.
         Classify as: Positive, Negative, or Neutral.
         Provide a brief explanation.
-        
+
         Transcript: {text[:1000]}
-        
+
         Sentiment:"""
 
         response = self.generate(prompt, max_tokens=50)
@@ -316,19 +321,19 @@ class LocalLLMInterface:
     def _extract_topics(self, text: str) -> list[str]:
         """
         Extract key topics from text.
-        
+
         Args:
             text: Text to analyze
-        
+
         Returns:
             List of topics
         """
         prompt = f"""
         List the top 3-5 key topics discussed in this call.
         Provide only the topic names, one per line.
-        
+
         Transcript: {text[:1000]}
-        
+
         Topics:"""
 
         response = self.generate(prompt, max_tokens=100)
@@ -347,19 +352,19 @@ class LocalLLMInterface:
     def _extract_action_items(self, text: str) -> list[str]:
         """
         Extract action items from text.
-        
+
         Args:
             text: Text to analyze
-        
+
         Returns:
             List of action items
         """
         prompt = f"""
         Extract any action items or follow-up tasks from this call.
         List them clearly, one per line.
-        
+
         Transcript: {text[:1000]}
-        
+
         Action Items:"""
 
         response = self.generate(prompt, max_tokens=150)
@@ -377,19 +382,19 @@ class LocalLLMInterface:
     def _identify_issues(self, text: str) -> list[str]:
         """
         Identify issues mentioned in text.
-        
+
         Args:
             text: Text to analyze
-        
+
         Returns:
             List of issues
         """
         prompt = f"""
         Identify any problems or issues mentioned in this call.
         List them briefly, one per line.
-        
+
         Transcript: {text[:1000]}
-        
+
         Issues:"""
 
         response = self.generate(prompt, max_tokens=150)
@@ -409,29 +414,29 @@ class LocalLLMInterface:
                      call2: dict[str, Any]) -> str:
         """
         Compare two calls and highlight differences.
-        
+
         Args:
             call1: First call data
             call2: Second call data
-        
+
         Returns:
             Comparison summary
         """
         prompt = f"""
         Compare these two calls and highlight key differences:
-        
+
         Call 1:
         - Type: {call1.get('call_type', 'Unknown')}
         - Outcome: {call1.get('outcome', 'Unknown')}
         - Duration: {call1.get('duration_seconds', 0)}s
         - Summary: {call1.get('transcript', '')[:200]}
-        
+
         Call 2:
         - Type: {call2.get('call_type', 'Unknown')}
         - Outcome: {call2.get('outcome', 'Unknown')}
         - Duration: {call2.get('duration_seconds', 0)}s
         - Summary: {call2.get('transcript', '')[:200]}
-        
+
         Comparison:"""
 
         response = self.generate(prompt, max_tokens=200)
@@ -443,11 +448,11 @@ class LocalLLMInterface:
                                section_type: str) -> str:
         """
         Generate a report section based on data.
-        
+
         Args:
             data: Data for the report section
             section_type: Type of section to generate
-        
+
         Returns:
             Generated report text
         """
@@ -458,7 +463,7 @@ class LocalLLMInterface:
             - Connection rate: {data.get('connection_rate', 0)}%
             - Top issues: {', '.join(data.get('top_issues', [])[:3])}
             - Average duration: {data.get('avg_duration', 0)}s
-            
+
             Executive Summary:"""
 
         elif section_type == "recommendations":
@@ -467,11 +472,14 @@ class LocalLLMInterface:
             - Low connection rate areas: {data.get('low_connection_areas', [])}
             - Common complaints: {data.get('common_complaints', [])}
             - Peak problem times: {data.get('peak_problem_times', [])}
-            
+
             Recommendations:"""
 
         else:
-            prompt = f"Generate a {section_type} section based on: {json.dumps(data, indent=2)[:500]}"
+            prompt = (
+                f"Generate a {section_type} section based on: "
+                f"{json.dumps(data, indent=2)[:500]}"
+            )
 
         response = self.generate(prompt, max_tokens=300)
 
@@ -480,7 +488,7 @@ class LocalLLMInterface:
     def check_availability(self) -> bool:
         """
         Check if the LLM service is currently available.
-        
+
         Returns:
             True if available
         """
@@ -490,7 +498,7 @@ class LocalLLMInterface:
     def get_model_info(self) -> dict[str, Any]:
         """
         Get information about the current model.
-        
+
         Returns:
             Model information dictionary
         """
@@ -511,7 +519,7 @@ class LocalLLMInterface:
                     models = [m['name'] for m in data.get('models', [])]
                     info['available_models'] = models
                     info['model_loaded'] = self.model_name in models
-            except:
-                pass
+            except requests.RequestException as exc:
+                logger.debug("Unable to fetch model info from Ollama: %s", exc)
 
         return info

@@ -25,7 +25,7 @@ class StorageManager:
     def __init__(self, base_path: str | Path = "data"):
         """
         Initialize the storage manager.
-        
+
         Args:
             base_path: Base directory for data storage
         """
@@ -65,7 +65,7 @@ class StorageManager:
     def _load_metadata(self) -> dict[str, Any]:
         """
         Load storage metadata from file.
-        
+
         Returns:
             Metadata dictionary
         """
@@ -82,7 +82,7 @@ class StorageManager:
     def _default_metadata(self) -> dict[str, Any]:
         """
         Create default metadata structure.
-        
+
         Returns:
             Default metadata dictionary
         """
@@ -114,13 +114,13 @@ class StorageManager:
                       create_snapshot: bool = False) -> Path:
         """
         Save a DataFrame to storage.
-        
+
         Args:
             df: DataFrame to save
             name: Name for the saved file
             format: Storage format ('parquet', 'csv', 'pickle')
             create_snapshot: Whether to create a snapshot
-            
+
         Returns:
             Path to saved file
         """
@@ -155,11 +155,11 @@ class StorageManager:
     def load_dataframe(self, name: str, format: str = 'parquet') -> pd.DataFrame | None:
         """
         Load a DataFrame from storage.
-        
+
         Args:
             name: Name of the file to load
             format: Storage format
-            
+
         Returns:
             Loaded DataFrame or None if not found
         """
@@ -187,7 +187,7 @@ class StorageManager:
     def load_all_records(self) -> pd.DataFrame:
         """
         Load all call records from storage.
-        
+
         Returns:
             DataFrame with all records or empty DataFrame if none found
         """
@@ -229,11 +229,11 @@ class StorageManager:
                          end_date: datetime | date | None = None) -> pd.DataFrame:
         """
         Load call records filtered by date range.
-        
+
         Args:
             start_date: Start date for filtering
             end_date: End date for filtering
-            
+
         Returns:
             Filtered DataFrame
         """
@@ -269,10 +269,10 @@ class StorageManager:
     def get_unique_values(self, column: str) -> list[Any]:
         """
         Get unique values for a specific column.
-        
+
         Args:
             column: Column name
-            
+
         Returns:
             List of unique values
         """
@@ -289,7 +289,7 @@ class StorageManager:
     def get_available_fields(self) -> list[str]:
         """
         Get list of available fields/columns in the data.
-        
+
         Returns:
             List of column names
         """
@@ -306,7 +306,7 @@ class StorageManager:
     def get_record_count(self) -> int:
         """
         Get total number of records in storage.
-        
+
         Returns:
             Number of records
         """
@@ -316,7 +316,7 @@ class StorageManager:
     def get_date_range(self) -> tuple[datetime, datetime] | None:
         """
         Get the date range of available data.
-        
+
         Returns:
             Tuple of (min_date, max_date) or None if no data
         """
@@ -342,7 +342,7 @@ class StorageManager:
         Args:
             new_df: DataFrame with new records
             deduplicate: Whether to remove duplicates
-            
+
         Returns:
             Number of records added
         """
@@ -413,11 +413,11 @@ class StorageManager:
     def create_snapshot(self, df: pd.DataFrame, name: str) -> Path:
         """
         Create a snapshot of the current data.
-        
+
         Args:
             df: DataFrame to snapshot
             name: Name for the snapshot
-            
+
         Returns:
             Path to snapshot file
         """
@@ -442,7 +442,7 @@ class StorageManager:
     def list_snapshots(self) -> list[dict[str, Any]]:
         """
         List available snapshots.
-        
+
         Returns:
             List of snapshot metadata
         """
@@ -451,10 +451,10 @@ class StorageManager:
     def load_snapshot(self, snapshot_name: str) -> pd.DataFrame | None:
         """
         Load a specific snapshot.
-        
+
         Args:
             snapshot_name: Name of the snapshot
-            
+
         Returns:
             DataFrame or None if not found
         """
@@ -470,12 +470,12 @@ class StorageManager:
     def export_data(self, df: pd.DataFrame, filename: str, format: str = 'csv') -> Path:
         """
         Export data to the exports directory.
-        
+
         Args:
             df: DataFrame to export
             filename: Export filename
             format: Export format
-            
+
         Returns:
             Path to exported file
         """
@@ -503,7 +503,7 @@ class StorageManager:
     def get_storage_stats(self) -> dict[str, Any]:
         """
         Get storage statistics.
-        
+
         Returns:
             Dictionary with storage statistics
         """
@@ -563,7 +563,7 @@ class StorageManager:
     def get_import_history(self) -> pd.DataFrame:
         """
         Get import history as a DataFrame.
-        
+
         Returns:
             DataFrame with import history
         """

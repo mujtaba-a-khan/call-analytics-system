@@ -26,27 +26,42 @@ MODELS_CONFIG = {
     'whisper': {
         'models': {
             'tiny': {
-                'url': 'https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt',
+                'url': (
+                    'https://openaipublic.azureedge.net/main/whisper/models/'
+                    '65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt'
+                ),
                 'size': '39 MB',
                 'sha256': '65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9'
             },
             'base': {
-                'url': 'https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt',
+                'url': (
+                    'https://openaipublic.azureedge.net/main/whisper/models/'
+                    'ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt'
+                ),
                 'size': '74 MB',
                 'sha256': 'ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e'
             },
             'small': {
-                'url': 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt',
+                'url': (
+                    'https://openaipublic.azureedge.net/main/whisper/models/'
+                    '9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt'
+                ),
                 'size': '244 MB',
                 'sha256': '9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794'
             },
             'medium': {
-                'url': 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt',
+                'url': (
+                    'https://openaipublic.azureedge.net/main/whisper/models/'
+                    '345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt'
+                ),
                 'size': '769 MB',
                 'sha256': '345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1'
             },
             'large': {
-                'url': 'https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt',
+                'url': (
+                    'https://openaipublic.azureedge.net/main/whisper/models/'
+                    '81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt'
+                ),
                 'size': '1550 MB',
                 'sha256': '81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524'
             }
@@ -78,7 +93,7 @@ class ModelDownloader:
     def __init__(self, models_dir: Path, logger: logging.Logger):
         """
         Initialize model downloader.
-        
+
         Args:
             models_dir: Directory to store downloaded models
             logger: Logger instance
@@ -87,15 +102,20 @@ class ModelDownloader:
         self.logger = logger
         self.models_dir.mkdir(parents=True, exist_ok=True)
 
-    def download_file(self, url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+    def download_file(
+        self,
+        url: str,
+        destination: Path,
+        expected_sha256: str | None = None,
+    ) -> bool:
         """
         Download a file with progress bar and optional hash verification.
-        
+
         Args:
             url: URL to download from
             destination: Local path to save file
             expected_sha256: Expected SHA256 hash for verification
-            
+
         Returns:
             True if download successful, False otherwise
         """
@@ -110,11 +130,15 @@ class ModelDownloader:
             total_size = int(response.headers.get('content-length', 0))
 
             # Download with progress bar
-            with open(destination, 'wb') as file:
-                with tqdm(total=total_size, unit='B', unit_scale=True, desc=destination.name) as pbar:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        file.write(chunk)
-                        pbar.update(len(chunk))
+            with open(destination, 'wb') as file, tqdm(
+                total=total_size,
+                unit='B',
+                unit_scale=True,
+                desc=destination.name,
+            ) as pbar:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
+                    pbar.update(len(chunk))
 
             # Verify hash if provided
             if expected_sha256:
@@ -134,11 +158,11 @@ class ModelDownloader:
     def verify_file_hash(self, file_path: Path, expected_sha256: str) -> bool:
         """
         Verify file SHA256 hash.
-        
+
         Args:
             file_path: Path to file
             expected_sha256: Expected hash
-            
+
         Returns:
             True if hash matches, False otherwise
         """
@@ -153,7 +177,7 @@ class ModelDownloader:
     def download_whisper_models(self, model_sizes: list[str]) -> None:
         """
         Download Whisper STT models.
-        
+
         Args:
             model_sizes: List of model sizes to download
         """
@@ -187,7 +211,7 @@ class ModelDownloader:
     def download_sentence_transformers(self, model_names: list[str]) -> None:
         """
         Download sentence transformer models using the library's built-in downloader.
-        
+
         Args:
             model_names: List of model names to download
         """
@@ -218,12 +242,14 @@ class ModelDownloader:
                     self.logger.error(f"Failed to download {model_name}: {e}")
 
         except ImportError:
-            self.logger.error("sentence-transformers not installed. Run: pip install sentence-transformers")
+            self.logger.error(
+                "sentence-transformers not installed. Run: pip install sentence-transformers"
+            )
 
     def setup_ollama_models(self, model_names: list[str]) -> None:
         """
         Pull Ollama models if Ollama is installed.
-        
+
         Args:
             model_names: List of Ollama model names
         """
@@ -301,7 +327,7 @@ class ModelDownloader:
                         if parts:
                             model_name = parts[0]
                             registry['ollama'][model_name] = {'installed': True}
-        except:
+        except Exception:
             pass
 
         # Save registry
@@ -314,7 +340,7 @@ class ModelDownloader:
     def verify_installations(self) -> dict[str, bool]:
         """
         Verify that required models are installed.
-        
+
         Returns:
             Dictionary of model types and their installation status
         """
@@ -332,7 +358,7 @@ class ModelDownloader:
         try:
             result = subprocess.run(['ollama', 'list'], capture_output=True)
             status['ollama'] = result.returncode == 0
-        except:
+        except Exception:
             status['ollama'] = False
 
         return status

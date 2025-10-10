@@ -35,7 +35,7 @@ class AudioProcessor:
     def __init__(self, config: dict):
         """
         Initialize the audio processor with configuration.
-        
+
         Args:
             config: Dictionary containing audio processing settings
         """
@@ -54,11 +54,11 @@ class AudioProcessor:
     def process_audio_file(self, file_path: Path, use_cache: bool = True) -> tuple[Path, float]:
         """
         Process a single audio file by converting it to the standard format.
-        
+
         Args:
             file_path: Path to the input audio file
             use_cache: Whether to use cached processed files
-        
+
         Returns:
             Tuple of (processed_file_path, duration_seconds)
         """
@@ -97,7 +97,7 @@ class AudioProcessor:
 
         except Exception as e:
             logger.error(f"Error processing audio file {file_path}: {e}")
-            raise AudioProcessingError(f"Failed to process audio: {e}")
+            raise AudioProcessingError(f"Failed to process audio: {e}") from e
 
     def process_audio(self, file_path: Path, use_cache: bool = True) -> Path:
         """Compatibility wrapper returning only the processed file path."""
@@ -107,10 +107,10 @@ class AudioProcessor:
     def _normalize_audio(self, audio: AudioSegment) -> AudioSegment:
         """
         Normalize audio to standard format for STT processing.
-        
+
         Args:
             audio: Input audio segment
-        
+
         Returns:
             Normalized audio segment
         """
@@ -135,34 +135,38 @@ class AudioProcessor:
 
         return audio
 
-    def _normalize_volume(self, audio: AudioSegment, target_dBFS: float = -20.0) -> AudioSegment:
+    def _normalize_volume(
+        self,
+        audio: AudioSegment,
+        target_dbfs: float = -20.0,
+    ) -> AudioSegment:
         """
         Normalize audio volume to a target level.
-        
+
         Args:
             audio: Input audio segment
-            target_dBFS: Target volume in dBFS (decibels relative to full scale)
-        
+            target_dbfs: Target volume in dBFS (decibels relative to full scale)
+
         Returns:
             Volume-normalized audio
         """
-        current_dBFS = audio.dBFS
-        change_in_dBFS = target_dBFS - current_dBFS
+        current_dbfs = audio.dBFS
+        change_in_dbfs = target_dbfs - current_dbfs
 
         # Only normalize if the change is significant
-        if abs(change_in_dBFS) > 1.0:
-            audio = audio.apply_gain(change_in_dBFS)
-            logger.debug(f"Applied volume normalization: {change_in_dBFS:.1f} dB")
+        if abs(change_in_dbfs) > 1.0:
+            audio = audio.apply_gain(change_in_dbfs)
+            logger.debug("Applied volume normalization: %.1f dB", change_in_dbfs)
 
         return audio
 
     def _generate_cache_key(self, file_path: Path) -> str:
         """
         Generate a unique cache key for the file and processing parameters.
-        
+
         Args:
             file_path: Path to the input file
-        
+
         Returns:
             Hexadecimal cache key string
         """
@@ -186,10 +190,10 @@ class AudioProcessor:
     def _get_audio_duration(self, file_path: Path) -> float:
         """
         Get the duration of an audio file in seconds.
-        
+
         Args:
             file_path: Path to the audio file
-        
+
         Returns:
             Duration in seconds
         """
@@ -203,7 +207,7 @@ class AudioProcessor:
     def _save_processing_metadata(self, original_path: Path, processed_path: Path, duration: float):
         """
         Save metadata about the processed audio file.
-        
+
         Args:
             original_path: Path to the original audio file
             processed_path: Path to the processed audio file
@@ -228,10 +232,10 @@ class AudioProcessor:
     def batch_process_audio_files(self, file_paths: list[Path]) -> list[tuple[Path, float]]:
         """
         Process multiple audio files in batch.
-        
+
         Args:
             file_paths: List of paths to audio files
-        
+
         Returns:
             List of tuples containing (processed_path, duration)
         """
@@ -255,10 +259,10 @@ class AudioProcessor:
     def validate_audio_file(self, file_path: Path) -> bool:
         """
         Validate that a file is a processable audio file.
-        
+
         Args:
             file_path: Path to the audio file
-        
+
         Returns:
             True if file is valid, False otherwise
         """
@@ -295,7 +299,7 @@ class AudioProcessor:
     def clear_cache(self) -> int:
         """
         Clear the audio processing cache.
-        
+
         Returns:
             Number of files removed
         """

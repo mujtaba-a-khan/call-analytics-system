@@ -25,7 +25,7 @@ class SemanticSearchEngine:
     def __init__(self, vector_db_client=None, embedding_generator=None):
         """
         Initialize the semantic search engine.
-        
+
         Args:
             vector_db_client: Vector database client for retrieval
             embedding_generator: Embedding generator for queries
@@ -44,14 +44,14 @@ class SemanticSearchEngine:
               rerank: bool = False) -> list[dict[str, Any]]:
         """
         Perform semantic search for relevant calls.
-        
+
         Args:
             query: Search query text
             top_k: Number of results to return
             filters: Optional metadata filters
             threshold: Minimum similarity score (0-1) required for a result
             rerank: Whether to rerank results
-        
+
         Returns:
             List of search results with scores
         """
@@ -101,7 +101,11 @@ class SemanticSearchEngine:
             # Enhance results with additional metadata
             results = self._enhance_results(results)
 
-            logger.info(f"Semantic search returned {len(results)} results for query: '{query[:50]}...'")
+            logger.info(
+                "Semantic search returned %d results for query: '%s...'",
+                len(results),
+                query[:50],
+            )
             return results
 
         except Exception as e:
@@ -217,12 +221,12 @@ class SemanticSearchEngine:
                        top_k: int) -> list[dict[str, Any]]:
         """
         Rerank search results using cross-encoder or advanced scoring.
-        
+
         Args:
             query: Original query
             results: Initial search results
             top_k: Number of results to return after reranking
-        
+
         Returns:
             Reranked results
         """
@@ -258,10 +262,10 @@ class SemanticSearchEngine:
     def _enhance_results(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Enhance search results with additional metadata and formatting.
-        
+
         Args:
             results: Raw search results
-        
+
         Returns:
             Enhanced results
         """
@@ -288,11 +292,11 @@ class SemanticSearchEngine:
     def _extract_snippet(self, text: str, max_length: int = 200) -> str:
         """
         Extract a relevant snippet from the text.
-        
+
         Args:
             text: Full text
             max_length: Maximum snippet length
-        
+
         Returns:
             Text snippet
         """
@@ -312,10 +316,10 @@ class SemanticSearchEngine:
     def _format_metadata(self, metadata: dict[str, Any]) -> str:
         """
         Format metadata for display.
-        
+
         Args:
             metadata: Raw metadata dictionary
-        
+
         Returns:
             Formatted metadata string
         """
@@ -338,11 +342,11 @@ class SemanticSearchEngine:
                           top_k: int = 5) -> list[dict[str, Any]]:
         """
         Find calls similar to a given call.
-        
+
         Args:
             call_id: ID of the reference call
             top_k: Number of similar calls to return
-        
+
         Returns:
             List of similar calls
         """
@@ -379,11 +383,11 @@ class SemanticSearchEngine:
                               n_clusters: int = 3) -> dict[int, list[dict[str, Any]]]:
         """
         Cluster search results into groups.
-        
+
         Args:
             results: Search results to cluster
             n_clusters: Number of clusters
-        
+
         Returns:
             Dictionary mapping cluster ID to results
         """
@@ -424,10 +428,10 @@ class SemanticSearchEngine:
     def _simple_text_features(self, texts: list[str]) -> np.ndarray:
         """
         Extract simple text features for fallback clustering.
-        
+
         Args:
             texts: List of texts
-        
+
         Returns:
             Feature matrix
         """
@@ -443,11 +447,11 @@ class SemanticSearchEngine:
                          result: dict[str, Any]) -> dict[str, Any]:
         """
         Explain why a result is relevant to the query.
-        
+
         Args:
             query: Search query
             result: Search result
-        
+
         Returns:
             Explanation dictionary
         """
@@ -495,7 +499,7 @@ class HybridSearchEngine:
     def __init__(self, semantic_engine: SemanticSearchEngine, df: pd.DataFrame):
         """
         Initialize hybrid search engine.
-        
+
         Args:
             semantic_engine: Semantic search engine
             df: DataFrame containing call data for keyword search
@@ -511,12 +515,12 @@ class HybridSearchEngine:
               semantic_weight: float = 0.7) -> list[dict[str, Any]]:
         """
         Perform hybrid search combining semantic and keyword approaches.
-        
+
         Args:
             query: Search query
             top_k: Number of results to return
             semantic_weight: Weight for semantic results (0-1)
-        
+
         Returns:
             Combined search results
         """
@@ -538,11 +542,11 @@ class HybridSearchEngine:
     def _keyword_search(self, query: str, top_k: int) -> list[dict[str, Any]]:
         """
         Perform keyword-based search on the DataFrame.
-        
+
         Args:
             query: Search query
             top_k: Number of results
-        
+
         Returns:
             Keyword search results
         """
@@ -582,12 +586,12 @@ class HybridSearchEngine:
                         semantic_weight: float) -> list[dict[str, Any]]:
         """
         Combine and rerank results from different search methods.
-        
+
         Args:
             semantic_results: Results from semantic search
             keyword_results: Results from keyword search
             semantic_weight: Weight for semantic scores
-        
+
         Returns:
             Combined and reranked results
         """

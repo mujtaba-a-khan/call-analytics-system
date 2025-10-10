@@ -47,7 +47,7 @@ class ChartTheme:
     def get_layout_template(cls) -> dict[str, Any]:
         """
         Get standard layout template for Plotly charts.
-        
+
         Returns:
             Dictionary with layout configuration
         """
@@ -89,14 +89,14 @@ class TimeSeriesChart:
     ) -> go.Figure:
         """
         Create a time series chart showing call volume trends.
-        
+
         Args:
             data: DataFrame with call data
             date_column: Name of date column
             aggregation: Time aggregation level ('hourly', 'daily', 'weekly', 'monthly')
             group_by: Optional column to group data by
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
@@ -170,12 +170,12 @@ class TimeSeriesChart:
     ) -> go.Figure:
         """
         Create a heatmap showing call patterns by hour and day of week.
-        
+
         Args:
             data: DataFrame with call data
             timestamp_column: Name of timestamp column
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
@@ -194,7 +194,15 @@ class TimeSeriesChart:
             )
 
             # Reorder days
-            days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            days_order = [
+                'Monday',
+                'Tuesday',
+                'Wednesday',
+                'Thursday',
+                'Friday',
+                'Saturday',
+                'Sunday',
+            ]
             pivot = pivot.reindex(columns=days_order, fill_value=0)
 
             # Create heatmap
@@ -239,13 +247,13 @@ class DistributionChart:
     ) -> go.Figure:
         """
         Create a histogram showing distribution of call durations.
-        
+
         Args:
             data: DataFrame with call data
             duration_column: Name of duration column
             bins: Number of histogram bins
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
@@ -307,12 +315,12 @@ class DistributionChart:
     ) -> go.Figure:
         """
         Create a pie chart showing distribution of call outcomes.
-        
+
         Args:
             data: DataFrame with call data
             outcome_column: Name of outcome column
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
@@ -374,14 +382,14 @@ class PerformanceChart:
     ) -> go.Figure:
         """
         Create a bar chart showing top performing agents.
-        
+
         Args:
             data: DataFrame with call data
             agent_column: Name of agent column
             metric: Performance metric ('calls', 'duration', 'revenue')
             top_n: Number of top agents to show
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
@@ -391,10 +399,19 @@ class PerformanceChart:
                 agent_stats = data.groupby(agent_column).size().sort_values(ascending=False)
                 y_title = 'Number of Calls'
             elif metric == 'duration':
-                agent_stats = data.groupby(agent_column)['duration'].sum().sort_values(ascending=False) / 3600
+                duration_totals = (
+                    data.groupby(agent_column)['duration']
+                    .sum()
+                    .sort_values(ascending=False)
+                )
+                agent_stats = duration_totals / 3600
                 y_title = 'Total Duration (hours)'
             elif metric == 'revenue':
-                agent_stats = data.groupby(agent_column)['revenue'].sum().sort_values(ascending=False)
+                agent_stats = (
+                    data.groupby(agent_column)['revenue']
+                    .sum()
+                    .sort_values(ascending=False)
+                )
                 y_title = 'Total Revenue ($)'
             else:
                 agent_stats = data.groupby(agent_column).size().sort_values(ascending=False)
@@ -432,22 +449,23 @@ class PerformanceChart:
     def create_campaign_comparison(
         data: pd.DataFrame,
         campaign_column: str = 'campaign',
-        metrics: list[str] = ['calls', 'connection_rate', 'avg_duration'],
+        metrics: list[str] | None = None,
         title: str = 'Campaign Performance Comparison'
     ) -> go.Figure:
         """
         Create a multi-metric comparison chart for campaigns.
-        
+
         Args:
             data: DataFrame with call data
             campaign_column: Name of campaign column
             metrics: List of metrics to compare
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
         try:
+            metrics = metrics or ['calls', 'connection_rate', 'avg_duration']
             # Calculate metrics for each campaign
             campaign_stats = {}
             campaigns = data[campaign_column].unique()
@@ -517,23 +535,24 @@ class TrendChart:
         data: pd.DataFrame,
         date_column: str = 'timestamp',
         value_column: str = 'calls',
-        window_sizes: list[int] = [7, 30],
+        window_sizes: list[int] | None = None,
         title: str = 'Trend Analysis with Moving Averages'
     ) -> go.Figure:
         """
         Create a chart with moving averages for trend analysis.
-        
+
         Args:
             data: DataFrame with time series data
             date_column: Name of date column
             value_column: Name of value column to analyze
             window_sizes: List of moving average window sizes
             title: Chart title
-            
+
         Returns:
             Plotly Figure object
         """
         try:
+            window_sizes = window_sizes or [7, 30]
             # Prepare data
             data[date_column] = pd.to_datetime(data[date_column])
             data = data.sort_values(date_column)
@@ -558,7 +577,11 @@ class TrendChart:
             ))
 
             # Add moving averages
-            colors = [ChartTheme.COLORS['primary'], ChartTheme.COLORS['secondary'], ChartTheme.COLORS['success']]
+            colors = [
+                ChartTheme.COLORS['primary'],
+                ChartTheme.COLORS['secondary'],
+                ChartTheme.COLORS['success'],
+            ]
 
             for window, color in zip(window_sizes, colors, strict=False):
                 ma = daily_data.rolling(window=window, min_periods=1).mean()
@@ -596,7 +619,7 @@ def render_chart_in_streamlit(
 ) -> None:
     """
     Helper function to render a chart in a Streamlit container.
-    
+
     Args:
         chart_function: Chart creation function
         container: Streamlit container (column, expander, etc.)

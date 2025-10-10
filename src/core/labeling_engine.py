@@ -36,7 +36,7 @@ class LabelingEngine:
     def __init__(self, rules_config: dict):
         """
         Initialize the labeling engine with rules configuration.
-        
+
         Args:
             rules_config: Dictionary containing labeling rules
         """
@@ -57,7 +57,7 @@ class LabelingEngine:
     def _compile_custom_patterns(self) -> dict[str, re.Pattern]:
         """
         Compile custom regex patterns from configuration.
-        
+
         Returns:
             Dictionary of compiled regex patterns
         """
@@ -79,12 +79,12 @@ class LabelingEngine:
                    metadata: dict[str, Any] | None = None) -> LabelingResult:
         """
         Apply all labeling rules to a call.
-        
+
         Args:
             transcript: Call transcript text
             duration_seconds: Call duration in seconds
             metadata: Optional call metadata
-        
+
         Returns:
             LabelingResult with all labels and scores
         """
@@ -125,11 +125,11 @@ class LabelingEngine:
                                     duration: float) -> tuple[str, float, list[str]]:
         """
         Determine if the call was connected or disconnected.
-        
+
         Args:
             transcript: Call transcript
             duration: Call duration in seconds
-        
+
         Returns:
             Tuple of (status, confidence, matched_keywords)
         """
@@ -176,10 +176,10 @@ class LabelingEngine:
     def _determine_call_type(self, transcript: str) -> tuple[str, float, list[str]]:
         """
         Determine the call type based on transcript content.
-        
+
         Args:
             transcript: Call transcript
-        
+
         Returns:
             Tuple of (call_type, confidence, matched_keywords)
         """
@@ -237,10 +237,10 @@ class LabelingEngine:
     def _determine_outcome(self, transcript: str) -> tuple[str, float, list[str]]:
         """
         Determine the call outcome based on transcript content.
-        
+
         Args:
             transcript: Call transcript
-        
+
         Returns:
             Tuple of (outcome, confidence, matched_keywords)
         """
@@ -311,11 +311,11 @@ class LabelingEngine:
         """
         Check if a keyword matches in the text.
         Supports exact and fuzzy matching.
-        
+
         Args:
             text: Text to search in
             keyword: Keyword to search for
-        
+
         Returns:
             True if keyword is found
         """
@@ -344,39 +344,48 @@ class LabelingEngine:
 
         return False
 
-    def _apply_custom_patterns(self, transcript: str, call_type: str, outcome: str) -> tuple[str, str]:
+    def _apply_custom_patterns(
+        self,
+        transcript: str,
+        call_type: str,
+        outcome: str,
+    ) -> tuple[str, str]:
         """
         Apply custom regex patterns to override labels if matched.
-        
+
         Args:
             transcript: Call transcript
             call_type: Current call type
             outcome: Current outcome
-        
+
         Returns:
             Tuple of (call_type, outcome) with overrides applied
         """
         # Check for urgent complaint pattern
-        if 'urgent_complaint' in self.custom_patterns:
-            if self.custom_patterns['urgent_complaint'].search(transcript):
-                call_type = "Complaint"
-                logger.debug("Applied urgent_complaint pattern override")
+        if (
+            'urgent_complaint' in self.custom_patterns
+            and self.custom_patterns['urgent_complaint'].search(transcript)
+        ):
+            call_type = "Complaint"
+            logger.debug("Applied urgent_complaint pattern override")
 
         # Check for technical escalation pattern
-        if 'technical_escalation' in self.custom_patterns:
-            if self.custom_patterns['technical_escalation'].search(transcript):
-                outcome = "Callback"  # Technical escalations often need callbacks
-                logger.debug("Applied technical_escalation pattern override")
+        if (
+            'technical_escalation' in self.custom_patterns
+            and self.custom_patterns['technical_escalation'].search(transcript)
+        ):
+            outcome = "Callback"  # Technical escalations often need callbacks
+            logger.debug("Applied technical_escalation pattern override")
 
         return call_type, outcome
 
     def label_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Apply labeling to an entire DataFrame of calls.
-        
+
         Args:
             df: DataFrame with transcript and duration columns
-        
+
         Returns:
             DataFrame with added label columns
         """
@@ -405,11 +414,16 @@ class LabelingEngine:
                 df.at[idx, 'outcome'] = result.outcome
 
                 # Average confidence across all labels
-                avg_confidence = sum(result.confidence_scores.values()) / len(result.confidence_scores)
+                avg_confidence = (
+                    sum(result.confidence_scores.values())
+                    / len(result.confidence_scores)
+                )
                 df.at[idx, 'labeling_confidence'] = avg_confidence
 
                 # Store matched keywords as comma-separated string
-                df.at[idx, 'matched_keywords'] = ', '.join(result.matched_keywords[:5])  # Limit to 5
+                df.at[idx, 'matched_keywords'] = ', '.join(
+                    result.matched_keywords[:5]
+                )  # Limit to 5
 
             except Exception as e:
                 logger.error(f"Error labeling row {idx}: {e}")
@@ -424,10 +438,10 @@ class LabelingEngine:
     def get_labeling_statistics(self, df: pd.DataFrame) -> dict[str, Any]:
         """
         Get statistics about the labeling results.
-        
+
         Args:
             df: DataFrame with label columns
-        
+
         Returns:
             Dictionary with labeling statistics
         """

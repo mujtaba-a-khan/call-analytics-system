@@ -40,7 +40,7 @@ class FilterState:
     def to_dict(self) -> dict[str, Any]:
         """
         Convert filter state to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of filter state
         """
@@ -62,10 +62,10 @@ class FilterState:
     def from_dict(cls, data: dict[str, Any]) -> 'FilterState':
         """
         Create FilterState from dictionary.
-        
+
         Args:
             data: Dictionary with filter state data
-            
+
         Returns:
             FilterState instance
         """
@@ -86,10 +86,10 @@ class FilterState:
     def apply_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Apply all filters to a DataFrame.
-        
+
         Args:
             df: Input DataFrame
-            
+
         Returns:
             Filtered DataFrame
         """
@@ -187,8 +187,10 @@ class DateRangeFilter:
         return start_date, end_date
 
     @staticmethod
-    def _normalize_selection(selection: Any,
-                             current_range: tuple[date, date] | None = None) -> tuple[date, date] | None:
+    def _normalize_selection(
+        selection: Any,
+        current_range: tuple[date, date] | None = None,
+    ) -> tuple[date, date] | None:
         if selection is None:
             return None
 
@@ -241,12 +243,12 @@ class DateRangeFilter:
                default_range: str = 'Last 30 Days') -> tuple[date, date]:
         """
         Render date range filter component.
-        
+
         Args:
             container: Streamlit container to render in
             key_prefix: Prefix for component keys
             default_range: Default preset range selection
-            
+
         Returns:
             Tuple of (start_date, end_date)
         """
@@ -257,7 +259,11 @@ class DateRangeFilter:
         state_key = f"{key_prefix}_date_value"
 
         preset_options = list(cls.PRESET_RANGES.keys())
-        default_index = preset_options.index(default_range) if default_range in preset_options else 0
+        default_index = (
+            preset_options.index(default_range)
+            if default_range in preset_options
+            else 0
+        )
 
         if state_key not in st.session_state:
             st.session_state[state_key] = cls._resolve_preset_range(preset_options[default_index])
@@ -326,7 +332,7 @@ class MultiSelectFilter:
                max_selections: int | None = None) -> list[str]:
         """
         Render multi-select filter component with enhanced features.
-        
+
         Args:
             label: Label for the filter
             options: List of available options
@@ -335,7 +341,7 @@ class MultiSelectFilter:
             key: Component key
             help_text: Optional help text
             max_selections: Maximum number of selections allowed
-            
+
         Returns:
             List of selected options
         """
@@ -346,7 +352,9 @@ class MultiSelectFilter:
 
         with col2:
             if st.button("Select All", key=f"{key}_all", use_container_width=True):
-                st.session_state[f"{key}_selected"] = options[:max_selections] if max_selections else options
+                st.session_state[f"{key}_selected"] = (
+                    options[:max_selections] if max_selections else options
+                )
 
         with col3:
             if st.button("Clear", key=f"{key}_clear", use_container_width=True):
@@ -393,7 +401,7 @@ class RangeSliderFilter:
                format_func: callable | None = None) -> tuple[float, float]:
         """
         Render range slider filter component.
-        
+
         Args:
             label: Label for the filter
             min_value: Minimum possible value
@@ -403,7 +411,7 @@ class RangeSliderFilter:
             key: Component key
             step: Slider step size
             format_func: Optional function to format display values
-            
+
         Returns:
             Tuple of (min_selected, max_selected)
         """
@@ -421,7 +429,6 @@ class RangeSliderFilter:
             value=default_range,
             step=step,
             key=key,
-            format=format_func(selected_range[0]) if format_func else None
         )
 
         # Display formatted range
@@ -448,14 +455,14 @@ class SearchFilter:
                help_text: str = "Search in notes and transcripts") -> str:
         """
         Render search filter component with autocomplete.
-        
+
         Args:
             container: Streamlit container to render in
             key: Component key
             placeholder: Placeholder text
             suggestions: Optional list of search suggestions
             help_text: Help text for the search field
-            
+
         Returns:
             Search query string
         """
@@ -509,12 +516,12 @@ class QuickFilters:
                key_prefix: str = 'quick') -> dict[str, bool]:
         """
         Render quick filter buttons.
-        
+
         Args:
             data: DataFrame to derive quick filter options from
             container: Streamlit container to render in
             key_prefix: Prefix for component keys
-            
+
         Returns:
             Dictionary of filter states
         """
@@ -526,7 +533,9 @@ class QuickFilters:
             '❌ Failed Calls': lambda df: df[df['outcome'].isin(['failed', 'no_answer'])],
             '⏱️ Long Calls (>5 min)': lambda df: df[df['duration'] > 300],
             '💰 Revenue Calls': lambda df: df[df['revenue'] > 0],
-            '📅 Today\'s Calls': lambda df: df[pd.to_datetime(df['timestamp']).dt.date == date.today()]
+            "📅 Today's Calls": lambda df: df[
+                pd.to_datetime(df['timestamp']).dt.date == date.today()
+            ],
         }
 
         # Render filter buttons
@@ -534,7 +543,7 @@ class QuickFilters:
         cols = container.columns(len(quick_filters))
 
         filter_states = {}
-        for idx, (label, filter_func) in enumerate(quick_filters.items()):
+        for idx, (label, _filter_func) in enumerate(quick_filters.items()):
             with cols[idx]:
                 filter_states[label] = st.checkbox(
                     label,
@@ -548,7 +557,7 @@ class QuickFilters:
 def save_filter_preset(name: str, filter_state: FilterState) -> None:
     """
     Save current filter configuration as a preset.
-    
+
     Args:
         name: Name for the preset
         filter_state: Current filter state to save
@@ -574,10 +583,10 @@ def save_filter_preset(name: str, filter_state: FilterState) -> None:
 def load_filter_preset(name: str) -> FilterState | None:
     """
     Load a saved filter preset.
-    
+
     Args:
         name: Name of the preset to load
-        
+
     Returns:
         FilterState if preset exists, None otherwise
     """

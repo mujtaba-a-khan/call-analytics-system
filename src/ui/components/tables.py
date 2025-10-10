@@ -40,7 +40,7 @@ class DataTable:
                enable_export: bool = True) -> pd.DataFrame:
         """
         Render an interactive data table with advanced features.
-        
+
         Args:
             data: DataFrame to display
             container: Streamlit container to render in
@@ -51,7 +51,7 @@ class DataTable:
             height: Fixed height for the table
             enable_search: Whether to enable search functionality
             enable_export: Whether to enable export functionality
-            
+
         Returns:
             Filtered/sorted DataFrame based on user interactions
         """
@@ -153,7 +153,7 @@ class DataTable:
     def _handle_export(data: pd.DataFrame, format: str, key: str) -> None:
         """
         Handle data export in various formats.
-        
+
         Args:
             data: DataFrame to export
             format: Export format ('CSV', 'Excel', 'JSON')
@@ -164,7 +164,10 @@ class DataTable:
         if format == "CSV":
             csv = data.to_csv(index=False)
             b64 = base64.b64encode(csv.encode()).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="export_{timestamp}.csv">Download CSV</a>'
+            href = (
+                '<a href="data:file/csv;base64,'
+                f'{b64}" download="export_{timestamp}.csv">Download CSV</a>'
+            )
             st.markdown(href, unsafe_allow_html=True)
 
         elif format == "Excel":
@@ -173,13 +176,20 @@ class DataTable:
                 data.to_excel(writer, index=False, sheet_name='Data')
             excel_data = output.getvalue()
             b64 = base64.b64encode(excel_data).decode()
-            href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="export_{timestamp}.xlsx">Download Excel</a>'
+            href = (
+                '<a href="data:application/vnd.openxmlformats-officedocument.'
+                'spreadsheetml.sheet;base64,'
+                f'{b64}" download="export_{timestamp}.xlsx">Download Excel</a>'
+            )
             st.markdown(href, unsafe_allow_html=True)
 
         elif format == "JSON":
             json_str = data.to_json(orient='records', indent=2)
             b64 = base64.b64encode(json_str.encode()).decode()
-            href = f'<a href="data:file/json;base64,{b64}" download="export_{timestamp}.json">Download JSON</a>'
+            href = (
+                '<a href="data:file/json;base64,'
+                f'{b64}" download="export_{timestamp}.json">Download JSON</a>'
+            )
             st.markdown(href, unsafe_allow_html=True)
 
 
@@ -197,13 +207,13 @@ class CallRecordsTable:
                show_transcript: bool = False) -> dict[str, Any] | None:
         """
         Render call records table with specialized formatting.
-        
+
         Args:
             records: DataFrame with call records
             container: Streamlit container to render in
             show_actions: Whether to show action buttons
             show_transcript: Whether to show transcript column
-            
+
         Returns:
             Selected record details if action clicked
         """
@@ -212,7 +222,7 @@ class CallRecordsTable:
         record_session_key = 'recent_calls_selected_record'
 
         if records is None or records.empty:
-            if 'view_call' in st.query_params.keys():
+            if 'view_call' in st.query_params:
                 st.query_params.pop('view_call', None)
             st.session_state.pop(record_session_key, None)
             return None
@@ -236,13 +246,17 @@ class CallRecordsTable:
 
         # Format columns for display
         if 'timestamp' in display_data.columns:
-            display_data['timestamp'] = pd.to_datetime(display_data['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+            display_data['timestamp'] = pd.to_datetime(
+                display_data['timestamp']
+            ).dt.strftime('%Y-%m-%d %H:%M')
 
         if 'duration' in display_data.columns:
             display_data['duration'] = display_data['duration'].apply(cls._format_duration)
 
         if 'revenue' in display_data.columns:
-            display_data['revenue'] = display_data['revenue'].apply(lambda x: f"${x:.2f}" if x > 0 else "-")
+            display_data['revenue'] = display_data['revenue'].apply(
+                lambda x: f"${x:.2f}" if x > 0 else "-"
+            )
 
         if 'transcript' in display_data.columns:
             display_data['transcript'] = display_data['transcript'].str[:100] + "..."
@@ -302,7 +316,7 @@ class CallRecordsTable:
                 if not call_id_str:
                     return ''
                 query_pairs: list[tuple[str, str]] = []
-                for key in st.query_params.keys():
+                for key in st.query_params:
                     if key == 'view_call':
                         continue
                     value = st.query_params.get(key)
@@ -343,10 +357,10 @@ class CallRecordsTable:
     def _format_duration(seconds: float) -> str:
         """
         Format duration from seconds to human-readable format.
-        
+
         Args:
             seconds: Duration in seconds
-            
+
         Returns:
             Formatted duration string
         """
@@ -369,14 +383,16 @@ class AgentPerformanceTable:
     """
 
     @classmethod
-    def render(cls,
-               data: pd.DataFrame,
-               container: Any = None,
-               metrics: list[str] = ['calls', 'connection_rate', 'avg_duration', 'revenue'],
-               show_rankings: bool = True) -> None:
+    def render(
+        cls,
+        data: pd.DataFrame,
+        container: Any = None,
+        metrics: list[str] | None = None,
+        show_rankings: bool = True,
+    ) -> None:
         """
         Render agent performance table with metrics and rankings.
-        
+
         Args:
             data: DataFrame with call data
             container: Streamlit container to render in
@@ -384,6 +400,7 @@ class AgentPerformanceTable:
             show_rankings: Whether to show ranking column
         """
         container = container or st
+        metrics = metrics or ['calls', 'connection_rate', 'avg_duration', 'revenue']
 
         # Calculate agent metrics
         agent_stats = cls._calculate_agent_metrics(data, metrics)
@@ -405,9 +422,13 @@ class AgentPerformanceTable:
             elif 'Duration' in col:
                 agent_stats[col] = agent_stats[col].apply(lambda x: f"{x:.1f} min")
             elif 'Revenue' in col:
-                agent_stats[col] = agent_stats[col].apply(lambda x: f"${x:,.2f}")
+                agent_stats[col] = agent_stats[col].apply(
+                    lambda x: f"${x:,.2f}"
+                )
             elif col not in ['Agent', 'Rank']:
-                agent_stats[col] = agent_stats[col].apply(lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x)
+                agent_stats[col] = agent_stats[col].apply(
+                    lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) else x
+                )
 
         # Display table
         st.dataframe(
@@ -433,11 +454,11 @@ class AgentPerformanceTable:
                                  metrics: list[str]) -> pd.DataFrame:
         """
         Calculate performance metrics for each agent.
-        
+
         Args:
             data: DataFrame with call data
             metrics: List of metrics to calculate
-            
+
         Returns:
             DataFrame with agent metrics
         """
@@ -483,7 +504,7 @@ class ComparisonTable:
                title: str = "Period Comparison") -> None:
         """
         Render a comparison table between two datasets.
-        
+
         Args:
             current_data: Current period data
             previous_data: Previous period data
@@ -514,9 +535,13 @@ class ComparisonTable:
             delta_col = f"{metric}_Delta"
 
             if change_col in display_df.columns:
-                def _format_change(row: pd.Series) -> str:
-                    value = row[change_col]
-                    delta_value = row.get(delta_col)
+                def _format_change(
+                    row: pd.Series,
+                    change_column: str = change_col,
+                    delta_column: str = delta_col,
+                ) -> str:
+                    value = row[change_column]
+                    delta_value = row.get(delta_column)
 
                     if pd.isna(value):
                         return "-"
@@ -617,7 +642,11 @@ class ComparisonTable:
                         np.where(
                             zero_delta,
                             0.0,
-                            np.sign(delta_values) * np.minimum(100.0, (np.abs(delta_values) / max_reference) * 100.0)
+                            np.sign(delta_values)
+                            * np.minimum(
+                                100.0,
+                                (np.abs(delta_values) / max_reference) * 100.0,
+                            )
                         ),
                         (delta_values / np.abs(prev_values)) * 100.0
                     )
@@ -638,12 +667,12 @@ class ComparisonTable:
                                  metrics: list[str]) -> pd.DataFrame:
         """
         Calculate metrics for grouped data.
-        
+
         Args:
             data: Input DataFrame
             group_column: Column to group by
             metrics: List of metrics to calculate
-            
+
         Returns:
             DataFrame with calculated metrics
         """
