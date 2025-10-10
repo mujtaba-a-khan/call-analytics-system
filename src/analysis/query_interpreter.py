@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class QueryIntent:
     """Container for parsed query intent"""
+
     action: str  # search, filter, aggregate, compare
     entities: dict[str, list[str]]
     time_range: tuple[datetime, datetime] | None
@@ -55,44 +56,39 @@ class QueryInterpreter:
         """
         patterns = {
             # Time patterns
-            'last_n_days': re.compile(r'last\s+(\d+)\s+days?', re.IGNORECASE),
-            'last_n_hours': re.compile(r'last\s+(\d+)\s+hours?', re.IGNORECASE),
-            'yesterday': re.compile(r'\byesterday\b', re.IGNORECASE),
-            'today': re.compile(r'\btoday\b', re.IGNORECASE),
-            'this_week': re.compile(r'this\s+week', re.IGNORECASE),
-            'last_week': re.compile(r'last\s+week', re.IGNORECASE),
-            'this_month': re.compile(r'this\s+month', re.IGNORECASE),
-            'last_month': re.compile(r'last\s+month', re.IGNORECASE),
-
+            "last_n_days": re.compile(r"last\s+(\d+)\s+days?", re.IGNORECASE),
+            "last_n_hours": re.compile(r"last\s+(\d+)\s+hours?", re.IGNORECASE),
+            "yesterday": re.compile(r"\byesterday\b", re.IGNORECASE),
+            "today": re.compile(r"\btoday\b", re.IGNORECASE),
+            "this_week": re.compile(r"this\s+week", re.IGNORECASE),
+            "last_week": re.compile(r"last\s+week", re.IGNORECASE),
+            "this_month": re.compile(r"this\s+month", re.IGNORECASE),
+            "last_month": re.compile(r"last\s+month", re.IGNORECASE),
             # Entity patterns
-            'agent': re.compile(r'agent\s+(\w+)', re.IGNORECASE),
-            'campaign': re.compile(r'campaign\s+"([^"]+)"', re.IGNORECASE),
-            'customer': re.compile(r'customer\s+(\w+)', re.IGNORECASE),
-
+            "agent": re.compile(r"agent\s+(\w+)", re.IGNORECASE),
+            "campaign": re.compile(r'campaign\s+"([^"]+)"', re.IGNORECASE),
+            "customer": re.compile(r"customer\s+(\w+)", re.IGNORECASE),
             # Type patterns
-            'call_type': re.compile(r'(inquiry|support|complaint|billing|sales)', re.IGNORECASE),
-            'outcome': re.compile(r'(resolved|callback|refund|sale)', re.IGNORECASE),
-
+            "call_type": re.compile(r"(inquiry|support|complaint|billing|sales)", re.IGNORECASE),
+            "outcome": re.compile(r"(resolved|callback|refund|sale)", re.IGNORECASE),
             # Aggregation patterns
-            'count': re.compile(r'\b(count|number|how many)\b', re.IGNORECASE),
-            'average': re.compile(r'\b(average|avg|mean)\b', re.IGNORECASE),
-            'sum': re.compile(r'\b(sum|total)\b', re.IGNORECASE),
-            'max': re.compile(r'\b(max|maximum|highest)\b', re.IGNORECASE),
-            'min': re.compile(r'\b(min|minimum|lowest)\b', re.IGNORECASE),
-
+            "count": re.compile(r"\b(count|number|how many)\b", re.IGNORECASE),
+            "average": re.compile(r"\b(average|avg|mean)\b", re.IGNORECASE),
+            "sum": re.compile(r"\b(sum|total)\b", re.IGNORECASE),
+            "max": re.compile(r"\b(max|maximum|highest)\b", re.IGNORECASE),
+            "min": re.compile(r"\b(min|minimum|lowest)\b", re.IGNORECASE),
             # Comparison patterns
-            'greater_than': re.compile(
-                r'(greater than|more than|over|above|>)\s*(\d+)',
+            "greater_than": re.compile(
+                r"(greater than|more than|over|above|>)\s*(\d+)",
                 re.IGNORECASE,
             ),
-            'less_than': re.compile(r'(less than|fewer than|under|below|<)\s*(\d+)', re.IGNORECASE),
-            'between': re.compile(r'between\s+(\d+)\s+and\s+(\d+)', re.IGNORECASE),
-
+            "less_than": re.compile(r"(less than|fewer than|under|below|<)\s*(\d+)", re.IGNORECASE),
+            "between": re.compile(r"between\s+(\d+)\s+and\s+(\d+)", re.IGNORECASE),
             # Action patterns
-            'show': re.compile(r'\b(show|display|list|get)\b', re.IGNORECASE),
-            'find': re.compile(r'\b(find|search|look for)\b', re.IGNORECASE),
-            'compare': re.compile(r'\b(compare|versus|vs)\b', re.IGNORECASE),
-            'analyze': re.compile(r'\b(analyze|analysis|breakdown)\b', re.IGNORECASE),
+            "show": re.compile(r"\b(show|display|list|get)\b", re.IGNORECASE),
+            "find": re.compile(r"\b(find|search|look for)\b", re.IGNORECASE),
+            "compare": re.compile(r"\b(compare|versus|vs)\b", re.IGNORECASE),
+            "analyze": re.compile(r"\b(analyze|analysis|breakdown)\b", re.IGNORECASE),
         }
 
         return patterns
@@ -105,11 +101,11 @@ class QueryInterpreter:
             Dictionary of extractor functions
         """
         return {
-            'time': self._extract_time_range,
-            'entities': self._extract_entities,
-            'filters': self._extract_filters,
-            'aggregations': self._extract_aggregations,
-            'action': self._extract_action
+            "time": self._extract_time_range,
+            "entities": self._extract_entities,
+            "filters": self._extract_filters,
+            "aggregations": self._extract_aggregations,
+            "action": self._extract_action,
         }
 
     def interpret(self, query: str) -> QueryIntent:
@@ -132,9 +128,7 @@ class QueryInterpreter:
         aggregations = self._extract_aggregations(query_lower)
 
         # Calculate confidence based on successful extractions
-        confidence = self._calculate_confidence(
-            action, entities, time_range, filters, aggregations
-        )
+        confidence = self._calculate_confidence(action, entities, time_range, filters, aggregations)
 
         intent = QueryIntent(
             action=action,
@@ -142,7 +136,7 @@ class QueryInterpreter:
             time_range=time_range,
             filters=filters,
             aggregations=aggregations,
-            confidence=confidence
+            confidence=confidence,
         )
 
         logger.debug(f"Interpreted query: '{query[:50]}...' with confidence {confidence:.2f}")
@@ -159,16 +153,16 @@ class QueryInterpreter:
         Returns:
             Action type
         """
-        if self.patterns['compare'].search(query):
-            return 'compare'
-        elif self.patterns['analyze'].search(query):
-            return 'analyze'
-        elif self.patterns['find'].search(query):
-            return 'search'
-        elif any(self.patterns[agg].search(query) for agg in ['count', 'average', 'sum']):
-            return 'aggregate'
+        if self.patterns["compare"].search(query):
+            return "compare"
+        elif self.patterns["analyze"].search(query):
+            return "analyze"
+        elif self.patterns["find"].search(query):
+            return "search"
+        elif any(self.patterns[agg].search(query) for agg in ["count", "average", "sum"]):
+            return "aggregate"
         else:
-            return 'filter'
+            return "filter"
 
     def _extract_entities(self, query: str) -> dict[str, list[str]]:
         """
@@ -181,28 +175,28 @@ class QueryInterpreter:
             Dictionary of entity types to values
         """
         entities = {
-            'agents': [],
-            'campaigns': [],
-            'customers': [],
-            'call_types': [],
-            'outcomes': []
+            "agents": [],
+            "campaigns": [],
+            "customers": [],
+            "call_types": [],
+            "outcomes": [],
         }
 
         # Extract agents
-        agent_matches = self.patterns['agent'].findall(query)
-        entities['agents'] = agent_matches
+        agent_matches = self.patterns["agent"].findall(query)
+        entities["agents"] = agent_matches
 
         # Extract campaigns
-        campaign_matches = self.patterns['campaign'].findall(query)
-        entities['campaigns'] = campaign_matches
+        campaign_matches = self.patterns["campaign"].findall(query)
+        entities["campaigns"] = campaign_matches
 
         # Extract call types
-        type_matches = self.patterns['call_type'].findall(query)
-        entities['call_types'] = [t.capitalize() for t in type_matches]
+        type_matches = self.patterns["call_type"].findall(query)
+        entities["call_types"] = [t.capitalize() for t in type_matches]
 
         # Extract outcomes
-        outcome_matches = self.patterns['outcome'].findall(query)
-        entities['outcomes'] = [o.capitalize() for o in outcome_matches]
+        outcome_matches = self.patterns["outcome"].findall(query)
+        entities["outcomes"] = [o.capitalize() for o in outcome_matches]
 
         return entities
 
@@ -219,39 +213,39 @@ class QueryInterpreter:
         now = datetime.now()
 
         # Check for last N days
-        match = self.patterns['last_n_days'].search(query)
+        match = self.patterns["last_n_days"].search(query)
         if match:
             days = int(match.group(1))
             start_date = now - timedelta(days=days)
             return (start_date, now)
 
         # Check for last N hours
-        match = self.patterns['last_n_hours'].search(query)
+        match = self.patterns["last_n_hours"].search(query)
         if match:
             hours = int(match.group(1))
             start_date = now - timedelta(hours=hours)
             return (start_date, now)
 
         # Check for yesterday
-        if self.patterns['yesterday'].search(query):
+        if self.patterns["yesterday"].search(query):
             yesterday = now - timedelta(days=1)
             start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
             return (start_date, end_date)
 
         # Check for today
-        if self.patterns['today'].search(query):
+        if self.patterns["today"].search(query):
             start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
             return (start_date, now)
 
         # Check for this week
-        if self.patterns['this_week'].search(query):
+        if self.patterns["this_week"].search(query):
             start_date = now - timedelta(days=now.weekday())
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
             return (start_date, now)
 
         # Check for last week
-        if self.patterns['last_week'].search(query):
+        if self.patterns["last_week"].search(query):
             start_date = now - timedelta(days=now.weekday() + 7)
             end_date = start_date + timedelta(days=6)
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -260,14 +254,14 @@ class QueryInterpreter:
 
         # Try to parse explicit numeric day (e.g., 2025-11-11 or 11/11/2025)
         numeric_day_patterns = [
-            (re.compile(r'\b(\d{4})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])\b'), 'ymd'),
-            (re.compile(r'\b(0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])[-/](\d{4})\b'), 'mdy')
+            (re.compile(r"\b(\d{4})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])\b"), "ymd"),
+            (re.compile(r"\b(0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])[-/](\d{4})\b"), "mdy"),
         ]
         for pattern, fmt in numeric_day_patterns:
             match = pattern.search(query)
             if match:
                 groups = list(map(int, match.groups()))
-                if fmt == 'ymd':
+                if fmt == "ymd":
                     year, month, day = groups
                 else:
                     month, day, year = groups
@@ -280,21 +274,33 @@ class QueryInterpreter:
 
         # Month name (full or abbreviated) + year (e.g., "november 2025" or "nov 2025")
         month_name_map = {
-            'jan': 1, 'january': 1,
-            'feb': 2, 'february': 2,
-            'mar': 3, 'march': 3,
-            'apr': 4, 'april': 4,
-            'may': 5,
-            'jun': 6, 'june': 6,
-            'jul': 7, 'july': 7,
-            'aug': 8, 'august': 8,
-            'sep': 9, 'sept': 9, 'september': 9,
-            'oct': 10, 'october': 10,
-            'nov': 11, 'november': 11,
-            'dec': 12, 'december': 12
+            "jan": 1,
+            "january": 1,
+            "feb": 2,
+            "february": 2,
+            "mar": 3,
+            "march": 3,
+            "apr": 4,
+            "april": 4,
+            "may": 5,
+            "jun": 6,
+            "june": 6,
+            "jul": 7,
+            "july": 7,
+            "aug": 8,
+            "august": 8,
+            "sep": 9,
+            "sept": 9,
+            "september": 9,
+            "oct": 10,
+            "october": 10,
+            "nov": 11,
+            "november": 11,
+            "dec": 12,
+            "december": 12,
         }
         month_words_pattern = re.compile(
-            r'\b(' + '|'.join(month_name_map.keys()) + r')\b\s*(\d{4})',
+            r"\b(" + "|".join(month_name_map.keys()) + r")\b\s*(\d{4})",
             re.IGNORECASE,
         )
         month_words_match = month_words_pattern.search(query)
@@ -312,14 +318,14 @@ class QueryInterpreter:
 
         # Numeric month/year formats (e.g., 2025-11 or 11/2025)
         numeric_month_patterns = [
-            (re.compile(r'\b(\d{4})[-/](0?[1-9]|1[0-2])\b'), 'ym'),
-            (re.compile(r'\b(0?[1-9]|1[0-2])[-/](\d{4})\b'), 'my')
+            (re.compile(r"\b(\d{4})[-/](0?[1-9]|1[0-2])\b"), "ym"),
+            (re.compile(r"\b(0?[1-9]|1[0-2])[-/](\d{4})\b"), "my"),
         ]
         for pattern, fmt in numeric_month_patterns:
             match = pattern.search(query)
             if match:
                 year, month = match.groups()
-                if fmt == 'my':
+                if fmt == "my":
                     month, year = year, month
                 year, month = int(year), int(month)
                 start_date = datetime(year, month, 1)
@@ -332,13 +338,25 @@ class QueryInterpreter:
 
         # Try to parse remaining date expressions with dateparser
         try:
-            settings = {'TIMEZONE': 'UTC', 'PREFER_DAY_OF_MONTH': 'first'}
+            settings = {"TIMEZONE": "UTC", "PREFER_DAY_OF_MONTH": "first"}
             parsed_date = dateparser.parse(query, settings=settings)
             if parsed_date:
-                month_keywords = ['january', 'february', 'march', 'april', 'may', 'june',
-                                   'july', 'august', 'september', 'october', 'november', 'december']
+                month_keywords = [
+                    "january",
+                    "february",
+                    "march",
+                    "april",
+                    "may",
+                    "june",
+                    "july",
+                    "august",
+                    "september",
+                    "october",
+                    "november",
+                    "december",
+                ]
                 contains_month = any(keyword in query for keyword in month_keywords)
-                day_pattern = re.compile(r'\b(0?[1-9]|[12][0-9]|3[01])\b')
+                day_pattern = re.compile(r"\b(0?[1-9]|[12][0-9]|3[01])\b")
                 has_explicit_day = bool(day_pattern.search(query))
 
                 if contains_month and not has_explicit_day:
@@ -381,34 +399,34 @@ class QueryInterpreter:
         filters = {}
 
         # Duration filters
-        match = self.patterns['greater_than'].search(query)
-        if match and 'duration' in query:
-            filters['min_duration'] = int(match.group(2))
+        match = self.patterns["greater_than"].search(query)
+        if match and "duration" in query:
+            filters["min_duration"] = int(match.group(2))
 
-        match = self.patterns['less_than'].search(query)
-        if match and 'duration' in query:
-            filters['max_duration'] = int(match.group(2))
+        match = self.patterns["less_than"].search(query)
+        if match and "duration" in query:
+            filters["max_duration"] = int(match.group(2))
 
-        match = self.patterns['between'].search(query)
-        if match and 'duration' in query:
-            filters['min_duration'] = int(match.group(1))
-            filters['max_duration'] = int(match.group(2))
+        match = self.patterns["between"].search(query)
+        if match and "duration" in query:
+            filters["min_duration"] = int(match.group(1))
+            filters["max_duration"] = int(match.group(2))
 
         # Amount filters
-        if 'amount' in query or '$' in query:
-            match = self.patterns['greater_than'].search(query)
+        if "amount" in query or "$" in query:
+            match = self.patterns["greater_than"].search(query)
             if match:
-                filters['min_amount'] = float(match.group(2))
+                filters["min_amount"] = float(match.group(2))
 
-            match = self.patterns['less_than'].search(query)
+            match = self.patterns["less_than"].search(query)
             if match:
-                filters['max_amount'] = float(match.group(2))
+                filters["max_amount"] = float(match.group(2))
 
         # Connection status
-        if 'connected' in query:
-            filters['connection_status'] = 'Connected'
-        elif 'disconnected' in query:
-            filters['connection_status'] = 'Disconnected'
+        if "connected" in query:
+            filters["connection_status"] = "Connected"
+        elif "disconnected" in query:
+            filters["connection_status"] = "Disconnected"
 
         return filters
 
@@ -424,29 +442,31 @@ class QueryInterpreter:
         """
         aggregations = []
 
-        if self.patterns['count'].search(query):
-            aggregations.append('count')
+        if self.patterns["count"].search(query):
+            aggregations.append("count")
 
-        if self.patterns['average'].search(query):
-            aggregations.append('average')
+        if self.patterns["average"].search(query):
+            aggregations.append("average")
 
-        if self.patterns['sum'].search(query):
-            aggregations.append('sum')
+        if self.patterns["sum"].search(query):
+            aggregations.append("sum")
 
-        if self.patterns['max'].search(query):
-            aggregations.append('max')
+        if self.patterns["max"].search(query):
+            aggregations.append("max")
 
-        if self.patterns['min'].search(query):
-            aggregations.append('min')
+        if self.patterns["min"].search(query):
+            aggregations.append("min")
 
         return aggregations
 
-    def _calculate_confidence(self,
-                             action: str,
-                             entities: dict[str, list[str]],
-                             time_range: tuple[datetime, datetime] | None,
-                             filters: dict[str, Any],
-                             aggregations: list[str]) -> float:
+    def _calculate_confidence(
+        self,
+        action: str,
+        entities: dict[str, list[str]],
+        time_range: tuple[datetime, datetime] | None,
+        filters: dict[str, Any],
+        aggregations: list[str],
+    ) -> float:
         """
         Calculate confidence score for the interpretation.
 
@@ -464,7 +484,7 @@ class QueryInterpreter:
         components = 0
 
         # Action contributes to confidence
-        if action != 'filter':  # Default action
+        if action != "filter":  # Default action
             score += 0.2
             components += 1
 
@@ -490,11 +510,7 @@ class QueryInterpreter:
             components += 1
 
         # Calculate final confidence
-        confidence = (
-            min(1.0, score + (components * 0.1))
-            if components > 0
-            else 0.1
-        )
+        confidence = min(1.0, score + (components * 0.1)) if components > 0 else 0.1
 
         return confidence
 
@@ -512,29 +528,29 @@ class QueryInterpreter:
 
         # Add time range
         if intent.time_range:
-            spec['start_date'] = intent.time_range[0].isoformat()
-            spec['end_date'] = intent.time_range[1].isoformat()
+            spec["start_date"] = intent.time_range[0].isoformat()
+            spec["end_date"] = intent.time_range[1].isoformat()
 
         # Add entities
-        if intent.entities.get('agents'):
-            spec['agents'] = intent.entities['agents']
+        if intent.entities.get("agents"):
+            spec["agents"] = intent.entities["agents"]
 
-        if intent.entities.get('campaigns'):
-            spec['campaigns'] = intent.entities['campaigns']
+        if intent.entities.get("campaigns"):
+            spec["campaigns"] = intent.entities["campaigns"]
 
-        if intent.entities.get('call_types'):
-            spec['call_types'] = intent.entities['call_types']
+        if intent.entities.get("call_types"):
+            spec["call_types"] = intent.entities["call_types"]
 
-        if intent.entities.get('outcomes'):
-            spec['outcomes'] = intent.entities['outcomes']
+        if intent.entities.get("outcomes"):
+            spec["outcomes"] = intent.entities["outcomes"]
 
         # Add filters
         spec.update(intent.filters)
 
         # Add action metadata
-        spec['_action'] = intent.action
-        spec['_aggregations'] = intent.aggregations
-        spec['_confidence'] = intent.confidence
+        spec["_action"] = intent.action
+        spec["_aggregations"] = intent.aggregations
+        spec["_confidence"] = intent.confidence
 
         return spec
 
@@ -552,45 +568,45 @@ class QueryInterpreter:
 
         # Explain action
         action_explanations = {
-            'search': 'Searching for',
-            'filter': 'Filtering',
-            'aggregate': 'Calculating statistics for',
-            'compare': 'Comparing',
-            'analyze': 'Analyzing'
+            "search": "Searching for",
+            "filter": "Filtering",
+            "aggregate": "Calculating statistics for",
+            "compare": "Comparing",
+            "analyze": "Analyzing",
         }
-        parts.append(action_explanations.get(intent.action, 'Processing'))
+        parts.append(action_explanations.get(intent.action, "Processing"))
 
         # Explain entities
-        if intent.entities.get('call_types'):
+        if intent.entities.get("call_types"):
             parts.append(f"call types: {', '.join(intent.entities['call_types'])}")
 
-        if intent.entities.get('outcomes'):
+        if intent.entities.get("outcomes"):
             parts.append(f"outcomes: {', '.join(intent.entities['outcomes'])}")
 
-        if intent.entities.get('agents'):
+        if intent.entities.get("agents"):
             parts.append(f"agents: {', '.join(intent.entities['agents'])}")
 
         # Explain time range
         if intent.time_range:
-            start = intent.time_range[0].strftime('%Y-%m-%d')
-            end = intent.time_range[1].strftime('%Y-%m-%d')
+            start = intent.time_range[0].strftime("%Y-%m-%d")
+            end = intent.time_range[1].strftime("%Y-%m-%d")
             if start == end:
                 parts.append(f"on {start}")
             else:
                 parts.append(f"from {start} to {end}")
 
         # Explain filters
-        if intent.filters.get('min_duration'):
+        if intent.filters.get("min_duration"):
             parts.append(f"duration > {intent.filters['min_duration']}s")
 
-        if intent.filters.get('max_duration'):
+        if intent.filters.get("max_duration"):
             parts.append(f"duration < {intent.filters['max_duration']}s")
 
         # Explain aggregations
         if intent.aggregations:
             parts.append(f"calculating: {', '.join(intent.aggregations)}")
 
-        explanation = ' '.join(parts)
+        explanation = " ".join(parts)
 
         # Add confidence note
         if intent.confidence < 0.5:

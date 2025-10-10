@@ -83,12 +83,9 @@ class AnalysisPage:
             )
 
             # Create tabs for different analysis modes
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "🔎 Semantic Search",
-                "📊 Custom Analysis",
-                "🆚 Comparison",
-                "📈 Cohort Analysis"
-            ])
+            tab1, tab2, tab3, tab4 = st.tabs(
+                ["🔎 Semantic Search", "📊 Custom Analysis", "🆚 Comparison", "📈 Cohort Analysis"]
+            )
 
             with tab1:
                 self._render_semantic_search_tab()
@@ -127,18 +124,14 @@ class AnalysisPage:
                 "Enter your search query",
                 placeholder="e.g., 'Find calls where customers complained about billing issues'",
                 height=100,
-                key="semantic_query"
+                key="semantic_query",
             )
 
         with col2:
             st.write("**Search Options**")
 
             top_k = st.number_input(
-                "Results to return",
-                min_value=1,
-                max_value=100,
-                value=10,
-                key="search_top_k"
+                "Results to return", min_value=1, max_value=100, value=10, key="search_top_k"
             )
 
             similarity_threshold = st.slider(
@@ -167,13 +160,15 @@ class AnalysisPage:
 
         # Show example queries
         with st.expander("Example Queries"):
-            st.markdown("""
+            st.markdown(
+                """
             - "Find calls where customers were frustrated or angry"
             - "Show me successful sales calls with high revenue"
             - "Calls mentioning technical issues with the product"
             - "Customer requesting refund or cancellation"
             - "Positive feedback about customer service"
-            """)
+            """
+            )
 
     def _render_custom_analysis_tab(self) -> None:
         """
@@ -225,9 +220,9 @@ class AnalysisPage:
                     "Time Analysis",
                     "Agent Analysis",
                     "Outcome Analysis",
-                    "Custom Aggregation"
+                    "Custom Aggregation",
                 ],
-                key="custom_analysis_type"
+                key="custom_analysis_type",
             )
 
             self._render_analysis_results(data, analysis_type)
@@ -249,17 +244,13 @@ class AnalysisPage:
         with col1:
             st.subheader("Period 1")
             period1_start, period1_end = DateRangeFilter.render(
-                container=st.container(),
-                key_prefix="period1",
-                default_range="Last 30 Days"
+                container=st.container(), key_prefix="period1", default_range="Last 30 Days"
             )
 
         with col2:
             st.subheader("Period 2")
             period2_start, period2_end = DateRangeFilter.render(
-                container=st.container(),
-                key_prefix="period2",
-                default_range="Last 7 Days"
+                container=st.container(), key_prefix="period2", default_range="Last 7 Days"
             )
 
         # Comparison dimensions
@@ -269,9 +260,7 @@ class AnalysisPage:
 
         with col1:
             group_by = st.selectbox(
-                "Group By",
-                ["agent_id", "campaign", "outcome", "call_type"],
-                key="comparison_group"
+                "Group By", ["agent_id", "campaign", "outcome", "call_type"], key="comparison_group"
             )
 
         with col2:
@@ -279,14 +268,12 @@ class AnalysisPage:
                 "Metrics to Compare",
                 ["count", "duration", "revenue", "connection_rate"],
                 default=["count", "revenue"],
-                key="comparison_metrics"
+                key="comparison_metrics",
             )
 
         with col3:
             chart_type = st.selectbox(
-                "Visualization",
-                ["Bar Chart", "Line Chart", "Table"],
-                key="comparison_chart"
+                "Visualization", ["Bar Chart", "Line Chart", "Table"], key="comparison_chart"
             )
 
         # Execute comparison
@@ -294,7 +281,9 @@ class AnalysisPage:
             self._execute_period_comparison(
                 (period1_start, period1_end),
                 (period2_start, period2_end),
-                group_by, metrics, chart_type
+                group_by,
+                metrics,
+                chart_type,
             )
 
     def _render_cohort_analysis_tab(self) -> None:
@@ -311,42 +300,34 @@ class AnalysisPage:
             cohort_type = st.selectbox(
                 "Cohort Type",
                 ["First Call Date", "Campaign Start", "Agent Assignment"],
-                key="cohort_type"
+                key="cohort_type",
             )
 
             cohort_period = st.selectbox(
-                "Cohort Period",
-                ["Daily", "Weekly", "Monthly"],
-                key="cohort_period"
+                "Cohort Period", ["Daily", "Weekly", "Monthly"], key="cohort_period"
             )
 
         with col2:
             metric = st.selectbox(
                 "Metric to Track",
                 ["Retention Rate", "Average Duration", "Revenue per Cohort", "Call Frequency"],
-                key="cohort_metric"
+                key="cohort_metric",
             )
 
             periods_to_analyze = st.slider(
-                "Periods to Analyze",
-                min_value=3,
-                max_value=12,
-                value=6,
-                key="cohort_periods"
+                "Periods to Analyze", min_value=3, max_value=12, value=6, key="cohort_periods"
             )
 
         # Date range for cohort analysis
         st.subheader("Analysis Period")
         start_date, end_date = DateRangeFilter.render(
-            key_prefix="cohort",
-            default_range="Last 90 Days"
+            key_prefix="cohort", default_range="Last 90 Days"
         )
 
         # Execute cohort analysis
         if st.button("Generate Cohort Analysis", type="primary", use_container_width=True):
             self._execute_cohort_analysis(
-                cohort_type, cohort_period, metric,
-                periods_to_analyze, start_date, end_date
+                cohort_type, cohort_period, metric, periods_to_analyze, start_date, end_date
             )
 
     def _render_search_filters(self) -> FilterState:
@@ -363,28 +344,23 @@ class AnalysisPage:
         with col1:
             # Date range filter
             filter_state.date_range = DateRangeFilter.render(
-                container=st.container(),
-                key_prefix="search_date"
+                container=st.container(), key_prefix="search_date"
             )
 
         with col2:
             # Campaign filter
-            campaigns = self.storage_manager.get_unique_values('campaign')
+            campaigns = self.storage_manager.get_unique_values("campaign")
             if campaigns:
                 filter_state.selected_campaigns = st.multiselect(
-                    "Campaigns",
-                    options=campaigns,
-                    key="search_campaigns"
+                    "Campaigns", options=campaigns, key="search_campaigns"
                 )
 
         with col3:
             # Agent filter
-            agents = self.storage_manager.get_unique_values('agent_id')
+            agents = self.storage_manager.get_unique_values("agent_id")
             if agents:
                 filter_state.selected_agents = st.multiselect(
-                    "Agents",
-                    options=agents,
-                    key="search_agents"
+                    "Agents", options=agents, key="search_agents"
                 )
 
         return filter_state
@@ -400,8 +376,7 @@ class AnalysisPage:
 
         # Date range
         filter_state.date_range = DateRangeFilter.render(
-            key_prefix="custom_date",
-            default_range="Last 30 Days"
+            key_prefix="custom_date", default_range="Last 30 Days"
         )
 
         # Multi-select filters
@@ -409,40 +384,32 @@ class AnalysisPage:
 
         with col1:
             # Agent filter
-            agents = self.storage_manager.get_unique_values('agent_id')
+            agents = self.storage_manager.get_unique_values("agent_id")
             if agents:
                 filter_state.selected_agents = MultiSelectFilter.render(
-                    label="Agents",
-                    options=agents,
-                    key="custom_agents"
+                    label="Agents", options=agents, key="custom_agents"
                 )
 
             # Campaign filter
-            campaigns = self.storage_manager.get_unique_values('campaign')
+            campaigns = self.storage_manager.get_unique_values("campaign")
             if campaigns:
                 filter_state.selected_campaigns = MultiSelectFilter.render(
-                    label="Campaigns",
-                    options=campaigns,
-                    key="custom_campaigns"
+                    label="Campaigns", options=campaigns, key="custom_campaigns"
                 )
 
         with col2:
             # Outcome filter
-            outcomes = self.storage_manager.get_unique_values('outcome')
+            outcomes = self.storage_manager.get_unique_values("outcome")
             if outcomes:
                 filter_state.selected_outcomes = MultiSelectFilter.render(
-                    label="Outcomes",
-                    options=outcomes,
-                    key="custom_outcomes"
+                    label="Outcomes", options=outcomes, key="custom_outcomes"
                 )
 
             # Call type filter
-            call_types = self.storage_manager.get_unique_values('call_type')
+            call_types = self.storage_manager.get_unique_values("call_type")
             if call_types:
                 filter_state.selected_types = MultiSelectFilter.render(
-                    label="Call Types",
-                    options=call_types,
-                    key="custom_types"
+                    label="Call Types", options=call_types, key="custom_types"
                 )
 
         # Range filters
@@ -458,7 +425,7 @@ class AnalysisPage:
                 max_value=3600.0,
                 default_range=(0.0, 3600.0),
                 key="custom_duration",
-                step=60.0
+                step=60.0,
             )
 
         with col2:
@@ -469,13 +436,12 @@ class AnalysisPage:
                 max_value=1000.0,
                 default_range=(0.0, 1000.0),
                 key="custom_revenue",
-                step=10.0
+                step=10.0,
             )
 
         # Text search
         filter_state.search_query = SearchFilter.render(
-            key="custom_search",
-            placeholder="Search in notes and transcripts..."
+            key="custom_search", placeholder="Search in notes and transcripts..."
         )
 
         return filter_state
@@ -488,12 +454,10 @@ class AnalysisPage:
             current_state: Current filter state
         """
         # Load preset
-        presets = st.session_state.get('filter_presets', {})
+        presets = st.session_state.get("filter_presets", {})
         if presets:
             selected_preset = st.selectbox(
-                "Load Preset",
-                [""] + list(presets.keys()),
-                key="load_preset"
+                "Load Preset", [""] + list(presets.keys()), key="load_preset"
             )
 
             if selected_preset and st.button("Load", key="load_preset_btn"):
@@ -505,9 +469,7 @@ class AnalysisPage:
         # Save preset
         st.divider()
         preset_name = st.text_input(
-            "Save Current Filters",
-            placeholder="Enter preset name",
-            key="save_preset_name"
+            "Save Current Filters", placeholder="Enter preset name", key="save_preset_name"
         )
 
         if st.button("Save Preset", key="save_preset_btn"):
@@ -516,11 +478,9 @@ class AnalysisPage:
             else:
                 st.warning("Please enter a preset name")
 
-    def _execute_semantic_search(self,
-                                 query: str,
-                                 top_k: int,
-                                 threshold: float,
-                                 filter_state: FilterState) -> None:
+    def _execute_semantic_search(
+        self, query: str, top_k: int, threshold: float, filter_state: FilterState
+    ) -> None:
         """
         Execute semantic search and display results.
 
@@ -535,10 +495,7 @@ class AnalysisPage:
                 filters_dict = filter_state.to_dict()
                 # Perform semantic search
                 results = self.search_engine.search(
-                    query=query,
-                    top_k=top_k,
-                    threshold=threshold,
-                    filters=filters_dict
+                    query=query, top_k=top_k, threshold=threshold, filters=filters_dict
                 )
 
                 if results:
@@ -546,19 +503,17 @@ class AnalysisPage:
 
                     # Display results
                     for idx, result in enumerate(results, 1):
-                        score = result.get('score', 0.0)
+                        score = result.get("score", 0.0)
                         with st.expander(f"Result {idx} - Score: {score:.3f}"):
-                            metadata = result.get('metadata', {}) or {}
-                            call_id = metadata.get('call_id') or result.get('id', 'N/A')
+                            metadata = result.get("metadata", {}) or {}
+                            call_id = metadata.get("call_id") or result.get("id", "N/A")
                             timestamp = (
-                                metadata.get('timestamp')
-                                or metadata.get('start_time')
-                                or 'N/A'
+                                metadata.get("timestamp") or metadata.get("start_time") or "N/A"
                             )
-                            agent = metadata.get('agent_id', 'N/A')
-                            duration = metadata.get('duration')
-                            outcome = metadata.get('outcome', 'N/A')
-                            campaign = metadata.get('campaign', 'N/A')
+                            agent = metadata.get("agent_id", "N/A")
+                            duration = metadata.get("duration")
+                            outcome = metadata.get("outcome", "N/A")
+                            campaign = metadata.get("campaign", "N/A")
 
                             col1, col2 = st.columns(2)
 
@@ -581,16 +536,13 @@ class AnalysisPage:
 
                             # Display matched content
                             st.write("**Matched Content:**")
-                            snippet = result.get('snippet') or result.get('document') or 'N/A'
+                            snippet = result.get("snippet") or result.get("document") or "N/A"
                             st.write(snippet)
                 else:
                     st.warning("No results found matching your query")
                     if threshold > 0:
                         fallback_results = self.search_engine.search(
-                            query=query,
-                            top_k=top_k,
-                            threshold=None,
-                            filters=filters_dict
+                            query=query, top_k=top_k, threshold=None, filters=filters_dict
                         )
                         if fallback_results:
                             st.info(
@@ -615,8 +567,7 @@ class AnalysisPage:
         try:
             # Load base data
             data = self.storage_manager.load_call_records(
-                start_date=filter_state.date_range[0],
-                end_date=filter_state.date_range[1]
+                start_date=filter_state.date_range[0], end_date=filter_state.date_range[1]
             )
 
             if data is not None and not data.empty:
@@ -648,16 +599,14 @@ class AnalysisPage:
                     for idx, (key, value) in enumerate(values.items()):
                         col_idx = idx % 3
                         cols[col_idx].metric(
-                            label=key.replace('_', ' ').title(),
-                            value=f"{value:.2f}" if isinstance(value, float) else value
+                            label=key.replace("_", " ").title(),
+                            value=f"{value:.2f}" if isinstance(value, float) else value,
                         )
 
         elif analysis_type == "Time Analysis":
             # Time-based analysis
             fig = TimeSeriesChart.create_call_volume_chart(
-                data,
-                aggregation='daily',
-                title="Call Volume Trend"
+                data, aggregation="daily", title="Call Volume Trend"
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -684,24 +633,18 @@ class AnalysisPage:
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            group_by = st.selectbox(
-                "Group By",
-                data.columns.tolist(),
-                key="agg_group"
-            )
+            group_by = st.selectbox("Group By", data.columns.tolist(), key="agg_group")
 
         with col2:
             agg_column = st.selectbox(
                 "Aggregate Column",
                 data.select_dtypes(include=[np.number]).columns.tolist(),
-                key="agg_column"
+                key="agg_column",
             )
 
         with col3:
             agg_function = st.selectbox(
-                "Function",
-                ["sum", "mean", "median", "count", "min", "max"],
-                key="agg_function"
+                "Function", ["sum", "mean", "median", "count", "min", "max"], key="agg_function"
             )
 
         # Perform aggregation
@@ -715,7 +658,7 @@ class AnalysisPage:
             result,
             x=group_by,
             y=agg_column,
-            title=f"{agg_function.title()} of {agg_column} by {group_by}"
+            title=f"{agg_function.title()} of {agg_column} by {group_by}",
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -732,7 +675,7 @@ class AnalysisPage:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         col1, col2, col3 = st.columns(3)
 
-        csv_data = data.to_csv(index=False).encode('utf-8')
+        csv_data = data.to_csv(index=False).encode("utf-8")
 
         with col1:
             st.download_button(
@@ -740,13 +683,13 @@ class AnalysisPage:
                 data=csv_data,
                 file_name=f"analysis_results_{timestamp}.csv",
                 mime="text/csv",
-                key="custom_analysis_export_csv"
+                key="custom_analysis_export_csv",
             )
 
         with col2:
             output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                data.to_excel(writer, index=False, sheet_name='Analysis')
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                data.to_excel(writer, index=False, sheet_name="Analysis")
             excel_data = output.getvalue()
 
             st.download_button(
@@ -754,7 +697,7 @@ class AnalysisPage:
                 data=excel_data,
                 file_name=f"analysis_results_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="custom_analysis_export_excel"
+                key="custom_analysis_export_excel",
             )
 
         with col3:
@@ -765,9 +708,9 @@ class AnalysisPage:
                 st.info("Select and copy the tab-delimited data below.")
                 st.text_area(
                     "Clipboard Data",
-                    data.to_csv(index=False, sep='\t'),
+                    data.to_csv(index=False, sep="\t"),
                     height=200,
-                    key="custom_analysis_clipboard_data"
+                    key="custom_analysis_clipboard_data",
                 )
 
     def _execute_period_comparison(
@@ -791,13 +734,11 @@ class AnalysisPage:
         try:
             # Load data for both periods
             data1 = self.storage_manager.load_call_records(
-                start_date=period1[0],
-                end_date=period1[1]
+                start_date=period1[0], end_date=period1[1]
             )
 
             data2 = self.storage_manager.load_call_records(
-                start_date=period2[0],
-                end_date=period2[1]
+                start_date=period2[0], end_date=period2[1]
             )
 
             if data1.empty or data2.empty:
@@ -805,10 +746,7 @@ class AnalysisPage:
                 return
 
             comparison_data = ComparisonTable.prepare_comparison_data(
-                current_data=data2,
-                previous_data=data1,
-                group_column=group_by,
-                metrics=metrics
+                current_data=data2, previous_data=data1, group_column=group_by, metrics=metrics
             )
 
             if comparison_data.empty:
@@ -821,14 +759,14 @@ class AnalysisPage:
                     previous_data=data1,
                     group_column=group_by,
                     metrics=metrics,
-                    container=st.container()
+                    container=st.container(),
                 )
             else:
                 self._render_comparison_chart(
                     comparison=comparison_data,
                     group_column=group_by,
                     metrics=metrics,
-                    chart_type=chart_type
+                    chart_type=chart_type,
                 )
 
                 with st.expander("View comparison table"):
@@ -836,7 +774,7 @@ class AnalysisPage:
                         current_data=data2,
                         previous_data=data1,
                         group_column=group_by,
-                        metrics=metrics
+                        metrics=metrics,
                     )
 
         except Exception as e:
@@ -869,9 +807,7 @@ class AnalysisPage:
             chart_df[group_column] = chart_df[group_column].astype(str)
 
             melted = chart_df.melt(
-                id_vars=group_column,
-                var_name="MetricPeriod",
-                value_name="Value"
+                id_vars=group_column, var_name="MetricPeriod", value_name="Value"
             ).dropna(subset=["Value"])
 
             if melted.empty:
@@ -895,7 +831,7 @@ class AnalysisPage:
 
             category_order = {
                 group_column: sorted(melted[group_column].unique()),
-                "Period": ["Previous", "Current"]
+                "Period": ["Previous", "Current"],
             }
 
             if chart_type == "Bar Chart":
@@ -906,7 +842,7 @@ class AnalysisPage:
                     color="Period",
                     barmode="group",
                     category_orders=category_order,
-                    **facet_args
+                    **facet_args,
                 )
             elif chart_type == "Line Chart":
                 fig = px.line(
@@ -916,7 +852,7 @@ class AnalysisPage:
                     color="Period",
                     markers=True,
                     category_orders=category_order,
-                    **facet_args
+                    **facet_args,
                 )
             else:
                 st.warning(f"Unsupported visualization type '{chart_type}'.")
@@ -926,14 +862,14 @@ class AnalysisPage:
                 template="plotly_dark",
                 title="Period Comparison",
                 legend_title_text="Period",
-                xaxis_title=group_column.replace('_', ' ').title(),
-                yaxis_title="Value"
+                xaxis_title=group_column.replace("_", " ").title(),
+                yaxis_title="Value",
             )
 
             # Clean facet titles for readability
             if metric_count > 1:
                 fig.for_each_annotation(
-                    lambda a: a.update(text=a.text.split("=")[-1].replace('_', ' ').title())
+                    lambda a: a.update(text=a.text.split("=")[-1].replace("_", " ").title())
                 )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -942,13 +878,15 @@ class AnalysisPage:
             logger.error(f"Error rendering comparison chart: {exc}")
             st.error(f"Failed to render visualization: {str(exc)}")
 
-    def _execute_cohort_analysis(self,
-                                 cohort_type: str,
-                                 cohort_period: str,
-                                 metric: str,
-                                 periods: int,
-                                 start_date: datetime,
-                                 end_date: datetime) -> None:
+    def _execute_cohort_analysis(
+        self,
+        cohort_type: str,
+        cohort_period: str,
+        metric: str,
+        periods: int,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> None:
         """
         Execute cohort analysis.
 
@@ -962,22 +900,19 @@ class AnalysisPage:
         """
         try:
             # Load data
-            data = self.storage_manager.load_call_records(
-                start_date=start_date,
-                end_date=end_date
-            )
+            data = self.storage_manager.load_call_records(start_date=start_date, end_date=end_date)
 
             if data.empty:
                 st.warning("No data available for cohort analysis")
                 return
 
-            if 'timestamp' not in data.columns:
+            if "timestamp" not in data.columns:
                 st.error("Cohort analysis requires a 'timestamp' column in the dataset")
                 return
 
             df = data.copy()
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            df = df.dropna(subset=['timestamp']).sort_values('timestamp')
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
 
             if df.empty:
                 st.warning("All records in the selected range have invalid timestamps")
@@ -986,11 +921,11 @@ class AnalysisPage:
             # Helper utilities for period handling
             def get_period_start(series: pd.Series, granularity: str) -> pd.Series:
                 if granularity == "Daily":
-                    return series.dt.floor('D')
+                    return series.dt.floor("D")
                 if granularity == "Weekly":
-                    return series.dt.to_period('W').apply(lambda p: p.start_time)
+                    return series.dt.to_period("W").apply(lambda p: p.start_time)
                 # Default to monthly granularity
-                return series.dt.to_period('M').apply(lambda p: p.start_time)
+                return series.dt.to_period("M").apply(lambda p: p.start_time)
 
             def format_period_label(starts: pd.Series, granularity: str) -> pd.Series:
                 if granularity == "Daily":
@@ -1016,58 +951,53 @@ class AnalysisPage:
             cohort_label_series: pd.Series
 
             if cohort_type == "First Call Date":
-                first_contact = df.groupby(customer_col)['timestamp'].transform('min')
+                first_contact = df.groupby(customer_col)["timestamp"].transform("min")
                 cohort_start_series = get_period_start(first_contact, cohort_period)
                 cohort_label_series = format_period_label(cohort_start_series, cohort_period)
             elif cohort_type == "Campaign Start":
-                if 'campaign' not in df.columns:
+                if "campaign" not in df.columns:
                     st.error("Campaign information is not available in the dataset")
                     return
-                campaign_first = df.groupby('campaign')['timestamp'].transform('min')
+                campaign_first = df.groupby("campaign")["timestamp"].transform("min")
                 cohort_start_series = get_period_start(campaign_first, cohort_period)
                 cohort_labels = format_period_label(cohort_start_series, cohort_period)
                 cohort_label_series = (
-                    df['campaign'].fillna('Unknown Campaign')
-                    + ' • '
-                    + cohort_labels
+                    df["campaign"].fillna("Unknown Campaign") + " • " + cohort_labels
                 )
             else:  # Agent Assignment
-                agent_col = 'agent_id' if 'agent_id' in df.columns else 'agent'
+                agent_col = "agent_id" if "agent_id" in df.columns else "agent"
                 if agent_col not in df.columns:
                     st.error("Agent information is not available in the dataset")
                     return
-                agent_first = df.groupby(agent_col)['timestamp'].transform('min')
+                agent_first = df.groupby(agent_col)["timestamp"].transform("min")
                 cohort_start_series = get_period_start(agent_first, cohort_period)
                 cohort_labels = format_period_label(cohort_start_series, cohort_period)
                 cohort_label_series = (
-                    df[agent_col].fillna('Unassigned Agent')
-                    + ' • '
-                    + cohort_labels
+                    df[agent_col].fillna("Unassigned Agent") + " • " + cohort_labels
                 )
 
-            df['cohort_start'] = cohort_start_series
-            df['cohort_label'] = cohort_label_series
-            df = df.dropna(subset=['cohort_start', 'cohort_label'])
+            df["cohort_start"] = cohort_start_series
+            df["cohort_label"] = cohort_label_series
+            df = df.dropna(subset=["cohort_start", "cohort_label"])
 
             if df.empty:
                 st.warning("Unable to determine cohorts for the selected configuration")
                 return
 
-            df['period_start'] = get_period_start(df['timestamp'], cohort_period)
+            df["period_start"] = get_period_start(df["timestamp"], cohort_period)
 
             if cohort_period == "Monthly":
-                df['period_index'] = (
-                    (df['period_start'].dt.year - df['cohort_start'].dt.year) * 12 +
-                    (df['period_start'].dt.month - df['cohort_start'].dt.month)
-                )
+                df["period_index"] = (
+                    df["period_start"].dt.year - df["cohort_start"].dt.year
+                ) * 12 + (df["period_start"].dt.month - df["cohort_start"].dt.month)
             else:
-                delta_days = (df['period_start'] - df['cohort_start']).dt.days
+                delta_days = (df["period_start"] - df["cohort_start"]).dt.days
                 if cohort_period == "Weekly":
-                    df['period_index'] = (delta_days // 7).astype(int)
+                    df["period_index"] = (delta_days // 7).astype(int)
                 else:
-                    df['period_index'] = delta_days.astype(int)
+                    df["period_index"] = delta_days.astype(int)
 
-            df = df[(df['period_index'] >= 0) & (df['period_index'] < periods)]
+            df = df[(df["period_index"] >= 0) & (df["period_index"] < periods)]
 
             if df.empty:
                 st.warning("No cohort activity found within the selected number of periods")
@@ -1080,9 +1010,9 @@ class AnalysisPage:
                 pivot.columns = period_labels
                 # Sort cohorts by their actual start date for consistent ordering
                 ordering = (
-                    df[['cohort_label', 'cohort_start']]
+                    df[["cohort_label", "cohort_start"]]
                     .drop_duplicates()
-                    .set_index('cohort_label')['cohort_start']
+                    .set_index("cohort_label")["cohort_start"]
                 )
                 return pivot.reindex(ordering.sort_values().index).fillna(0)
 
@@ -1091,13 +1021,13 @@ class AnalysisPage:
 
             if metric == "Retention Rate":
                 cohort_sizes = (
-                    df[df['period_index'] == 0]
-                    .groupby('cohort_label')[customer_col]
+                    df[df["period_index"] == 0]
+                    .groupby("cohort_label")[customer_col]
                     .nunique()
                     .replace(0, np.nan)
                 )
                 period_counts = (
-                    df.groupby(['cohort_label', 'period_index'])[customer_col]
+                    df.groupby(["cohort_label", "period_index"])[customer_col]
                     .nunique()
                     .unstack(fill_value=0)
                 )
@@ -1108,41 +1038,30 @@ class AnalysisPage:
                     "Values show the percentage of the original cohort active in each period."
                 )
             elif metric == "Average Duration":
-                duration_col = 'duration' if 'duration' in df.columns else 'duration_seconds'
+                duration_col = "duration" if "duration" in df.columns else "duration_seconds"
                 if duration_col not in df.columns:
                     st.error("Duration information is not available in the dataset")
                     return
                 averages = (
-                    df.groupby(['cohort_label', 'period_index'])[duration_col]
-                    .mean()
-                    .unstack()
+                    df.groupby(["cohort_label", "period_index"])[duration_col].mean().unstack()
                 )
                 value_table = finalize_table(averages) / 60.0
                 value_table = value_table.round(2)
                 display_caption = "Average call duration (minutes) per cohort period."
             elif metric == "Revenue per Cohort":
-                if 'revenue' not in df.columns:
+                if "revenue" not in df.columns:
                     st.error("Revenue information is not available in the dataset")
                     return
-                revenues = (
-                    df.groupby(['cohort_label', 'period_index'])['revenue']
-                    .sum()
-                    .unstack()
-                )
+                revenues = df.groupby(["cohort_label", "period_index"])["revenue"].sum().unstack()
                 value_table = finalize_table(revenues).round(2)
                 display_caption = "Total revenue generated by each cohort in the specified period."
             else:  # Call Frequency
-                if 'call_id' in df.columns:
+                if "call_id" in df.columns:
                     call_counts = (
-                        df.groupby(['cohort_label', 'period_index'])['call_id']
-                        .count()
-                        .unstack()
+                        df.groupby(["cohort_label", "period_index"])["call_id"].count().unstack()
                     )
                 else:
-                    call_counts = (
-                        df.groupby(['cohort_label', 'period_index']).size()
-                        .unstack()
-                    )
+                    call_counts = df.groupby(["cohort_label", "period_index"]).size().unstack()
                 value_table = finalize_table(call_counts).round(0)
                 display_caption = "Number of calls handled by the cohort in each period."
 
@@ -1157,13 +1076,13 @@ class AnalysisPage:
             if metric == "Retention Rate":
                 colorbar_title = "Retention (%)"
 
-            colorscale = 'Blues'
+            colorscale = "Blues"
             if metric == "Average Duration":
-                colorscale = 'Oranges'
+                colorscale = "Oranges"
             elif metric == "Revenue per Cohort":
-                colorscale = 'Greens'
+                colorscale = "Greens"
             elif metric == "Call Frequency":
-                colorscale = 'Purples'
+                colorscale = "Purples"
 
             heatmap = go.Figure(
                 data=go.Heatmap(
@@ -1172,14 +1091,12 @@ class AnalysisPage:
                     y=heatmap_df.index,
                     colorscale=colorscale,
                     text=heatmap_df.round(2).astype(str),
-                    hovertemplate='Cohort: %{y}<br>%{x}: %{z}<extra></extra>',
-                    colorbar=dict(title=colorbar_title)
+                    hovertemplate="Cohort: %{y}<br>%{x}: %{z}<extra></extra>",
+                    colorbar=dict(title=colorbar_title),
                 )
             )
             heatmap.update_layout(
-                title=f"{metric} by Cohort Period",
-                xaxis_title="Period",
-                yaxis_title="Cohort"
+                title=f"{metric} by Cohort Period", xaxis_title="Period", yaxis_title="Cohort"
             )
             st.plotly_chart(heatmap, use_container_width=True)
 

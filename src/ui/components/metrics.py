@@ -30,10 +30,10 @@ class MetricValue:
     value: int | float | str
     label: str
     delta: int | float | None = None
-    delta_color: str = 'normal'  # 'normal', 'inverse', 'off'
-    prefix: str = ''
-    suffix: str = ''
-    format_type: str = 'number'  # 'number', 'percent', 'currency', 'duration'
+    delta_color: str = "normal"  # 'normal', 'inverse', 'off'
+    prefix: str = ""
+    suffix: str = ""
+    format_type: str = "number"  # 'number', 'percent', 'currency', 'duration'
     icon: str | None = None
     help_text: str | None = None
 
@@ -44,11 +44,11 @@ class MetricValue:
         Returns:
             Formatted string representation of the value
         """
-        if self.format_type == 'percent':
+        if self.format_type == "percent":
             return f"{self.prefix}{self.value:.1f}%{self.suffix}"
-        elif self.format_type == 'currency':
+        elif self.format_type == "currency":
             return f"{self.prefix}${self.value:,.2f}{self.suffix}"
-        elif self.format_type == 'duration':
+        elif self.format_type == "duration":
             # Convert seconds to human-readable format
             if isinstance(self.value, (int, float)):
                 hours = int(self.value // 3600)
@@ -89,21 +89,21 @@ class MetricValue:
             magnitude = abs(delta_float)
 
             if magnitude < 1e-9:
-                if self.format_type == 'percent':
+                if self.format_type == "percent":
                     return "0.0%"
-                if self.format_type == 'currency':
+                if self.format_type == "currency":
                     return "$0.00"
-                if self.format_type == 'duration':
+                if self.format_type == "duration":
                     return "0.0 min"
                 return "0"
 
-            sign = '-' if delta_float < 0 else '+'
+            sign = "-" if delta_float < 0 else "+"
 
-            if self.format_type == 'percent':
+            if self.format_type == "percent":
                 return f"{sign}{magnitude:.1f}%"
-            if self.format_type == 'currency':
+            if self.format_type == "currency":
                 return f"{sign}${magnitude:,.2f}"
-            if self.format_type == 'duration':
+            if self.format_type == "duration":
                 return f"{sign}{magnitude:.1f} min"
 
             if isinstance(delta_value, numbers.Integral) and magnitude.is_integer():
@@ -121,11 +121,13 @@ class MetricCard:
     """
 
     @classmethod
-    def render(cls,
-               metric: MetricValue,
-               container: Any = None,
-               use_column: bool = True,
-               label_visibility: str = 'visible') -> None:
+    def render(
+        cls,
+        metric: MetricValue,
+        container: Any = None,
+        use_column: bool = True,
+        label_visibility: str = "visible",
+    ) -> None:
         """
         Render a single metric card.
 
@@ -146,7 +148,7 @@ class MetricCard:
 
         # Use Streamlit's metric component
         display_label = metric_label
-        metric_label_visibility = 'hidden' if metric.icon else label_visibility
+        metric_label_visibility = "hidden" if metric.icon else label_visibility
         delta_display = metric.format_delta()
         delta_color = metric.delta_color
 
@@ -157,9 +159,9 @@ class MetricCard:
 
             if isinstance(delta_raw, numbers.Real):
                 if abs(float(delta_raw)) < 1e-9:
-                    delta_color = 'off'
-                elif delta_color not in {'normal', 'inverse', 'off'}:
-                    delta_color = 'normal'
+                    delta_color = "off"
+                elif delta_color not in {"normal", "inverse", "off"}:
+                    delta_color = "normal"
 
         col.metric(
             label=display_label,
@@ -167,7 +169,7 @@ class MetricCard:
             delta=delta_display,
             delta_color=delta_color,
             help=metric.help_text,
-            label_visibility=metric_label_visibility
+            label_visibility=metric_label_visibility,
         )
 
 
@@ -178,12 +180,14 @@ class MetricsGrid:
     """
 
     @classmethod
-    def render(cls,
-               metrics: list[MetricValue],
-               container: Any = None,
-               columns: int | None = None,
-               group_size: int = 4,
-               label_visibility: str = 'visible') -> None:
+    def render(
+        cls,
+        metrics: list[MetricValue],
+        container: Any = None,
+        columns: int | None = None,
+        group_size: int = 4,
+        label_visibility: str = "visible",
+    ) -> None:
         """
         Render metrics in a grid layout.
 
@@ -206,10 +210,7 @@ class MetricsGrid:
         for idx, metric in enumerate(metrics):
             col_idx = idx % columns
             MetricCard.render(
-                metric,
-                cols[col_idx],
-                use_column=False,
-                label_visibility=label_visibility
+                metric, cols[col_idx], use_column=False, label_visibility=label_visibility
             )
 
 
@@ -221,10 +222,9 @@ class ProgressIndicator:
     convenience methods for updating the progress value and status text.
     """
 
-    def __init__(self,
-                 label: str = "Processing...",
-                 total: int = 100,
-                 container: Any = None) -> None:
+    def __init__(
+        self, label: str = "Processing...", total: int = 100, container: Any = None
+    ) -> None:
         self.container = container or st
         self.label = label
         self.total = max(total, 1)
@@ -234,10 +234,7 @@ class ProgressIndicator:
         self._progress_bar = self.container.progress(0)
         self._status.write(label)
 
-    def update(self,
-               step: int = 1,
-               current: int | None = None,
-               detail: str | None = None) -> None:
+    def update(self, step: int = 1, current: int | None = None, detail: str | None = None) -> None:
         """Increment or set the progress value and refresh the display."""
         if current is not None:
             self.current = max(0, min(current, self.total))
@@ -290,30 +287,28 @@ class SummaryStats:
         percentiles = percentiles or [25, 50, 75, 95]
 
         stats = {
-            'count': len(data),
-            'mean': data.mean(),
-            'std': data.std(),
-            'min': data.min(),
-            'max': data.max(),
-            'sum': data.sum()
+            "count": len(data),
+            "mean": data.mean(),
+            "std": data.std(),
+            "min": data.min(),
+            "max": data.max(),
+            "sum": data.sum(),
         }
 
         # Add percentiles
         for p in percentiles:
-            stats[f'p{p}'] = data.quantile(p / 100)
+            stats[f"p{p}"] = data.quantile(p / 100)
 
         # Add additional metrics
-        stats['range'] = stats['max'] - stats['min']
-        stats['cv'] = (stats['std'] / stats['mean'] * 100) if stats['mean'] != 0 else 0
+        stats["range"] = stats["max"] - stats["min"]
+        stats["cv"] = (stats["std"] / stats["mean"] * 100) if stats["mean"] != 0 else 0
 
         return stats
 
     @classmethod
-    def render(cls,
-               data: pd.Series,
-               title: str,
-               container: Any = None,
-               show_distribution: bool = True) -> None:
+    def render(
+        cls, data: pd.Series, title: str, container: Any = None, show_distribution: bool = True
+    ) -> None:
         """
         Render statistical summary display.
 
@@ -352,17 +347,10 @@ class SummaryStats:
         # Show distribution if requested
         if show_distribution:
             fig = go.Figure()
-            fig.add_trace(go.Histogram(
-                x=data,
-                nbinsx=30,
-                name='Distribution',
-                marker_color='lightblue'
-            ))
-            fig.update_layout(
-                height=200,
-                margin=dict(l=0, r=0, t=0, b=0),
-                showlegend=False
+            fig.add_trace(
+                go.Histogram(x=data, nbinsx=30, name="Distribution", marker_color="lightblue")
             )
+            fig.update_layout(height=200, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
             container.plotly_chart(fig, use_container_width=True)
 
 
@@ -373,10 +361,9 @@ class KPIDashboard:
     """
 
     @classmethod
-    def render_call_metrics(cls,
-                           data: pd.DataFrame,
-                           container: Any = None,
-                           compare_period: pd.DataFrame | None = None) -> None:
+    def render_call_metrics(
+        cls, data: pd.DataFrame, container: Any = None, compare_period: pd.DataFrame | None = None
+    ) -> None:
         """
         Render call-related KPI metrics.
 
@@ -389,69 +376,64 @@ class KPIDashboard:
 
         # Calculate current metrics
         total_calls = len(data)
-        connected_calls = len(data[data['outcome'] == 'connected'])
+        connected_calls = len(data[data["outcome"] == "connected"])
         connection_rate = (connected_calls / total_calls * 100) if total_calls > 0 else 0
-        avg_duration = data['duration'].mean() / 60 if 'duration' in data.columns else 0
+        avg_duration = data["duration"].mean() / 60 if "duration" in data.columns else 0
 
         # Calculate comparison deltas if provided
-        deltas = {
-            'total': 0,
-            'connected': 0,
-            'rate': 0,
-            'duration': 0
-        }
+        deltas = {"total": 0, "connected": 0, "rate": 0, "duration": 0}
 
         if compare_period is not None and len(compare_period) > 0:
             prev_total = len(compare_period)
-            prev_connected = len(compare_period[compare_period['outcome'] == 'connected'])
+            prev_connected = len(compare_period[compare_period["outcome"] == "connected"])
             prev_rate = (prev_connected / prev_total * 100) if prev_total > 0 else 0
             prev_duration = (
-                compare_period['duration'].mean() / 60
-                if 'duration' in compare_period.columns and prev_total > 0
+                compare_period["duration"].mean() / 60
+                if "duration" in compare_period.columns and prev_total > 0
                 else 0
             )
 
-            deltas['total'] = total_calls - prev_total
-            deltas['connected'] = connected_calls - prev_connected
-            deltas['rate'] = connection_rate - prev_rate
-            deltas['duration'] = avg_duration - prev_duration
+            deltas["total"] = total_calls - prev_total
+            deltas["connected"] = connected_calls - prev_connected
+            deltas["rate"] = connection_rate - prev_rate
+            deltas["duration"] = avg_duration - prev_duration
 
         # Create metrics
         metrics = [
             MetricValue(
                 value=total_calls,
                 label="Total Calls",
-                delta=deltas.get('total'),
+                delta=deltas.get("total"),
                 icon="📞",
-                help_text="Total number of calls in the period"
+                help_text="Total number of calls in the period",
             ),
             MetricValue(
                 value=connected_calls,
                 label="Connected Calls",
-                delta=deltas.get('connected'),
+                delta=deltas.get("connected"),
                 icon="✅",
-                help_text="Number of successfully connected calls"
+                help_text="Number of successfully connected calls",
             ),
             MetricValue(
                 value=connection_rate,
                 label="Connection Rate",
-                delta=deltas.get('rate'),
-                format_type='percent',
+                delta=deltas.get("rate"),
+                format_type="percent",
                 icon="📊",
-                help_text="Percentage of calls that connected"
+                help_text="Percentage of calls that connected",
             ),
             MetricValue(
                 value=avg_duration,
                 label="Avg Duration",
-                delta=deltas.get('duration'),
+                delta=deltas.get("duration"),
                 suffix=" min",
                 icon="⏱️",
-                help_text="Average call duration in minutes"
-            )
+                help_text="Average call duration in minutes",
+            ),
         ]
 
         # Render metrics grid
-        MetricsGrid.render(metrics, container, label_visibility='visible')
+        MetricsGrid.render(metrics, container, label_visibility="visible")
 
     @classmethod
     def render_revenue_metrics(
@@ -471,72 +453,67 @@ class KPIDashboard:
         container = container or st
 
         # Calculate revenue metrics
-        total_revenue = data['revenue'].sum() if 'revenue' in data.columns else 0
-        revenue_calls = len(data[data['revenue'] > 0]) if 'revenue' in data.columns else 0
+        total_revenue = data["revenue"].sum() if "revenue" in data.columns else 0
+        revenue_calls = len(data[data["revenue"] > 0]) if "revenue" in data.columns else 0
         avg_revenue = total_revenue / len(data) if len(data) > 0 else 0
         conversion_rate = (revenue_calls / len(data) * 100) if len(data) > 0 else 0
 
         # Calculate comparison deltas
-        deltas = {
-            'total': 0,
-            'calls': 0,
-            'avg': 0,
-            'conversion': 0
-        }
+        deltas = {"total": 0, "calls": 0, "avg": 0, "conversion": 0}
 
         if (
             compare_period is not None
             and len(compare_period) > 0
-            and 'revenue' in compare_period.columns
+            and "revenue" in compare_period.columns
         ):
-            prev_revenue = compare_period['revenue'].sum()
-            prev_revenue_calls = len(compare_period[compare_period['revenue'] > 0])
+            prev_revenue = compare_period["revenue"].sum()
+            prev_revenue_calls = len(compare_period[compare_period["revenue"] > 0])
             prev_avg = prev_revenue / len(compare_period)
-            prev_conversion = (prev_revenue_calls / len(compare_period) * 100)
+            prev_conversion = prev_revenue_calls / len(compare_period) * 100
 
-            deltas['total'] = total_revenue - prev_revenue
-            deltas['calls'] = revenue_calls - prev_revenue_calls
-            deltas['avg'] = avg_revenue - prev_avg
-            deltas['conversion'] = conversion_rate - prev_conversion
+            deltas["total"] = total_revenue - prev_revenue
+            deltas["calls"] = revenue_calls - prev_revenue_calls
+            deltas["avg"] = avg_revenue - prev_avg
+            deltas["conversion"] = conversion_rate - prev_conversion
 
         # Create metrics
         metrics = [
             MetricValue(
                 value=total_revenue,
                 label="Total Revenue",
-                delta=deltas.get('total'),
-                format_type='currency',
+                delta=deltas.get("total"),
+                format_type="currency",
                 icon="💰",
-                help_text="Total revenue generated"
+                help_text="Total revenue generated",
             ),
             MetricValue(
                 value=revenue_calls,
                 label="Revenue Calls",
-                delta=deltas.get('calls'),
+                delta=deltas.get("calls"),
                 icon="💵",
-                help_text="Number of calls generating revenue"
+                help_text="Number of calls generating revenue",
             ),
             MetricValue(
                 value=avg_revenue,
                 label="Avg Revenue/Call",
-                delta=deltas.get('avg'),
-                format_type='currency',
+                delta=deltas.get("avg"),
+                format_type="currency",
                 icon="📈",
-                help_text="Average revenue per call"
+                help_text="Average revenue per call",
             ),
             MetricValue(
                 value=conversion_rate,
                 label="Conversion Rate",
-                delta=deltas.get('conversion'),
-                format_type='percent',
-                delta_color='normal',
+                delta=deltas.get("conversion"),
+                format_type="percent",
+                delta_color="normal",
                 icon="🎯",
-                help_text="Percentage of calls generating revenue"
-            )
+                help_text="Percentage of calls generating revenue",
+            ),
         ]
 
         # Render metrics grid
-        MetricsGrid.render(metrics, container, label_visibility='visible')
+        MetricsGrid.render(metrics, container, label_visibility="visible")
 
 
 class PerformanceIndicator:
@@ -546,12 +523,14 @@ class PerformanceIndicator:
     """
 
     @classmethod
-    def render_gauge(cls,
-                    value: float,
-                    target: float,
-                    title: str,
-                    container: Any = None,
-                    ranges: list[tuple[float, str]] | None = None) -> None:
+    def render_gauge(
+        cls,
+        value: float,
+        target: float,
+        title: str,
+        container: Any = None,
+        ranges: list[tuple[float, str]] | None = None,
+    ) -> None:
         """
         Render a gauge chart for performance indication.
 
@@ -566,44 +545,36 @@ class PerformanceIndicator:
 
         # Default ranges if not provided
         if ranges is None:
-            ranges = [
-                (0.5, 'red'),
-                (0.8, 'yellow'),
-                (1.0, 'green')
-            ]
+            ranges = [(0.5, "red"), (0.8, "yellow"), (1.0, "green")]
 
         # Create gauge chart
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number+delta",
-            value=value,
-            delta={'reference': target},
-            title={'text': title},
-            domain={'x': [0, 1], 'y': [0, 1]},
-            gauge={
-                'axis': {'range': [0, max(value, target) * 1.2]},
-                'bar': {'color': 'darkblue'},
-                'steps': [
-                    {'range': [0, target * r], 'color': c}
-                    for r, c in ranges
-                ],
-                'threshold': {
-                    'line': {'color': 'red', 'width': 4},
-                    'thickness': 0.75,
-                    'value': target
-                }
-            }
-        ))
+        fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number+delta",
+                value=value,
+                delta={"reference": target},
+                title={"text": title},
+                domain={"x": [0, 1], "y": [0, 1]},
+                gauge={
+                    "axis": {"range": [0, max(value, target) * 1.2]},
+                    "bar": {"color": "darkblue"},
+                    "steps": [{"range": [0, target * r], "color": c} for r, c in ranges],
+                    "threshold": {
+                        "line": {"color": "red", "width": 4},
+                        "thickness": 0.75,
+                        "value": target,
+                    },
+                },
+            )
+        )
 
         fig.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0))
         container.plotly_chart(fig, use_container_width=True)
 
     @classmethod
-    def render_progress_bar(cls,
-                           value: float,
-                           max_value: float,
-                           label: str,
-                           container: Any = None,
-                           color: str = 'blue') -> None:
+    def render_progress_bar(
+        cls, value: float, max_value: float, label: str, container: Any = None, color: str = "blue"
+    ) -> None:
         """
         Render a progress bar indicator.
 

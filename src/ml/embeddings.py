@@ -44,6 +44,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         """
         try:
             from sentence_transformers import SentenceTransformer
+
             self.model = SentenceTransformer(model_name)
             self.dimension = self.model.get_sentence_embedding_dimension()
             self.available = True
@@ -67,11 +68,7 @@ class SentenceTransformerProvider(EmbeddingProvider):
         if not self.available:
             raise RuntimeError("SentenceTransformer not available")
 
-        embeddings = self.model.encode(
-            texts,
-            convert_to_numpy=True,
-            show_progress_bar=False
-        )
+        embeddings = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
 
         return embeddings
 
@@ -85,9 +82,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     Embedding provider using Ollama's embedding models.
     """
 
-    def __init__(self,
-                 model: str = "nomic-embed-text",
-                 endpoint: str = "http://localhost:11434"):
+    def __init__(self, model: str = "nomic-embed-text", endpoint: str = "http://localhost:11434"):
         """
         Initialize Ollama embedding provider.
 
@@ -121,11 +116,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     def _get_dimension(self) -> int:
         """Get embedding dimension for the model"""
         # Default dimensions for known models
-        dimensions = {
-            "nomic-embed-text": 768,
-            "mxbai-embed-large": 1024,
-            "all-minilm": 384
-        }
+        dimensions = {"nomic-embed-text": 768, "mxbai-embed-large": 1024, "all-minilm": 384}
         return dimensions.get(self.model, 384)
 
     def generate(self, texts: list[str]) -> np.ndarray:
@@ -150,12 +141,12 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
                 response = requests.post(
                     f"{self.endpoint}/api/embeddings",
                     json={"model": self.model, "prompt": text},
-                    timeout=10
+                    timeout=10,
                 )
 
                 if response.status_code == 200:
                     data = response.json()
-                    embedding = data.get('embedding', [])
+                    embedding = data.get("embedding", [])
                     embeddings.append(embedding)
                 else:
                     # Fallback to zero vector
@@ -208,7 +199,7 @@ class HashEmbeddingProvider(EmbeddingProvider):
             text_hash = hashlib.sha256(f"{self.seed}:{text}".encode()).digest()
 
             # Convert hash to embedding vector
-            np.random.seed(int.from_bytes(text_hash[:4], 'little'))
+            np.random.seed(int.from_bytes(text_hash[:4], "little"))
             embedding = np.random.randn(self.dimension)
 
             # Normalize
@@ -235,9 +226,9 @@ class EmbeddingManager:
             config: Configuration dictionary
         """
         self.config = config
-        self.provider_name = config.get('provider', 'sentence-transformers')
+        self.provider_name = config.get("provider", "sentence-transformers")
         self.cache = {}
-        self.cache_enabled = config.get('cache_embeddings', True)
+        self.cache_enabled = config.get("cache_embeddings", True)
 
         # Initialize provider
         self.provider = self._initialize_provider()
@@ -251,21 +242,21 @@ class EmbeddingManager:
         Returns:
             Embedding provider instance
         """
-        if self.provider_name == 'sentence-transformers':
+        if self.provider_name == "sentence-transformers":
             try:
                 provider = SentenceTransformerProvider(
-                    model_name=self.config.get('model_name', 'all-MiniLM-L6-v2')
+                    model_name=self.config.get("model_name", "all-MiniLM-L6-v2")
                 )
                 if provider.available:
                     return provider
             except Exception as e:
                 logger.error(f"Failed to initialize SentenceTransformer: {e}")
 
-        elif self.provider_name == 'ollama':
+        elif self.provider_name == "ollama":
             try:
                 provider = OllamaEmbeddingProvider(
-                    model=self.config.get('ollama_model', 'nomic-embed-text'),
-                    endpoint=self.config.get('ollama_endpoint', 'http://localhost:11434')
+                    model=self.config.get("ollama_model", "nomic-embed-text"),
+                    endpoint=self.config.get("ollama_endpoint", "http://localhost:11434"),
                 )
                 if provider.available:
                     return provider
@@ -275,8 +266,7 @@ class EmbeddingManager:
         # Fallback to hash embeddings
         logger.info("Using hash embeddings as fallback")
         return HashEmbeddingProvider(
-            dimension=self.config.get('dimension', 384),
-            seed=self.config.get('seed', 42)
+            dimension=self.config.get("dimension", 384), seed=self.config.get("seed", 42)
         )
 
     def generate_embeddings(
@@ -361,7 +351,7 @@ class EmbeddingManager:
         self,
         embeddings1: np.ndarray,
         embeddings2: np.ndarray,
-        metric: str = 'cosine',
+        metric: str = "cosine",
     ) -> np.ndarray:
         """
         Compute similarity between embedding sets.
@@ -374,17 +364,19 @@ class EmbeddingManager:
         Returns:
             Similarity matrix
         """
-        if metric == 'cosine':
+        if metric == "cosine":
             from sklearn.metrics.pairwise import cosine_similarity
+
             return cosine_similarity(embeddings1, embeddings2)
 
-        elif metric == 'euclidean':
+        elif metric == "euclidean":
             from sklearn.metrics.pairwise import euclidean_distances
+
             # Convert distance to similarity
             distances = euclidean_distances(embeddings1, embeddings2)
             return 1 / (1 + distances)
 
-        elif metric == 'dot':
+        elif metric == "dot":
             return np.dot(embeddings1, embeddings2.T)
 
         else:
@@ -395,7 +387,7 @@ class EmbeddingManager:
         query_embedding: np.ndarray,
         candidate_embeddings: np.ndarray,
         top_k: int = 5,
-        metric: str = 'cosine',
+        metric: str = "cosine",
     ) -> list[tuple[int, float]]:
         """
         Find most similar embeddings to query.
@@ -415,9 +407,7 @@ class EmbeddingManager:
 
         # Compute similarities
         similarities = self.compute_similarity(
-            query_embedding,
-            candidate_embeddings,
-            metric
+            query_embedding, candidate_embeddings, metric
         ).flatten()
 
         # Get top-k indices
@@ -441,9 +431,9 @@ class EmbeddingManager:
             Information dictionary
         """
         return {
-            'provider': self.provider_name,
-            'dimension': self.provider.get_dimension(),
-            'cache_enabled': self.cache_enabled,
-            'cache_size': len(self.cache),
-            'available': getattr(self.provider, 'available', True)
+            "provider": self.provider_name,
+            "dimension": self.provider.get_dimension(),
+            "cache_enabled": self.cache_enabled,
+            "cache_size": len(self.cache),
+            "available": getattr(self.provider, "available", True),
         }

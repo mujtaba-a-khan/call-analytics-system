@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class LLMProvider(str, Enum):
     """Supported LLM providers"""
+
     OLLAMA = "ollama"
     NONE = "none"
 
@@ -25,6 +26,7 @@ class LLMProvider(str, Enum):
 @dataclass
 class LLMResponse:
     """Container for LLM response"""
+
     text: str
     model: str
     provider: str
@@ -46,13 +48,13 @@ class LocalLLMInterface:
         Args:
             config: Configuration dictionary with LLM settings
         """
-        self.provider = LLMProvider(config.get('provider', 'none'))
-        self.model_name = config.get('model_name', 'llama3:instruct')
-        self.endpoint = config.get('endpoint', 'http://localhost:11434')
-        self.temperature = config.get('temperature', 0.2)
-        self.max_tokens = config.get('max_tokens', 256)
-        self.timeout = config.get('timeout_seconds', 30)
-        self.prompts = config.get('prompts', {})
+        self.provider = LLMProvider(config.get("provider", "none"))
+        self.model_name = config.get("model_name", "llama3:instruct")
+        self.endpoint = config.get("endpoint", "http://localhost:11434")
+        self.temperature = config.get("temperature", 0.2)
+        self.max_tokens = config.get("max_tokens", 256)
+        self.timeout = config.get("timeout_seconds", 30)
+        self.prompts = config.get("prompts", {})
 
         # Test connection
         self.is_available = self._test_connection()
@@ -71,10 +73,7 @@ class LocalLLMInterface:
 
         if self.provider == LLMProvider.OLLAMA:
             try:
-                response = requests.get(
-                    f"{self.endpoint}/api/tags",
-                    timeout=2
-                )
+                response = requests.get(f"{self.endpoint}/api/tags", timeout=2)
                 return response.status_code == 200
             except requests.RequestException:
                 logger.warning("Ollama service not available")
@@ -82,11 +81,13 @@ class LocalLLMInterface:
 
         return False
 
-    def generate(self,
-                prompt: str,
-                system_prompt: str | None = None,
-                temperature: float | None = None,
-                max_tokens: int | None = None) -> LLMResponse:
+    def generate(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> LLMResponse:
         """
         Generate text using the LLM.
 
@@ -106,7 +107,7 @@ class LocalLLMInterface:
                 provider=self.provider.value,
                 tokens_used=0,
                 success=False,
-                error="LLM service not available"
+                error="LLM service not available",
             )
 
         if self.provider == LLMProvider.OLLAMA:
@@ -114,7 +115,7 @@ class LocalLLMInterface:
                 prompt,
                 system_prompt,
                 temperature or self.temperature,
-                max_tokens or self.max_tokens
+                max_tokens or self.max_tokens,
             )
 
         return LLMResponse(
@@ -123,14 +124,12 @@ class LocalLLMInterface:
             provider=self.provider.value,
             tokens_used=0,
             success=False,
-            error="Unsupported provider"
+            error="Unsupported provider",
         )
 
-    def _generate_ollama(self,
-                        prompt: str,
-                        system_prompt: str | None,
-                        temperature: float,
-                        max_tokens: int) -> LLMResponse:
+    def _generate_ollama(
+        self, prompt: str, system_prompt: str | None, temperature: float, max_tokens: int
+    ) -> LLMResponse:
         """
         Generate text using Ollama.
 
@@ -154,27 +153,22 @@ class LocalLLMInterface:
                 "model": self.model_name,
                 "prompt": full_prompt,
                 "stream": False,
-                "options": {
-                    "temperature": temperature,
-                    "num_predict": max_tokens
-                }
+                "options": {"temperature": temperature, "num_predict": max_tokens},
             }
 
             # Make request
             response = requests.post(
-                f"{self.endpoint}/api/generate",
-                json=payload,
-                timeout=self.timeout
+                f"{self.endpoint}/api/generate", json=payload, timeout=self.timeout
             )
 
             if response.status_code == 200:
                 data = response.json()
                 return LLMResponse(
-                    text=data.get('response', '').strip(),
+                    text=data.get("response", "").strip(),
                     model=self.model_name,
                     provider=self.provider.value,
-                    tokens_used=data.get('eval_count', 0),
-                    success=True
+                    tokens_used=data.get("eval_count", 0),
+                    success=True,
                 )
             else:
                 return LLMResponse(
@@ -183,7 +177,7 @@ class LocalLLMInterface:
                     provider=self.provider.value,
                     tokens_used=0,
                     success=False,
-                    error=f"API error: {response.status_code}"
+                    error=f"API error: {response.status_code}",
                 )
 
         except requests.exceptions.Timeout:
@@ -193,7 +187,7 @@ class LocalLLMInterface:
                 provider=self.provider.value,
                 tokens_used=0,
                 success=False,
-                error="Request timeout"
+                error="Request timeout",
             )
         except Exception as e:
             logger.error(f"Error generating with Ollama: {e}")
@@ -203,13 +197,10 @@ class LocalLLMInterface:
                 provider=self.provider.value,
                 tokens_used=0,
                 success=False,
-                error=str(e)
+                error=str(e),
             )
 
-    def answer_question(self,
-                       question: str,
-                       context: str,
-                       max_tokens: int | None = None) -> str:
+    def answer_question(self, question: str, context: str, max_tokens: int | None = None) -> str:
         """
         Answer a question based on provided context.
 
@@ -222,8 +213,9 @@ class LocalLLMInterface:
             Answer text
         """
         # Use template if available
-        template = self.prompts.get('answer_question',
-            "Context: {context}\n\nQuestion: {question}\n\nAnswer:")
+        template = self.prompts.get(
+            "answer_question", "Context: {context}\n\nQuestion: {question}\n\nAnswer:"
+        )
 
         prompt = template.format(context=context, question=question)
 
@@ -235,14 +227,12 @@ class LocalLLMInterface:
         response = self.generate(
             prompt=prompt,
             system_prompt=system_instruction,
-            max_tokens=max_tokens or self.max_tokens
+            max_tokens=max_tokens or self.max_tokens,
         )
 
         return response.text if response.success else "Unable to generate answer."
 
-    def summarize(self,
-                 text: str,
-                 max_length: int = 100) -> str:
+    def summarize(self, text: str, max_length: int = 100) -> str:
         """
         Summarize text.
 
@@ -253,22 +243,21 @@ class LocalLLMInterface:
         Returns:
             Summary text
         """
-        template = self.prompts.get('summarize',
-            "Summarize the following text in 2-3 sentences:\n\n{text}\n\nSummary:")
+        template = self.prompts.get(
+            "summarize", "Summarize the following text in 2-3 sentences:\n\n{text}\n\nSummary:"
+        )
 
         prompt = template.format(text=text[:2000])  # Limit input length
 
         response = self.generate(
             prompt=prompt,
             system_prompt="You are a concise summarizer. Provide clear, brief summaries.",
-            max_tokens=max_length
+            max_tokens=max_length,
         )
 
         return response.text if response.success else "Unable to generate summary."
 
-    def extract_insights(self,
-                        transcript: str,
-                        focus_areas: list[str] = None) -> dict[str, Any]:
+    def extract_insights(self, transcript: str, focus_areas: list[str] = None) -> dict[str, Any]:
         """
         Extract insights from a call transcript.
 
@@ -286,13 +275,13 @@ class LocalLLMInterface:
 
         for area in focus_areas:
             if area == "sentiment":
-                insights['sentiment'] = self._analyze_sentiment(transcript)
+                insights["sentiment"] = self._analyze_sentiment(transcript)
             elif area == "key_topics":
-                insights['key_topics'] = self._extract_topics(transcript)
+                insights["key_topics"] = self._extract_topics(transcript)
             elif area == "action_items":
-                insights['action_items'] = self._extract_action_items(transcript)
+                insights["action_items"] = self._extract_action_items(transcript)
             elif area == "issues":
-                insights['issues'] = self._identify_issues(transcript)
+                insights["issues"] = self._identify_issues(transcript)
 
         return insights
 
@@ -341,8 +330,8 @@ class LocalLLMInterface:
         if response.success:
             # Parse topics from response
             topics = [
-                line.strip().lstrip('- ').lstrip('• ')
-                for line in response.text.split('\n')
+                line.strip().lstrip("- ").lstrip("• ")
+                for line in response.text.split("\n")
                 if line.strip()
             ]
             return topics[:5]
@@ -371,8 +360,8 @@ class LocalLLMInterface:
 
         if response.success:
             items = [
-                line.strip().lstrip('- ').lstrip('• ')
-                for line in response.text.split('\n')
+                line.strip().lstrip("- ").lstrip("• ")
+                for line in response.text.split("\n")
                 if line.strip()
             ]
             return items
@@ -401,17 +390,15 @@ class LocalLLMInterface:
 
         if response.success:
             issues = [
-                line.strip().lstrip('- ').lstrip('• ')
-                for line in response.text.split('\n')
+                line.strip().lstrip("- ").lstrip("• ")
+                for line in response.text.split("\n")
                 if line.strip()
             ]
             return issues
 
         return []
 
-    def compare_calls(self,
-                     call1: dict[str, Any],
-                     call2: dict[str, Any]) -> str:
+    def compare_calls(self, call1: dict[str, Any], call2: dict[str, Any]) -> str:
         """
         Compare two calls and highlight differences.
 
@@ -443,9 +430,7 @@ class LocalLLMInterface:
 
         return response.text if response.success else "Unable to compare calls."
 
-    def generate_report_section(self,
-                               data: dict[str, Any],
-                               section_type: str) -> str:
+    def generate_report_section(self, data: dict[str, Any], section_type: str) -> str:
         """
         Generate a report section based on data.
 
@@ -503,12 +488,12 @@ class LocalLLMInterface:
             Model information dictionary
         """
         info = {
-            'provider': self.provider.value,
-            'model': self.model_name,
-            'available': self.is_available,
-            'endpoint': self.endpoint,
-            'temperature': self.temperature,
-            'max_tokens': self.max_tokens
+            "provider": self.provider.value,
+            "model": self.model_name,
+            "available": self.is_available,
+            "endpoint": self.endpoint,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
         }
 
         if self.is_available and self.provider == LLMProvider.OLLAMA:
@@ -516,9 +501,9 @@ class LocalLLMInterface:
                 response = requests.get(f"{self.endpoint}/api/tags", timeout=2)
                 if response.status_code == 200:
                     data = response.json()
-                    models = [m['name'] for m in data.get('models', [])]
-                    info['available_models'] = models
-                    info['model_loaded'] = self.model_name in models
+                    models = [m["name"] for m in data.get("models", [])]
+                    info["available_models"] = models
+                    info["model_loaded"] = self.model_name in models
             except requests.RequestException as exc:
                 logger.debug("Unable to fetch model info from Ollama: %s", exc)
 

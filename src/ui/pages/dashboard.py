@@ -66,8 +66,7 @@ class DashboardPage:
             with st.sidebar:
                 st.header("Dashboard Filters")
                 start_date, end_date = DateRangeFilter.render(
-                    key_prefix="dashboard",
-                    default_range="Last 7 Days"
+                    key_prefix="dashboard", default_range="Last 7 Days"
                 )
 
                 # Additional filters
@@ -121,33 +120,24 @@ class DashboardPage:
         filter_state = FilterState(date_range=(start_date, end_date))
 
         # Campaign filter
-        campaigns = self.storage_manager.get_unique_values('campaign')
+        campaigns = self.storage_manager.get_unique_values("campaign")
         if campaigns:
             filter_state.selected_campaigns = st.multiselect(
-                "Campaigns",
-                options=campaigns,
-                default=[],
-                key="dashboard_campaigns"
+                "Campaigns", options=campaigns, default=[], key="dashboard_campaigns"
             )
 
         # Agent filter
-        agents = self.storage_manager.get_unique_values('agent_id')
+        agents = self.storage_manager.get_unique_values("agent_id")
         if agents:
             filter_state.selected_agents = st.multiselect(
-                "Agents",
-                options=agents,
-                default=[],
-                key="dashboard_agents"
+                "Agents", options=agents, default=[], key="dashboard_agents"
             )
 
         # Outcome filter
-        outcomes = self.storage_manager.get_unique_values('outcome')
+        outcomes = self.storage_manager.get_unique_values("outcome")
         if outcomes:
             filter_state.selected_outcomes = st.multiselect(
-                "Call Outcomes",
-                options=outcomes,
-                default=[],
-                key="dashboard_outcomes"
+                "Call Outcomes", options=outcomes, default=[], key="dashboard_outcomes"
             )
 
         return filter_state
@@ -165,8 +155,7 @@ class DashboardPage:
         try:
             # Load data from storage
             data = self.storage_manager.load_call_records(
-                start_date=filter_state.date_range[0],
-                end_date=filter_state.date_range[1]
+                start_date=filter_state.date_range[0], end_date=filter_state.date_range[1]
             )
 
             # Apply additional filters
@@ -200,7 +189,7 @@ class DashboardPage:
                 date_range=(prev_start, prev_end),
                 selected_agents=filter_state.selected_agents,
                 selected_campaigns=filter_state.selected_campaigns,
-                selected_outcomes=filter_state.selected_outcomes
+                selected_outcomes=filter_state.selected_outcomes,
             )
 
             # Load comparison data
@@ -246,22 +235,15 @@ class DashboardPage:
             col1, col2 = st.columns([3, 1])
             with col2:
                 aggregation = st.radio(
-                    "Aggregation",
-                    ["hourly", "daily", "weekly"],
-                    index=1,
-                    key="ts_aggregation"
+                    "Aggregation", ["hourly", "daily", "weekly"], index=1, key="ts_aggregation"
                 )
                 group_by = st.selectbox(
-                    "Group By",
-                    ["None", "outcome", "campaign", "agent_id"],
-                    key="ts_groupby"
+                    "Group By", ["None", "outcome", "campaign", "agent_id"], key="ts_groupby"
                 )
 
             with col1:
                 fig = TimeSeriesChart.create_call_volume_chart(
-                    data,
-                    aggregation=aggregation,
-                    group_by=None if group_by == "None" else group_by
+                    data, aggregation=aggregation, group_by=None if group_by == "None" else group_by
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -270,12 +252,12 @@ class DashboardPage:
             col1, col2 = st.columns(2)
 
             with col1:
-                if 'duration' in data.columns:
+                if "duration" in data.columns:
                     fig = DistributionChart.create_duration_distribution(data)
                     st.plotly_chart(fig, use_container_width=True)
 
             with col2:
-                if 'outcome' in data.columns:
+                if "outcome" in data.columns:
                     fig = DistributionChart.create_outcome_pie_chart(data)
                     st.plotly_chart(fig, use_container_width=True)
 
@@ -287,16 +269,10 @@ class DashboardPage:
         with tab4:
             # Trend analysis
             window_sizes = st.multiselect(
-                "Moving Average Windows",
-                [3, 7, 14, 30],
-                default=[7, 30],
-                key="ma_windows"
+                "Moving Average Windows", [3, 7, 14, 30], default=[7, 30], key="ma_windows"
             )
 
-            fig = TrendChart.create_moving_average_chart(
-                data,
-                window_sizes=window_sizes
-            )
+            fig = TrendChart.create_moving_average_chart(data, window_sizes=window_sizes)
             st.plotly_chart(fig, use_container_width=True)
 
     def _render_performance_section(self, data: pd.DataFrame) -> None:
@@ -312,20 +288,15 @@ class DashboardPage:
 
         with col1:
             st.subheader("Top Agents")
-            if 'agent_id' in data.columns:
-                fig = PerformanceChart.create_agent_performance_bar(
-                    data,
-                    metric='calls',
-                    top_n=5
-                )
+            if "agent_id" in data.columns:
+                fig = PerformanceChart.create_agent_performance_bar(data, metric="calls", top_n=5)
                 st.plotly_chart(fig, use_container_width=True)
 
         with col2:
             st.subheader("Campaign Performance")
-            if 'campaign' in data.columns:
+            if "campaign" in data.columns:
                 fig = PerformanceChart.create_campaign_comparison(
-                    data,
-                    metrics=['calls', 'connection_rate']
+                    data, metrics=["calls", "connection_rate"]
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -343,17 +314,14 @@ class DashboardPage:
         st.header("📞 Recent Calls")
 
         # Get most recent calls
-        if 'timestamp' in data.columns:
-            recent_calls = data.nlargest(10, 'timestamp')
+        if "timestamp" in data.columns:
+            recent_calls = data.nlargest(10, "timestamp")
         else:
             recent_calls = data.head(10)
 
         # Display calls table
         selected_call = CallRecordsTable.render(
-            recent_calls,
-            st.container(),
-            show_actions=True,
-            show_transcript=False
+            recent_calls, st.container(), show_actions=True, show_transcript=False
         )
 
         # Show call details if selected
@@ -362,24 +330,25 @@ class DashboardPage:
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    for key in ['call_id', 'phone_number', 'timestamp', 'duration']:
+                    for key in ["call_id", "phone_number", "timestamp", "duration"]:
                         if key in selected_call:
                             st.write(f"**{key.replace('_', ' ').title()}:** {selected_call[key]}")
 
                 with col2:
-                    for key in ['outcome', 'agent_id', 'campaign', 'revenue']:
+                    for key in ["outcome", "agent_id", "campaign", "revenue"]:
                         if key in selected_call:
                             st.write(f"**{key.replace('_', ' ').title()}:** {selected_call[key]}")
 
-                if 'notes' in selected_call and selected_call['notes']:
+                if "notes" in selected_call and selected_call["notes"]:
                     st.write("**Notes:**")
-                    st.write(selected_call['notes'])
+                    st.write(selected_call["notes"])
 
     def _render_empty_state(self) -> None:
         """
         Render empty state when no data is available.
         """
-        st.info("""
+        st.info(
+            """
         ### No Data Available
 
         To get started with the dashboard:
@@ -392,7 +361,8 @@ class DashboardPage:
         - Interactive charts and visualizations
         - Agent performance analytics
         - Call outcome distributions
-        """)
+        """
+        )
 
     def _setup_auto_refresh(self) -> None:
         """
@@ -408,7 +378,7 @@ class DashboardPage:
                     min_value=5,
                     max_value=60,
                     value=30,
-                    key="dashboard_refresh_interval"
+                    key="dashboard_refresh_interval",
                 )
 
                 # Use Streamlit's automatic rerun

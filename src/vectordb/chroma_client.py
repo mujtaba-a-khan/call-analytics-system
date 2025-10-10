@@ -13,6 +13,7 @@ from typing import Any
 try:
     import chromadb
     from chromadb.config import Settings
+
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
@@ -20,6 +21,7 @@ except ImportError:
 
 try:
     from sentence_transformers import SentenceTransformer
+
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
@@ -41,23 +43,23 @@ class EmbeddingGenerator:
         Args:
             config: Configuration dictionary with embedding settings
         """
-        self.provider = config.get('provider', 'sentence-transformers')
-        self.model_name = config.get('model_name', 'all-MiniLM-L6-v2')
-        self.dimension = config.get('dimension', 384)
-        self.normalize = config.get('normalize', True)
-        self.batch_size = config.get('batch_size', 64)
+        self.provider = config.get("provider", "sentence-transformers")
+        self.model_name = config.get("model_name", "all-MiniLM-L6-v2")
+        self.dimension = config.get("dimension", 384)
+        self.normalize = config.get("normalize", True)
+        self.batch_size = config.get("batch_size", 64)
 
         self.model = None
         self._initialize_model()
 
     def _initialize_model(self):
         """Initialize the embedding model based on provider"""
-        if self.provider == 'sentence-transformers' and SENTENCE_TRANSFORMERS_AVAILABLE:
+        if self.provider == "sentence-transformers" and SENTENCE_TRANSFORMERS_AVAILABLE:
             logger.info(f"Loading SentenceTransformer model: {self.model_name}")
             self.model = SentenceTransformer(self.model_name)
         else:
             logger.info("Using hash-based fallback embeddings")
-            self.provider = 'hash'  # Fallback to hash embeddings
+            self.provider = "hash"  # Fallback to hash embeddings
 
     def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """
@@ -72,13 +74,13 @@ class EmbeddingGenerator:
         if not texts:
             return []
 
-        if self.provider == 'sentence-transformers' and self.model:
+        if self.provider == "sentence-transformers" and self.model:
             # Use sentence-transformers
             embeddings = self.model.encode(
                 texts,
                 normalize_embeddings=self.normalize,
                 batch_size=self.batch_size,
-                show_progress_bar=False
+                show_progress_bar=False,
             )
             return embeddings.tolist()
         else:
@@ -102,7 +104,7 @@ class EmbeddingGenerator:
         hash_bytes = hasher.digest()
 
         # Convert to fixed-dimension vector
-        np.random.seed(int.from_bytes(hash_bytes[:4], 'little'))
+        np.random.seed(int.from_bytes(hash_bytes[:4], "little"))
         embedding = np.random.randn(self.dimension)
 
         # Normalize if requested
@@ -130,15 +132,15 @@ class ChromaClient:
         if not CHROMA_AVAILABLE:
             raise RuntimeError("ChromaDB is not installed. Please install it first.")
 
-        self.persist_dir = Path(config.get('persist_dir', 'data/vectorstore'))
-        self.collection_name = config.get('collection_name', 'call_transcripts')
-        self.distance_metric = config.get('distance_metric', 'cosine')
+        self.persist_dir = Path(config.get("persist_dir", "data/vectorstore"))
+        self.collection_name = config.get("collection_name", "call_transcripts")
+        self.distance_metric = config.get("distance_metric", "cosine")
 
         # Create persist directory
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize embedding generator
-        embedding_config = config.get('embeddings', {})
+        embedding_config = config.get("embeddings", {})
         self.embedder = EmbeddingGenerator(embedding_config)
 
         # Initialize ChromaDB client
@@ -154,16 +156,12 @@ class ChromaClient:
             # Create persistent client
             self.client = chromadb.PersistentClient(
                 path=str(self.persist_dir),
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
+                settings=Settings(anonymized_telemetry=False, allow_reset=True),
             )
 
             # Get or create collection
             self.collection = self.client.get_or_create_collection(
-                name=self.collection_name,
-                metadata={"hnsw:space": self.distance_metric}
+                name=self.collection_name, metadata={"hnsw:space": self.distance_metric}
             )
 
             logger.info(f"ChromaDB collection ready: {self.collection.count()} documents")
@@ -172,10 +170,9 @@ class ChromaClient:
             logger.error(f"Failed to initialize ChromaDB: {e}")
             raise RuntimeError(f"Could not initialize ChromaDB: {e}") from e
 
-    def add_documents(self,
-                     documents: list[str],
-                     ids: list[str],
-                     metadatas: list[dict[str, Any]] | None = None) -> int:
+    def add_documents(
+        self, documents: list[str], ids: list[str], metadatas: list[dict[str, Any]] | None = None
+    ) -> int:
         """
         Add documents to the vector database.
 
@@ -203,10 +200,7 @@ class ChromaClient:
 
             # Add to collection
             self.collection.upsert(
-                documents=documents,
-                embeddings=embeddings,
-                ids=ids,
-                metadatas=metadatas
+                documents=documents, embeddings=embeddings, ids=ids, metadatas=metadatas
             )
 
             logger.info(f"Added {len(documents)} documents to vector database")
@@ -216,10 +210,9 @@ class ChromaClient:
             logger.error(f"Failed to add documents: {e}")
             raise VectorDBError(f"Could not add documents: {e}") from e
 
-    def search(self,
-              query_text: str,
-              top_k: int = 10,
-              filter_dict: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def search(
+        self, query_text: str, top_k: int = 10, filter_dict: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Perform semantic search in the vector database.
 
@@ -240,19 +233,22 @@ class ChromaClient:
                 query_embeddings=[query_embedding],
                 n_results=top_k,
                 where=filter_dict,
-                include=["documents", "distances", "metadatas"]
+                include=["documents", "distances", "metadatas"],
             )
 
             # Format results
             formatted_results = []
-            if results['ids'] and results['ids'][0]:
-                for i in range(len(results['ids'][0])):
-                    formatted_results.append({
-                        'id': results['ids'][0][i],
-                        'document': results['documents'][0][i],
-                        'score': 1.0 - results['distances'][0][i],  # Convert distance to similarity
-                        'metadata': results['metadatas'][0][i] if results['metadatas'] else {}
-                    })
+            if results["ids"] and results["ids"][0]:
+                for i in range(len(results["ids"][0])):
+                    formatted_results.append(
+                        {
+                            "id": results["ids"][0][i],
+                            "document": results["documents"][0][i],
+                            "score": 1.0
+                            - results["distances"][0][i],  # Convert distance to similarity
+                            "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
+                        }
+                    )
 
             query_preview = query_text[:50]
             logger.debug(
@@ -277,18 +273,17 @@ class ChromaClient:
             List of documents with their metadata
         """
         try:
-            results = self.collection.get(
-                ids=ids,
-                include=["documents", "metadatas"]
-            )
+            results = self.collection.get(ids=ids, include=["documents", "metadatas"])
 
             formatted_results = []
-            for i in range(len(results['ids'])):
-                formatted_results.append({
-                    'id': results['ids'][i],
-                    'document': results['documents'][i],
-                    'metadata': results['metadatas'][i] if results['metadatas'] else {}
-                })
+            for i in range(len(results["ids"])):
+                formatted_results.append(
+                    {
+                        "id": results["ids"][i],
+                        "document": results["documents"][i],
+                        "metadata": results["metadatas"][i] if results["metadatas"] else {},
+                    }
+                )
 
             return formatted_results
 
@@ -311,15 +306,12 @@ class ChromaClient:
             # Get existing documents
             existing = self.collection.get(ids=ids, include=["documents"])
 
-            if not existing['ids']:
+            if not existing["ids"]:
                 logger.warning("No documents found to update")
                 return False
 
             # Update with new metadata
-            self.collection.update(
-                ids=ids,
-                metadatas=metadatas
-            )
+            self.collection.update(ids=ids, metadatas=metadatas)
 
             logger.info(f"Updated metadata for {len(ids)} documents")
             return True
@@ -358,8 +350,7 @@ class ChromaClient:
             # Delete and recreate collection
             self.client.delete_collection(self.collection_name)
             self.collection = self.client.create_collection(
-                name=self.collection_name,
-                metadata={"hnsw:space": self.distance_metric}
+                name=self.collection_name, metadata={"hnsw:space": self.distance_metric}
             )
 
             logger.info("Collection cleared successfully")
@@ -380,12 +371,12 @@ class ChromaClient:
             count = self.collection.count()
 
             return {
-                'total_documents': count,
-                'collection_name': self.collection_name,
-                'distance_metric': self.distance_metric,
-                'persist_directory': str(self.persist_dir),
-                'embedding_provider': self.embedder.provider,
-                'embedding_dimension': self.embedder.dimension
+                "total_documents": count,
+                "collection_name": self.collection_name,
+                "distance_metric": self.distance_metric,
+                "persist_directory": str(self.persist_dir),
+                "embedding_provider": self.embedder.provider,
+                "embedding_dimension": self.embedder.dimension,
             }
 
         except Exception as e:
@@ -395,4 +386,5 @@ class ChromaClient:
 
 class VectorDBError(Exception):
     """Custom exception for vector database errors"""
+
     pass

@@ -39,11 +39,11 @@ class AudioProcessor:
         Args:
             config: Dictionary containing audio processing settings
         """
-        self.sample_rate = config.get('sample_rate', 16000)
-        self.channels = config.get('channels', 1)
-        self.bit_depth = config.get('bit_depth', 16)
-        self.cache_dir = Path(config.get('cache_dir', 'data/cache'))
-        self.output_dir = Path(config.get('processed_dir', 'data/processed'))
+        self.sample_rate = config.get("sample_rate", 16000)
+        self.channels = config.get("channels", 1)
+        self.bit_depth = config.get("bit_depth", 16)
+        self.cache_dir = Path(config.get("cache_dir", "data/cache"))
+        self.output_dir = Path(config.get("processed_dir", "data/processed"))
 
         # Create necessary directories
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -82,9 +82,7 @@ class AudioProcessor:
 
             # Export the processed audio
             audio.export(
-                str(processed_path),
-                format="wav",
-                parameters=["-acodec", "pcm_s16le"]  # 16-bit PCM
+                str(processed_path), format="wav", parameters=["-acodec", "pcm_s16le"]  # 16-bit PCM
             )
 
             duration = len(audio) / 1000.0  # Convert from milliseconds to seconds
@@ -214,17 +212,17 @@ class AudioProcessor:
             duration: Duration of the audio in seconds
         """
         metadata = {
-            'original_file': str(original_path),
-            'processed_file': str(processed_path),
-            'duration_seconds': duration,
-            'sample_rate': self.sample_rate,
-            'channels': self.channels,
-            'bit_depth': self.bit_depth,
-            'processing_timestamp': pd.Timestamp.now().isoformat()
+            "original_file": str(original_path),
+            "processed_file": str(processed_path),
+            "duration_seconds": duration,
+            "sample_rate": self.sample_rate,
+            "channels": self.channels,
+            "bit_depth": self.bit_depth,
+            "processing_timestamp": pd.Timestamp.now().isoformat(),
         }
 
-        metadata_path = processed_path.with_suffix('.json')
-        with open(metadata_path, 'w') as f:
+        metadata_path = processed_path.with_suffix(".json")
+        with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
         logger.debug(f"Saved processing metadata to {metadata_path}")
@@ -317,4 +315,5 @@ class AudioProcessor:
 
 class AudioProcessingError(Exception):
     """Custom exception for audio processing errors"""
+
     pass

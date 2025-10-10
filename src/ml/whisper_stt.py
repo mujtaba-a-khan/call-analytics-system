@@ -14,6 +14,7 @@ from typing import Any
 
 try:
     from faster_whisper import WhisperModel
+
     WHISPER_AVAILABLE = True
 except ImportError:
     WHISPER_AVAILABLE = False
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TranscriptionResult:
     """Data class for transcription results"""
+
     transcript: str
     segments: list[dict]
     duration_seconds: float
@@ -35,15 +37,15 @@ class TranscriptionResult:
     def to_dict(self) -> dict[str, Any]:
         """Provide a dict view for legacy code expecting mapping semantics."""
         return {
-            'text': self.transcript,
-            'transcript': self.transcript,
-            'segments': self.segments,
-            'duration': self.duration_seconds,
-            'duration_seconds': self.duration_seconds,
-            'language': self.language,
-            'confidence': self.confidence,
-            'model': self.model_used,
-            'model_used': self.model_used,
+            "text": self.transcript,
+            "transcript": self.transcript,
+            "segments": self.segments,
+            "duration": self.duration_seconds,
+            "duration_seconds": self.duration_seconds,
+            "language": self.language,
+            "confidence": self.confidence,
+            "model": self.model_used,
+            "model_used": self.model_used,
         }
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -67,17 +69,17 @@ class WhisperSTT:
         if not WHISPER_AVAILABLE:
             raise RuntimeError("faster-whisper is not installed. Please install it first.")
 
-        self.model_size = config.get('model_size', 'small.en')
-        self.compute_type = config.get('compute_type', 'int8')
-        self.device = config.get('device', 'auto')
-        self.num_workers = config.get('num_workers', 1)
-        self.beam_size = config.get('beam_size', 1)
-        self.temperature = config.get('temperature', 0.0)
-        self.vad_filter = config.get('vad_filter', False)
-        self.default_language = config.get('language')
+        self.model_size = config.get("model_size", "small.en")
+        self.compute_type = config.get("compute_type", "int8")
+        self.device = config.get("device", "auto")
+        self.num_workers = config.get("num_workers", 1)
+        self.beam_size = config.get("beam_size", 1)
+        self.temperature = config.get("temperature", 0.0)
+        self.vad_filter = config.get("vad_filter", False)
+        self.default_language = config.get("language")
 
         # Cache settings
-        self.cache_dir = Path(config.get('cache_dir', 'data/cache/stt'))
+        self.cache_dir = Path(config.get("cache_dir", "data/cache/stt"))
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize the model
@@ -92,9 +94,10 @@ class WhisperSTT:
             logger.info(f"Loading Whisper model: {self.model_size}")
 
             # Determine device automatically if set to 'auto'
-            if self.device == 'auto':
+            if self.device == "auto":
                 import torch
-                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+                device = "cuda" if torch.cuda.is_available() else "cpu"
             else:
                 device = self.device
 
@@ -102,7 +105,7 @@ class WhisperSTT:
                 self.model_size,
                 device=device,
                 compute_type=self.compute_type,
-                num_workers=self.num_workers
+                num_workers=self.num_workers,
             )
 
             logger.info(f"Model loaded successfully on device: {device}")
@@ -112,10 +115,7 @@ class WhisperSTT:
             raise RuntimeError(f"Could not load Whisper model: {e}") from e
 
     def transcribe(
-        self,
-        audio_path: Path,
-        language: str | None = None,
-        use_cache: bool = True
+        self, audio_path: Path, language: str | None = None, use_cache: bool = True
     ) -> TranscriptionResult:
         """
         Transcribe an audio file to text.
@@ -140,8 +140,8 @@ class WhisperSTT:
 
             language_hint = language or self.default_language
             # Use english for .en models when no explicit language supplied
-            if language_hint is None and self.model_size.endswith('.en'):
-                language_hint = 'en'
+            if language_hint is None and self.model_size.endswith(".en"):
+                language_hint = "en"
 
             # Perform transcription
             segments, info = self.model.transcribe(
@@ -149,7 +149,7 @@ class WhisperSTT:
                 language=language_hint,
                 beam_size=self.beam_size,
                 vad_filter=self.vad_filter,
-                temperature=self.temperature
+                temperature=self.temperature,
             )
 
             # Process segments into structured format
@@ -163,25 +163,25 @@ class WhisperSTT:
                 if text:
                     full_text_parts.append(text)
                     segment_dict = {
-                        'start': float(segment.start),
-                        'end': float(segment.end),
-                        'text': text,
-                        'confidence': float(getattr(segment, 'confidence', 0.95))
+                        "start": float(segment.start),
+                        "end": float(segment.end),
+                        "text": text,
+                        "confidence": float(getattr(segment, "confidence", 0.95)),
                     }
                     segment_list.append(segment_dict)
-                    total_confidence += segment_dict['confidence']
+                    total_confidence += segment_dict["confidence"]
                     segment_count += 1
 
             # Combine all segments into full transcript
-            full_transcript = ' '.join(full_text_parts).strip()
+            full_transcript = " ".join(full_text_parts).strip()
 
             # Calculate average confidence
             avg_confidence = total_confidence / segment_count if segment_count > 0 else 0.0
 
             # Get audio duration from info
-            duration = float(getattr(info, 'duration', 0.0))
+            duration = float(getattr(info, "duration", 0.0))
 
-            detected_language = language_hint or getattr(info, 'language', None) or 'unknown'
+            detected_language = language_hint or getattr(info, "language", None) or "unknown"
 
             # Create result object
             result = TranscriptionResult(
@@ -190,15 +190,17 @@ class WhisperSTT:
                 duration_seconds=duration,
                 language=detected_language,
                 confidence=avg_confidence,
-                model_used=self.model_size
+                model_used=self.model_size,
             )
 
             # Save to cache only when we can safely reuse without language-specific differences
             if use_cache and language is None:
                 self._save_to_cache(audio_path, result)
 
-            logger.info(f"Transcription complete: {len(full_transcript)} chars, "
-                       f"{segment_count} segments, {avg_confidence:.2f} confidence")
+            logger.info(
+                f"Transcription complete: {len(full_transcript)} chars, "
+                f"{segment_count} segments, {avg_confidence:.2f} confidence"
+            )
 
             return result
 
@@ -228,14 +230,16 @@ class WhisperSTT:
             except Exception as e:
                 logger.error(f"Failed to transcribe {audio_path}: {e}")
                 # Add empty result to maintain order
-                results.append(TranscriptionResult(
-                    transcript="",
-                    segments=[],
-                    duration_seconds=0.0,
-                    language='en',
-                    confidence=0.0,
-                    model_used=self.model_size
-                ))
+                results.append(
+                    TranscriptionResult(
+                        transcript="",
+                        segments=[],
+                        duration_seconds=0.0,
+                        language="en",
+                        confidence=0.0,
+                        model_used=self.model_size,
+                    )
+                )
 
         logger.info(f"Batch transcription complete: {len(results)} files processed")
         return results
@@ -276,7 +280,7 @@ class WhisperSTT:
         cache_file = self.cache_dir / f"{cache_key}.pkl"
 
         try:
-            with open(cache_file, 'wb') as f:
+            with open(cache_file, "wb") as f:
                 pickle.dump(result, f)
             logger.debug(f"Saved transcription to cache: {cache_file}")
         except Exception as e:
@@ -297,7 +301,7 @@ class WhisperSTT:
 
         if cache_file.exists():
             try:
-                with open(cache_file, 'rb') as f:
+                with open(cache_file, "rb") as f:
                     result = pickle.load(f)
                 return result
             except Exception as e:
@@ -357,4 +361,5 @@ class WhisperSTT:
 
 class TranscriptionError(Exception):
     """Custom exception for transcription errors"""
+
     pass

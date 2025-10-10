@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, validator
 
 class CallConnectionStatus(str, Enum):
     """Enumeration for call connection status"""
+
     CONNECTED = "Connected"
     DISCONNECTED = "Disconnected"
     UNKNOWN = "Unknown"
@@ -23,6 +24,7 @@ class CallConnectionStatus(str, Enum):
 
 class CallType(str, Enum):
     """Enumeration for call types"""
+
     INQUIRY = "Inquiry"
     BILLING_SALES = "Billing/Sales"
     SUPPORT = "Support"
@@ -32,6 +34,7 @@ class CallType(str, Enum):
 
 class CallOutcome(str, Enum):
     """Enumeration for call outcomes"""
+
     RESOLVED = "Resolved"
     CALLBACK = "Callback"
     REFUND = "Refund"
@@ -44,6 +47,7 @@ class CallRecord(BaseModel):
     Data model for a single call record.
     This ensures all call data follows a consistent structure.
     """
+
     call_id: str = Field(..., description="Unique identifier for the call")
     start_time: datetime = Field(..., description="Call start timestamp")
     duration_seconds: float = Field(..., description="Call duration in seconds")
@@ -63,14 +67,14 @@ class CallRecord(BaseModel):
     call_type: CallType | None = None
     outcome: CallOutcome | None = None
 
-    @validator('duration_seconds')
+    @validator("duration_seconds")
     def validate_duration(cls, v):  # noqa: N805
         """Ensure duration is non-negative"""
         if v < 0:
             raise ValueError("Duration cannot be negative")
         return v
 
-    @validator('transcript')
+    @validator("transcript")
     def validate_transcript(cls, v):  # noqa: N805
         """Ensure transcript is not empty"""
         if not v or not v.strip():
@@ -79,10 +83,9 @@ class CallRecord(BaseModel):
 
     class Config:
         """Pydantic configuration"""
+
         use_enum_values = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 class CallDataFrame:
@@ -93,23 +96,23 @@ class CallDataFrame:
 
     # Define expected column names and types
     REQUIRED_COLUMNS = {
-        'call_id': 'string',
-        'start_time': 'datetime64[ns]',
-        'duration_seconds': 'float64',
-        'transcript': 'string'
+        "call_id": "string",
+        "start_time": "datetime64[ns]",
+        "duration_seconds": "float64",
+        "transcript": "string",
     }
 
     OPTIONAL_COLUMNS = {
-        'agent_id': 'string',
-        'campaign': 'string',
-        'customer_name': 'string',
-        'product_name': 'string',
-        'quantity': 'Int64',  # Nullable integer
-        'amount': 'Float64',  # Nullable float
-        'order_id': 'string',
-        'connection_status': 'string',
-        'call_type': 'string',
-        'outcome': 'string'
+        "agent_id": "string",
+        "campaign": "string",
+        "customer_name": "string",
+        "product_name": "string",
+        "quantity": "Int64",  # Nullable integer
+        "amount": "Float64",  # Nullable float
+        "order_id": "string",
+        "connection_status": "string",
+        "call_type": "string",
+        "outcome": "string",
     }
 
     def __init__(self, df: pd.DataFrame):
@@ -137,10 +140,10 @@ class CallDataFrame:
         for col, dtype in {**self.REQUIRED_COLUMNS, **self.OPTIONAL_COLUMNS}.items():
             if col in df.columns:
                 try:
-                    if dtype == 'datetime64[ns]':
-                        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
-                    elif dtype in ['Int64', 'Float64']:
-                        df[col] = pd.to_numeric(df[col], errors='coerce').astype(dtype)
+                    if dtype == "datetime64[ns]":
+                        df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
+                    elif dtype in ["Int64", "Float64"]:
+                        df[col] = pd.to_numeric(df[col], errors="coerce").astype(dtype)
                     else:
                         df[col] = df[col].astype(dtype)
                 except Exception as e:
@@ -162,9 +165,9 @@ class CallDataFrame:
             labels: Dictionary mapping call_id to label dictionaries
         """
         for call_id, label_dict in labels.items():
-            mask = self.df['call_id'] == call_id
+            mask = self.df["call_id"] == call_id
             for label_key, label_value in label_dict.items():
-                if label_key in ['connection_status', 'call_type', 'outcome']:
+                if label_key in ["connection_status", "call_type", "outcome"]:
                     self.df.loc[mask, label_key] = label_value
 
     def filter_by_date_range(self, start_date: datetime, end_date: datetime) -> pd.DataFrame:
@@ -178,10 +181,7 @@ class CallDataFrame:
         Returns:
             Filtered DataFrame
         """
-        mask = (
-            (self.df['start_time'] >= start_date) &
-            (self.df['start_time'] <= end_date)
-        )
+        mask = (self.df["start_time"] >= start_date) & (self.df["start_time"] <= end_date)
         return self.df[mask].copy()
 
     def get_statistics(self) -> dict[str, Any]:
@@ -194,35 +194,34 @@ class CallDataFrame:
         total_calls = len(self.df)
 
         # Connection statistics
-        connection_counts = self.df['connection_status'].value_counts().to_dict()
+        connection_counts = self.df["connection_status"].value_counts().to_dict()
         connected_pct = (
-            connection_counts.get('Connected', 0) / total_calls * 100
-            if total_calls > 0 else 0
+            connection_counts.get("Connected", 0) / total_calls * 100 if total_calls > 0 else 0
         )
 
         # Type distribution
-        type_distribution = self.df['call_type'].value_counts().to_dict()
+        type_distribution = self.df["call_type"].value_counts().to_dict()
 
         # Outcome distribution
-        outcome_distribution = self.df['outcome'].value_counts().to_dict()
+        outcome_distribution = self.df["outcome"].value_counts().to_dict()
 
         # Duration statistics
         duration_stats = {
-            'mean': self.df['duration_seconds'].mean(),
-            'median': self.df['duration_seconds'].median(),
-            'min': self.df['duration_seconds'].min(),
-            'max': self.df['duration_seconds'].max()
+            "mean": self.df["duration_seconds"].mean(),
+            "median": self.df["duration_seconds"].median(),
+            "min": self.df["duration_seconds"].min(),
+            "max": self.df["duration_seconds"].max(),
         }
 
         return {
-            'total_calls': total_calls,
-            'connected_percentage': connected_pct,
-            'connection_breakdown': connection_counts,
-            'type_distribution': type_distribution,
-            'outcome_distribution': outcome_distribution,
-            'duration_statistics': duration_stats,
-            'unique_agents': self.df['agent_id'].nunique(),
-            'unique_campaigns': self.df['campaign'].nunique()
+            "total_calls": total_calls,
+            "connected_percentage": connected_pct,
+            "connection_breakdown": connection_counts,
+            "type_distribution": type_distribution,
+            "outcome_distribution": outcome_distribution,
+            "duration_statistics": duration_stats,
+            "unique_agents": self.df["agent_id"].nunique(),
+            "unique_campaigns": self.df["campaign"].nunique(),
         }
 
     def to_records(self) -> list[CallRecord]:

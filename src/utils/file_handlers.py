@@ -31,11 +31,11 @@ def ensure_directory(path: str | Path) -> Path:
 def safe_file_write(
     filepath: str | Path,
     content: str | bytes,
-    mode: str = 'w',
+    mode: str = "w",
 ) -> bool:
     """Safely write to a file using atomic operations."""
     filepath = Path(filepath)
-    temp_file = filepath.with_suffix('.tmp')
+    temp_file = filepath.with_suffix(".tmp")
 
     try:
         filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +55,7 @@ def safe_file_write(
 
 def safe_file_read(
     filepath: str | Path,
-    mode: str = 'r',
+    mode: str = "r",
     default: Any = None,
 ) -> Any:
     """Safely read from a file with error handling."""
@@ -83,16 +83,16 @@ def load_config_file(filepath: str | Path) -> dict[str, Any]:
     suffix = filepath.suffix.lower()
 
     try:
-        if suffix == '.json':
-            with open(filepath, encoding='utf-8') as handle:
+        if suffix == ".json":
+            with open(filepath, encoding="utf-8") as handle:
                 return json.load(handle)
 
-        if suffix in {'.yaml', '.yml'}:
-            with open(filepath, encoding='utf-8') as handle:
+        if suffix in {".yaml", ".yml"}:
+            with open(filepath, encoding="utf-8") as handle:
                 return yaml.safe_load(handle) or {}
 
-        if suffix == '.toml':
-            with open(filepath, encoding='utf-8') as handle:
+        if suffix == ".toml":
+            with open(filepath, encoding="utf-8") as handle:
                 return toml.load(handle)
 
         logger.error("Unsupported config format: %s", suffix)
@@ -109,11 +109,11 @@ def save_config_file(config: dict[str, Any], filepath: str | Path) -> bool:
     suffix = filepath.suffix.lower()
 
     try:
-        if suffix == '.json':
+        if suffix == ".json":
             content = json.dumps(config, indent=2)
-        elif suffix in {'.yaml', '.yml'}:
+        elif suffix in {".yaml", ".yml"}:
             content = yaml.dump(config, default_flow_style=False)
-        elif suffix == '.toml':
+        elif suffix == ".toml":
             content = toml.dumps(config)
         else:
             logger.error("Unsupported config format: %s", suffix)
@@ -126,7 +126,7 @@ def save_config_file(config: dict[str, Any], filepath: str | Path) -> bool:
         return False
 
 
-def get_file_hash(filepath: str | Path, algorithm: str = 'sha256') -> str | None:
+def get_file_hash(filepath: str | Path, algorithm: str = "sha256") -> str | None:
     """Calculate the hash of a file."""
     filepath = Path(filepath)
 
@@ -134,17 +134,17 @@ def get_file_hash(filepath: str | Path, algorithm: str = 'sha256') -> str | None
         return None
 
     try:
-        if algorithm == 'md5':
+        if algorithm == "md5":
             hasher = hashlib.md5()
-        elif algorithm == 'sha1':
+        elif algorithm == "sha1":
             hasher = hashlib.sha1()
-        elif algorithm == 'sha256':
+        elif algorithm == "sha256":
             hasher = hashlib.sha256()
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 
-        with open(filepath, 'rb') as handle:
-            for chunk in iter(lambda: handle.read(4096), b''):
+        with open(filepath, "rb") as handle:
+            for chunk in iter(lambda: handle.read(4096), b""):
                 hasher.update(chunk)
 
         return hasher.hexdigest()
@@ -159,22 +159,22 @@ def get_file_info(filepath: str | Path) -> dict[str, Any]:
     filepath = Path(filepath)
 
     if not filepath.exists():
-        return {'exists': False}
+        return {"exists": False}
 
     stat = filepath.stat()
 
     return {
-        'exists': True,
-        'path': str(filepath.resolve()),
-        'name': filepath.name,
-        'suffix': filepath.suffix,
-        'size_bytes': stat.st_size,
-        'size_mb': stat.st_size / (1024 * 1024),
-        'created': stat.st_ctime,
-        'modified': stat.st_mtime,
-        'is_file': filepath.is_file(),
-        'is_dir': filepath.is_dir(),
-        'mime_type': mimetypes.guess_type(str(filepath))[0],
+        "exists": True,
+        "path": str(filepath.resolve()),
+        "name": filepath.name,
+        "suffix": filepath.suffix,
+        "size_bytes": stat.st_size,
+        "size_mb": stat.st_size / (1024 * 1024),
+        "created": stat.st_ctime,
+        "modified": stat.st_mtime,
+        "is_file": filepath.is_file(),
+        "is_dir": filepath.is_dir(),
+        "mime_type": mimetypes.guess_type(str(filepath))[0],
     }
 
 
@@ -240,7 +240,7 @@ def delete_file(filepath: str | Path, secure: bool = False) -> bool:
     try:
         if secure and filepath.is_file():
             size = filepath.stat().st_size
-            with open(filepath, 'wb') as handle:
+            with open(filepath, "wb") as handle:
                 handle.write(os.urandom(size))
 
         if filepath.is_file():
@@ -255,7 +255,7 @@ def delete_file(filepath: str | Path, secure: bool = False) -> bool:
         return False
 
 
-def list_files(directory: str | Path, pattern: str = '*', recursive: bool = False) -> list[Path]:
+def list_files(directory: str | Path, pattern: str = "*", recursive: bool = False) -> list[Path]:
     """List files in a directory."""
     directory_path = Path(directory)
 
@@ -271,7 +271,7 @@ def save_pickle(obj: Any, filepath: str | Path) -> bool:
 
     try:
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(filepath, 'wb') as handle:
+        with open(filepath, "wb") as handle:
             pickle.dump(obj, handle)
         return True
     except Exception as exc:
@@ -287,7 +287,7 @@ def load_pickle(filepath: str | Path, default: Any = None) -> Any:
         return default
 
     try:
-        with open(filepath, 'rb') as handle:
+        with open(filepath, "rb") as handle:
             return pickle.load(handle)
     except Exception as exc:
         logger.error("Error loading pickle %s: %s", filepath, exc)
@@ -302,7 +302,7 @@ def get_directory_size(directory: str | Path) -> int:
         return 0
 
     total_size = 0
-    for file in directory_path.rglob('*'):
+    for file in directory_path.rglob("*"):
         if file.is_file():
             total_size += file.stat().st_size
 
@@ -312,7 +312,7 @@ def get_directory_size(directory: str | Path) -> int:
 def clean_directory(
     directory: str | Path,
     older_than_days: int | None = None,
-    pattern: str = '*',
+    pattern: str = "*",
 ) -> int:
     """Delete files from a directory according to the provided filters."""
     directory_path = Path(directory)

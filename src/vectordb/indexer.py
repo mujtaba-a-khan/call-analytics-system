@@ -34,23 +34,30 @@ class DocumentIndexer:
         self.config = config or {}
 
         # Indexing settings
-        self.preprocess_text = self.config.get('preprocess_text', True)
-        self.min_text_length = self.config.get('min_text_length', 50)
-        self.max_text_length = self.config.get('max_text_length', 10000)
-        self.text_fields = self.config.get('text_fields', ['transcript'])
-        self.metadata_fields = self.config.get('metadata_fields', [
-            'call_id', 'agent_id', 'campaign', 'call_type',
-            'outcome', 'start_time', 'duration_seconds'
-        ])
+        self.preprocess_text = self.config.get("preprocess_text", True)
+        self.min_text_length = self.config.get("min_text_length", 50)
+        self.max_text_length = self.config.get("max_text_length", 10000)
+        self.text_fields = self.config.get("text_fields", ["transcript"])
+        self.metadata_fields = self.config.get(
+            "metadata_fields",
+            [
+                "call_id",
+                "agent_id",
+                "campaign",
+                "call_type",
+                "outcome",
+                "start_time",
+                "duration_seconds",
+            ],
+        )
 
         self.indexed_count = 0
 
         logger.info("DocumentIndexer initialized")
 
-    def index_dataframe(self,
-                       df: pd.DataFrame,
-                       batch_size: int = 100,
-                       update_existing: bool = True) -> int:
+    def index_dataframe(
+        self, df: pd.DataFrame, batch_size: int = 100, update_existing: bool = True
+    ) -> int:
         """
         Index a DataFrame of calls into the vector database.
 
@@ -77,9 +84,9 @@ class DocumentIndexer:
         total_indexed = 0
 
         for i in range(0, len(documents), batch_size):
-            batch_docs = documents[i:i + batch_size]
-            batch_ids = ids[i:i + batch_size]
-            batch_meta = metadatas[i:i + batch_size]
+            batch_docs = documents[i : i + batch_size]
+            batch_ids = ids[i : i + batch_size]
+            batch_meta = metadatas[i : i + batch_size]
 
             try:
                 # Check for existing documents if not updating
@@ -88,8 +95,7 @@ class DocumentIndexer:
                     if existing:
                         # Filter out existing documents
                         new_indices = [
-                            j for j, doc_id in enumerate(batch_ids)
-                            if doc_id not in existing
+                            j for j, doc_id in enumerate(batch_ids) if doc_id not in existing
                         ]
 
                         if not new_indices:
@@ -102,9 +108,7 @@ class DocumentIndexer:
 
                 # Index the batch
                 count = self.vector_db.add_documents(
-                    documents=batch_docs,
-                    ids=batch_ids,
-                    metadatas=batch_meta
+                    documents=batch_docs, ids=batch_ids, metadatas=batch_meta
                 )
 
                 total_indexed += count
@@ -146,7 +150,7 @@ class DocumentIndexer:
                 doc_text = self._preprocess_text(doc_text)
 
             # Extract document ID
-            doc_id = str(row.get('call_id', ''))
+            doc_id = str(row.get("call_id", ""))
             if not doc_id:
                 logger.warning("Skipping document without call_id")
                 continue
@@ -181,7 +185,7 @@ class DocumentIndexer:
                     continue
 
                 # Add field label for context when not using the transcript field
-                if field != 'transcript':
+                if field != "transcript":
                     text_parts.append(f"{field.upper()}: {text}")
                 else:
                     text_parts.append(text)
@@ -224,11 +228,11 @@ class DocumentIndexer:
             Preprocessed text
         """
         # Remove extra whitespace
-        text = ' '.join(text.split())
+        text = " ".join(text.split())
 
         # Truncate if needed
         if len(text) > self.max_text_length:
-            text = text[:self.max_text_length] + "..."
+            text = text[: self.max_text_length] + "..."
 
         return text
 
@@ -259,7 +263,7 @@ class DocumentIndexer:
                     metadata[field] = str(value)
 
         # Add indexing timestamp
-        metadata['indexed_at'] = datetime.now().isoformat()
+        metadata["indexed_at"] = datetime.now().isoformat()
 
         return metadata
 
@@ -275,7 +279,7 @@ class DocumentIndexer:
         """
         try:
             existing_docs = self.vector_db.get_by_ids(ids)
-            return {doc['id'] for doc in existing_docs if doc.get('id')}
+            return {doc["id"] for doc in existing_docs if doc.get("id")}
         except Exception as e:
             logger.error(f"Error checking existing documents: {e}")
             return set()
@@ -303,10 +307,9 @@ class DocumentIndexer:
         # Index all documents
         return self.index_dataframe(df, update_existing=True)
 
-    def update_document(self,
-                       call_id: str,
-                       text: str | None = None,
-                       metadata: dict[str, Any] | None = None) -> bool:
+    def update_document(
+        self, call_id: str, text: str | None = None, metadata: dict[str, Any] | None = None
+    ) -> bool:
         """
         Update a single document in the index.
 
@@ -323,9 +326,7 @@ class DocumentIndexer:
                 # Need to reindex with new text
                 self.vector_db.delete_documents([call_id])
                 self.vector_db.add_documents(
-                    documents=[text],
-                    ids=[call_id],
-                    metadatas=[metadata] if metadata else None
+                    documents=[text], ids=[call_id], metadatas=[metadata] if metadata else None
                 )
             elif metadata:
                 # Just update metadata
@@ -364,7 +365,7 @@ class DocumentIndexer:
             Statistics dictionary
         """
         stats = self.vector_db.get_statistics()
-        stats['indexed_this_session'] = self.indexed_count
+        stats["indexed_this_session"] = self.indexed_count
 
         return stats
 
@@ -378,26 +379,29 @@ class DocumentIndexer:
         try:
             # Get all document IDs (this might be limited by the database)
             # For large collections, you might need pagination
-            sample_results = self.vector_db.search(
-                query_text="",
-                top_k=1000
-            )
+            sample_results = self.vector_db.search(query_text="", top_k=1000)
 
             metadata_list = []
             for result in sample_results:
-                metadata_list.append({
-                    'id': result.get('id'),
-                    'metadata': result.get('metadata', {}),
-                    'snippet': result.get('document', '')[:100]
-                })
+                metadata_list.append(
+                    {
+                        "id": result.get("id"),
+                        "metadata": result.get("metadata", {}),
+                        "snippet": result.get("document", "")[:100],
+                    }
+                )
 
             # Save to JSON
-            with open(output_path, 'w') as f:
-                json.dump({
-                    'exported_at': datetime.now().isoformat(),
-                    'document_count': len(metadata_list),
-                    'documents': metadata_list
-                }, f, indent=2)
+            with open(output_path, "w") as f:
+                json.dump(
+                    {
+                        "exported_at": datetime.now().isoformat(),
+                        "document_count": len(metadata_list),
+                        "documents": metadata_list,
+                    },
+                    f,
+                    indent=2,
+                )
 
             logger.info(f"Exported index metadata to {output_path}")
 

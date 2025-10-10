@@ -19,7 +19,7 @@ from dateutil import parser as date_parser
 logger = logging.getLogger(__name__)
 
 
-def format_phone_number(phone: str, country_code: str = 'US') -> str:
+def format_phone_number(phone: str, country_code: str = "US") -> str:
     """Format a phone number using international notation."""
     try:
         parsed = phonenumbers.parse(phone, country_code)
@@ -28,36 +28,36 @@ def format_phone_number(phone: str, country_code: str = 'US') -> str:
             phonenumbers.PhoneNumberFormat.INTERNATIONAL,
         )
     except phonenumbers.NumberParseException:
-        digits = re.sub(r'\D', '', phone)
+        digits = re.sub(r"\D", "", phone)
         if len(digits) == 10:
             return f"+1 ({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-        if len(digits) == 11 and digits.startswith('1'):
+        if len(digits) == 11 and digits.startswith("1"):
             return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
         return phone
 
 
-def normalize_phone_number(phone: str, country_code: str = 'US') -> str:
+def normalize_phone_number(phone: str, country_code: str = "US") -> str:
     """Normalize a phone number to E.164 format."""
     try:
         parsed = phonenumbers.parse(phone, country_code)
         return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
     except phonenumbers.NumberParseException:
-        digits = re.sub(r'\D', '', phone)
+        digits = re.sub(r"\D", "", phone)
         if len(digits) == 10:
             return f"+1{digits}"
-        if digits.startswith('+'):
+        if digits.startswith("+"):
             return digits
         return f"+{digits}"
 
 
-def format_duration(seconds: int | float | None, format_type: str = 'human') -> str:
+def format_duration(seconds: int | float | None, format_type: str = "human") -> str:
     """Format a duration (in seconds) into a human readable string."""
     if seconds is None or seconds < 0:
         return "0s"
 
     seconds = int(seconds)
 
-    if format_type == 'clock':
+    if format_type == "clock":
         hours = seconds // 3600
         minutes = (seconds % 3600) // 60
         secs = seconds % 60
@@ -65,7 +65,7 @@ def format_duration(seconds: int | float | None, format_type: str = 'human') -> 
             return f"{hours:02d}:{minutes:02d}:{secs:02d}"
         return f"{minutes:02d}:{secs:02d}"
 
-    if format_type == 'short':
+    if format_type == "short":
         if seconds < 60:
             return f"{seconds}s"
         if seconds < 3600:
@@ -99,7 +99,7 @@ def format_bytes(count: int, precision: int = 2) -> str:
     if count < 0:
         return "0 B"
 
-    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
     index = 0
     value = float(count)
 
@@ -119,18 +119,18 @@ def format_percentage(value: float, precision: int = 1, include_sign: bool = Fal
     return f"{prefix}{percentage:.{precision}f}%"
 
 
-def format_currency(amount: float, currency: str = 'USD', precision: int = 2) -> str:
+def format_currency(amount: float, currency: str = "USD", precision: int = 2) -> str:
     """Format a monetary amount with the appropriate symbol."""
     currency_symbols = {
-        'USD': '$',
-        'EUR': '€',
-        'GBP': '£',
-        'JPY': '¥',
-        'CNY': '¥',
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£",
+        "JPY": "¥",
+        "CNY": "¥",
     }
 
     symbol = currency_symbols.get(currency, f"{currency} ")
-    if currency == 'JPY':
+    if currency == "JPY":
         return f"{symbol}{amount:,.0f}"
     return f"{symbol}{amount:,.{precision}f}"
 
@@ -160,17 +160,17 @@ def parse_datetime_flexible(
         logger.debug("Failed to parse datetime '%s': %s", datetime_str, exc)
 
     common_formats = [
-        '%Y-%m-%d %H:%M:%S',
-        '%Y/%m/%d %H:%M:%S',
-        '%m/%d/%Y %H:%M:%S',
-        '%d/%m/%Y %H:%M:%S',
-        '%Y-%m-%d',
-        '%m/%d/%Y',
-        '%d/%m/%Y',
-        '%Y%m%d',
-        '%Y-%m-%dT%H:%M:%S',
-        '%Y-%m-%dT%H:%M:%SZ',
-        '%Y-%m-%dT%H:%M:%S.%f',
+        "%Y-%m-%d %H:%M:%S",
+        "%Y/%m/%d %H:%M:%S",
+        "%m/%d/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+        "%Y-%m-%d",
+        "%m/%d/%Y",
+        "%d/%m/%Y",
+        "%Y%m%d",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S.%f",
     ]
 
     for fmt in common_formats:
@@ -186,24 +186,24 @@ def parse_datetime_flexible(
     return None
 
 
-def truncate_text(text: str, max_length: int = 100, suffix: str = '...') -> str:
+def truncate_text(text: str, max_length: int = 100, suffix: str = "...") -> str:
     """Trim text to a maximum length, adding a suffix if truncated."""
     if not text or len(text) <= max_length:
-        return text or ''
+        return text or ""
 
     truncate_at = max_length - len(suffix)
     truncated = text[:truncate_at]
-    last_space = truncated.rfind(' ')
+    last_space = truncated.rfind(" ")
     if last_space > truncate_at * 0.8:
         truncated = truncated[:last_space]
     return truncated + suffix
 
 
-def format_list(items: Iterable[Any], max_items: int = 5, separator: str = ', ') -> str:
+def format_list(items: Iterable[Any], max_items: int = 5, separator: str = ", ") -> str:
     """Format a list of items, truncating when too long."""
     items_list = list(items)
     if not items_list:
-        return ''
+        return ""
 
     if len(items_list) <= max_items:
         return separator.join(str(item) for item in items_list)
@@ -235,14 +235,14 @@ def format_time_ago(dt: datetime, reference: datetime | None = None) -> str:
     return "just now"
 
 
-def sanitize_filename(filename: str, replacement: str = '_') -> str:
+def sanitize_filename(filename: str, replacement: str = "_") -> str:
     """Sanitize a filename by removing unsafe characters."""
     sanitized = re.sub(r'[<>:"/\\|?*]', replacement, filename)
-    sanitized = sanitized.strip('. ')
+    sanitized = sanitized.strip(". ")
 
     max_length = 255
     if len(sanitized) > max_length:
         name, ext = os.path.splitext(sanitized)
         sanitized = f"{name[:max_length - len(ext) - 1]}{ext}"
 
-    return sanitized or 'unnamed'
+    return sanitized or "unnamed"

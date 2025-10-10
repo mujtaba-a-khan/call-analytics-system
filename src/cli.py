@@ -12,10 +12,7 @@ import sys
 from pathlib import Path
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -34,148 +31,89 @@ class CallAnalyticsCLI:
             argparse.ArgumentParser: Configured parser
         """
         parser = argparse.ArgumentParser(
-            prog='call-analytics',
-            description='Call Analytics System CLI',
-            formatter_class=argparse.RawDescriptionHelpFormatter
+            prog="call-analytics",
+            description="Call Analytics System CLI",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
         )
 
         # Add version argument
-        parser.add_argument(
-            '--version', '-v',
-            action='version',
-            version='%(prog)s 1.0.0'
-        )
+        parser.add_argument("--version", "-v", action="version", version="%(prog)s 1.0.0")
 
         # Add verbosity
-        parser.add_argument(
-            '--verbose',
-            action='store_true',
-            help='Enable verbose output'
-        )
+        parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
         # Create subparsers for commands
         subparsers = parser.add_subparsers(
-            title='Commands',
-            dest='command',
-            help='Available commands'
+            title="Commands", dest="command", help="Available commands"
         )
 
         # UI command
-        ui_parser = subparsers.add_parser(
-            'ui',
-            help='Start the Streamlit UI'
+        ui_parser = subparsers.add_parser("ui", help="Start the Streamlit UI")
+        ui_parser.add_argument(
+            "--port", type=int, default=8501, help="Port to run the UI on (default: 8501)"
         )
         ui_parser.add_argument(
-            '--port',
-            type=int,
-            default=8501,
-            help='Port to run the UI on (default: 8501)'
-        )
-        ui_parser.add_argument(
-            '--host',
-            default='localhost',
-            help='Host to bind to (default: localhost)'
+            "--host", default="localhost", help="Host to bind to (default: localhost)"
         )
 
         # Process command
-        process_parser = subparsers.add_parser(
-            'process',
-            help='Process call data files'
+        process_parser = subparsers.add_parser("process", help="Process call data files")
+        process_parser.add_argument("input", type=str, help="Input file or directory to process")
+        process_parser.add_argument(
+            "--output", type=str, help="Output directory for processed files"
         )
         process_parser.add_argument(
-            'input',
-            type=str,
-            help='Input file or directory to process'
-        )
-        process_parser.add_argument(
-            '--output',
-            type=str,
-            help='Output directory for processed files'
-        )
-        process_parser.add_argument(
-            '--type',
-            choices=['csv', 'audio', 'auto'],
-            default='auto',
-            help='Type of processing (default: auto-detect)'
+            "--type",
+            choices=["csv", "audio", "auto"],
+            default="auto",
+            help="Type of processing (default: auto-detect)",
         )
 
         # Index command
-        index_parser = subparsers.add_parser(
-            'index',
-            help='Manage vector database index'
+        index_parser = subparsers.add_parser("index", help="Manage vector database index")
+        index_parser.add_argument(
+            "action", choices=["rebuild", "update", "clear"], help="Index action to perform"
         )
         index_parser.add_argument(
-            'action',
-            choices=['rebuild', 'update', 'clear'],
-            help='Index action to perform'
-        )
-        index_parser.add_argument(
-            '--collection',
-            default='call_transcripts',
-            help='Collection name (default: call_transcripts)'
+            "--collection",
+            default="call_transcripts",
+            help="Collection name (default: call_transcripts)",
         )
 
         # Models command
-        models_parser = subparsers.add_parser(
-            'models',
-            help='Manage ML models'
+        models_parser = subparsers.add_parser("models", help="Manage ML models")
+        models_parser.add_argument(
+            "action", choices=["download", "list", "verify"], help="Model management action"
         )
         models_parser.add_argument(
-            'action',
-            choices=['download', 'list', 'verify'],
-            help='Model management action'
-        )
-        models_parser.add_argument(
-            '--whisper-size',
-            choices=['tiny', 'base', 'small', 'medium', 'large'],
-            default='small',
-            help='Whisper model size (default: small)'
+            "--whisper-size",
+            choices=["tiny", "base", "small", "medium", "large"],
+            default="small",
+            help="Whisper model size (default: small)",
         )
 
         # Setup command
-        setup_parser = subparsers.add_parser(
-            'setup',
-            help='Setup environment and dependencies'
-        )
+        setup_parser = subparsers.add_parser("setup", help="Setup environment and dependencies")
         setup_parser.add_argument(
-            '--skip-packages',
-            action='store_true',
-            help='Skip package installation'
+            "--skip-packages", action="store_true", help="Skip package installation"
         )
-        setup_parser.add_argument(
-            '--skip-models',
-            action='store_true',
-            help='Skip model downloads'
-        )
+        setup_parser.add_argument("--skip-models", action="store_true", help="Skip model downloads")
 
         # Config command
-        config_parser = subparsers.add_parser(
-            'config',
-            help='Manage configuration'
-        )
+        config_parser = subparsers.add_parser("config", help="Manage configuration")
         config_parser.add_argument(
-            'action',
-            choices=['show', 'validate', 'create'],
-            help='Configuration action'
+            "action", choices=["show", "validate", "create"], help="Configuration action"
         )
 
         # Export command
-        export_parser = subparsers.add_parser(
-            'export',
-            help='Export data and analytics'
-        )
+        export_parser = subparsers.add_parser("export", help="Export data and analytics")
         export_parser.add_argument(
-            '--format',
-            choices=['csv', 'excel', 'json'],
-            default='csv',
-            help='Export format (default: csv)'
+            "--format",
+            choices=["csv", "excel", "json"],
+            default="csv",
+            help="Export format (default: csv)",
         )
-        export_parser.add_argument(
-            '--output',
-            type=str,
-            required=True,
-            help='Output file path'
-        )
+        export_parser.add_argument("--output", type=str, required=True, help="Output file path")
 
         return parser
 
@@ -192,10 +130,15 @@ class CallAnalyticsCLI:
         logger.info(f"Starting UI on {args.host}:{args.port}")
 
         cmd = [
-            sys.executable, '-m', 'streamlit', 'run',
-            'src/ui/app.py',
-            '--server.port', str(args.port),
-            '--server.address', args.host
+            sys.executable,
+            "-m",
+            "streamlit",
+            "run",
+            "src/ui/app.py",
+            "--server.port",
+            str(args.port),
+            "--server.address",
+            args.host,
         ]
 
         try:
@@ -226,28 +169,28 @@ class CallAnalyticsCLI:
 
         try:
             # Lazy import to avoid loading heavy modules
-            csv_suffixes = {'.csv'}
-            audio_suffixes = {'.wav', '.mp3', '.m4a'}
+            csv_suffixes = {".csv"}
+            audio_suffixes = {".wav", ".mp3", ".m4a"}
 
-            is_csv = (
-                args.type == 'csv'
-                or (args.type == 'auto' and input_path.suffix.lower() in csv_suffixes)
+            is_csv = args.type == "csv" or (
+                args.type == "auto" and input_path.suffix.lower() in csv_suffixes
             )
-            is_audio = (
-                args.type == 'audio'
-                or (args.type == 'auto' and input_path.suffix.lower() in audio_suffixes)
+            is_audio = args.type == "audio" or (
+                args.type == "auto" and input_path.suffix.lower() in audio_suffixes
             )
 
             if is_csv:
                 from src.core.csv_processor import CSVProcessor
-                processor = CSVProcessor({'encoding': 'utf-8'})
+
+                processor = CSVProcessor({"encoding": "utf-8"})
                 logger.info(f"Processing CSV file: {input_path}")
                 df = processor.read_csv(input_path)
                 logger.info(f"Processed {len(df)} records")
 
             elif is_audio:
                 from src.core.audio_processor import AudioProcessor
-                processor = AudioProcessor(output_dir=Path(args.output or 'data/processed'))
+
+                processor = AudioProcessor(output_dir=Path(args.output or "data/processed"))
                 logger.info(f"Processing audio file: {input_path}")
                 result = processor.process_audio(input_path)
                 logger.info(f"Audio processed: {result}")
@@ -274,18 +217,20 @@ class CallAnalyticsCLI:
             int: Exit code
         """
         try:
-            if args.action == 'rebuild':
+            if args.action == "rebuild":
                 logger.info(f"Rebuilding index for collection: {args.collection}")
                 from scripts.rebuild_index import main as rebuild_main
+
                 rebuild_main()
 
-            elif args.action == 'update':
+            elif args.action == "update":
                 logger.info(f"Updating index for collection: {args.collection}")
                 # Implementation for update
 
-            elif args.action == 'clear':
+            elif args.action == "clear":
                 logger.info(f"Clearing index for collection: {args.collection}")
                 from src.vectordb.chroma_client import ChromaDBClient
+
                 client = ChromaDBClient()
                 client.reset_collection(args.collection)
                 logger.info("Index cleared successfully")
@@ -307,16 +252,17 @@ class CallAnalyticsCLI:
             int: Exit code
         """
         try:
-            if args.action == 'download':
+            if args.action == "download":
                 logger.info(f"Downloading models (whisper size: {args.whisper_size})")
                 from scripts.download_models import main as download_main
+
                 download_main()
 
-            elif args.action == 'list':
+            elif args.action == "list":
                 logger.info("Available models:")
-                models_dir = Path('models')
+                models_dir = Path("models")
                 if models_dir.exists():
-                    for model_file in models_dir.rglob('*'):
+                    for model_file in models_dir.rglob("*"):
                         if model_file.is_file():
                             size_mb = model_file.stat().st_size / (1024 * 1024)
                             rel_path = model_file.relative_to(models_dir)
@@ -324,9 +270,10 @@ class CallAnalyticsCLI:
                 else:
                     logger.info("  No models found")
 
-            elif args.action == 'verify':
+            elif args.action == "verify":
                 logger.info("Verifying models...")
                 from src.ml import get_ml_capabilities
+
                 capabilities = get_ml_capabilities()
                 for key, value in capabilities.items():
                     status = "✓" if value else "✗"
@@ -351,6 +298,7 @@ class CallAnalyticsCLI:
         try:
             logger.info("Setting up environment...")
             from scripts.setup_environment import main as setup_main
+
             setup_main()
             return 0
         except Exception as e:
@@ -369,20 +317,21 @@ class CallAnalyticsCLI:
         """
         try:
             import toml
-            config_dir = Path('config')
 
-            if args.action == 'show':
-                for config_file in config_dir.glob('*.toml'):
+            config_dir = Path("config")
+
+            if args.action == "show":
+                for config_file in config_dir.glob("*.toml"):
                     logger.info(f"\n=== {config_file.name} ===")
                     with open(config_file) as f:
                         config = toml.load(f)
                         for key, value in config.items():
                             logger.info(f"{key}: {value}")
 
-            elif args.action == 'validate':
+            elif args.action == "validate":
                 logger.info("Validating configuration files...")
                 all_valid = True
-                for config_file in config_dir.glob('*.toml'):
+                for config_file in config_dir.glob("*.toml"):
                     try:
                         with open(config_file) as f:
                             toml.load(f)
@@ -392,7 +341,7 @@ class CallAnalyticsCLI:
                         all_valid = False
                 return 0 if all_valid else 1
 
-            elif args.action == 'create':
+            elif args.action == "create":
                 logger.info("Creating default configuration files...")
                 config_dir.mkdir(exist_ok=True)
                 # Create default configs
@@ -420,18 +369,19 @@ class CallAnalyticsCLI:
             from src.core.csv_processor import CSVExporter
             from src.core.storage_manager import StorageManager
 
-            storage = StorageManager(base_path=Path('data'))
+            storage = StorageManager(base_path=Path("data"))
             data = storage.load_all_records()
 
-            if args.format == 'csv':
+            if args.format == "csv":
                 exporter = CSVExporter()
                 exporter.export_to_csv(data, Path(args.output))
-            elif args.format == 'excel':
+            elif args.format == "excel":
                 exporter = CSVExporter()
                 exporter.export_to_excel(data, Path(args.output))
-            elif args.format == 'json':
+            elif args.format == "json":
                 import json
-                with open(args.output, 'w') as f:
+
+                with open(args.output, "w") as f:
                     json.dump(data, f, indent=2, default=str)
 
             logger.info(f"Export completed: {args.output}")
@@ -458,19 +408,19 @@ class CallAnalyticsCLI:
             logging.getLogger().setLevel(logging.DEBUG)
 
         # Route to appropriate handler
-        if args.command == 'ui':
+        if args.command == "ui":
             return self.run_ui(args)
-        elif args.command == 'process':
+        elif args.command == "process":
             return self.process_files(args)
-        elif args.command == 'index':
+        elif args.command == "index":
             return self.manage_index(args)
-        elif args.command == 'models':
+        elif args.command == "models":
             return self.manage_models(args)
-        elif args.command == 'setup':
+        elif args.command == "setup":
             return self.setup_environment(args)
-        elif args.command == 'config':
+        elif args.command == "config":
             return self.manage_config(args)
-        elif args.command == 'export':
+        elif args.command == "export":
             return self.export_data(args)
         else:
             self.parser.print_help()
@@ -498,5 +448,5 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

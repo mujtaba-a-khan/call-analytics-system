@@ -36,12 +36,14 @@ class SemanticSearchEngine:
 
         logger.info("SemanticSearchEngine initialized")
 
-    def search(self,
-              query: str,
-              top_k: int = 10,
-              filters: dict[str, Any] | None = None,
-              threshold: float | None = None,
-              rerank: bool = False) -> list[dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+        threshold: float | None = None,
+        rerank: bool = False,
+    ) -> list[dict[str, Any]]:
         """
         Perform semantic search for relevant calls.
 
@@ -66,7 +68,7 @@ class SemanticSearchEngine:
             results = self.vector_db.search(
                 query_text=query,
                 top_k=top_k * 3 if rerank else top_k,  # Get more candidates for reranking
-                filter_dict=vector_filters
+                filter_dict=vector_filters,
             )
 
             # Apply reranking if requested
@@ -88,14 +90,13 @@ class SemanticSearchEngine:
                 if threshold_value is not None:
                     before_count = len(results)
                     results = [
-                        result for result in results
-                        if result.get('score', 0.0) >= threshold_value
+                        result for result in results if result.get("score", 0.0) >= threshold_value
                     ]
                     if before_count and len(results) < before_count:
                         logger.debug(
                             "Filtered %d results below threshold %.2f",
                             before_count - len(results),
-                            threshold_value
+                            threshold_value,
                         )
 
             # Enhance results with additional metadata
@@ -121,32 +122,32 @@ class SemanticSearchEngine:
 
         # Categorical filters
         for field, key in [
-            ('selected_agents', 'agent_id'),
-            ('selected_campaigns', 'campaign'),
-            ('selected_outcomes', 'outcome'),
-            ('selected_types', 'call_type')
+            ("selected_agents", "agent_id"),
+            ("selected_campaigns", "campaign"),
+            ("selected_outcomes", "outcome"),
+            ("selected_types", "call_type"),
         ]:
             values = filters.get(field)
             if values:
-                clauses.append({key: {'$in': values}})
+                clauses.append({key: {"$in": values}})
 
         # Duration range (seconds/minutes depending on stored field)
-        duration_range = filters.get('duration_range')
+        duration_range = filters.get("duration_range")
         if duration_range and len(duration_range) == 2:
             min_dur, max_dur = duration_range
             if min_dur and not math.isinf(min_dur):
-                clauses.append({'duration': {'$gte': float(min_dur)}})
+                clauses.append({"duration": {"$gte": float(min_dur)}})
             if max_dur and not math.isinf(max_dur):
-                clauses.append({'duration': {'$lte': float(max_dur)}})
+                clauses.append({"duration": {"$lte": float(max_dur)}})
 
         # Revenue range
-        revenue_range = filters.get('revenue_range')
+        revenue_range = filters.get("revenue_range")
         if revenue_range and len(revenue_range) == 2:
             min_rev, max_rev = revenue_range
             if min_rev and not math.isinf(min_rev):
-                clauses.append({'revenue': {'$gte': float(min_rev)}})
+                clauses.append({"revenue": {"$gte": float(min_rev)}})
             if max_rev and not math.isinf(max_rev):
-                clauses.append({'revenue': {'$lte': float(max_rev)}})
+                clauses.append({"revenue": {"$lte": float(max_rev)}})
 
         if not clauses:
             return None
@@ -154,11 +155,11 @@ class SemanticSearchEngine:
         if len(clauses) == 1:
             return clauses[0]
 
-        return {'$and': clauses}
+        return {"$and": clauses}
 
-    def _apply_post_filters(self,
-                            results: list[dict[str, Any]],
-                            filters: dict[str, Any]) -> list[dict[str, Any]]:
+    def _apply_post_filters(
+        self, results: list[dict[str, Any]], filters: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Filter results using metadata for constraints the vector DB cannot handle."""
         if not results:
             return results
@@ -166,18 +167,18 @@ class SemanticSearchEngine:
         filtered: list[dict[str, Any]] = []
 
         # Prepare date range bounds
-        date_range = filters.get('date_range')
+        date_range = filters.get("date_range")
         start_date = end_date = None
         if date_range and len(date_range) == 2:
             start_date = self._parse_date(date_range[0])
             end_date = self._parse_date(date_range[1], end_of_day=True)
 
         for result in results:
-            metadata = result.get('metadata', {}) or {}
+            metadata = result.get("metadata", {}) or {}
 
             # Date range filtering
             if start_date or end_date:
-                ts_value = metadata.get('timestamp') or metadata.get('start_time')
+                ts_value = metadata.get("timestamp") or metadata.get("start_time")
                 ts = self._parse_date(ts_value)
                 if ts is None:
                     continue
@@ -203,8 +204,8 @@ class SemanticSearchEngine:
 
             # Handle date-only strings
             try:
-                if 'T' in str_value or ' ' in str_value:
-                    dt = datetime.fromisoformat(str_value.replace('Z', '+00:00'))
+                if "T" in str_value or " " in str_value:
+                    dt = datetime.fromisoformat(str_value.replace("Z", "+00:00"))
                 else:
                     dt = datetime.fromisoformat(str_value)
             except ValueError:
@@ -215,10 +216,9 @@ class SemanticSearchEngine:
 
         return dt
 
-    def _rerank_results(self,
-                       query: str,
-                       results: list[dict[str, Any]],
-                       top_k: int) -> list[dict[str, Any]]:
+    def _rerank_results(
+        self, query: str, results: list[dict[str, Any]], top_k: int
+    ) -> list[dict[str, Any]]:
         """
         Rerank search results using cross-encoder or advanced scoring.
 
@@ -233,7 +233,7 @@ class SemanticSearchEngine:
         # Calculate additional relevance scores
         for result in results:
             # Add query-document similarity features
-            doc_text = result.get('document', '')
+            doc_text = result.get("document", "")
 
             # Length-normalized score
             doc_length = len(doc_text.split())
@@ -245,17 +245,13 @@ class SemanticSearchEngine:
             overlap = len(query_words & doc_words) / max(len(query_words), 1)
 
             # Combine scores
-            original_score = result.get('score', 0.5)
-            rerank_score = (
-                original_score * 0.6 +
-                overlap * 0.3 +
-                length_penalty * 0.1
-            )
+            original_score = result.get("score", 0.5)
+            rerank_score = original_score * 0.6 + overlap * 0.3 + length_penalty * 0.1
 
-            result['rerank_score'] = rerank_score
+            result["rerank_score"] = rerank_score
 
         # Sort by rerank score
-        results.sort(key=lambda x: x.get('rerank_score', 0), reverse=True)
+        results.sort(key=lambda x: x.get("rerank_score", 0), reverse=True)
 
         return results[:top_k]
 
@@ -271,21 +267,21 @@ class SemanticSearchEngine:
         """
         for result in results:
             # Add snippet extraction
-            document = result.get('document', '')
-            result['snippet'] = self._extract_snippet(document, max_length=200)
+            document = result.get("document", "")
+            result["snippet"] = self._extract_snippet(document, max_length=200)
 
             # Format metadata
-            metadata = result.get('metadata', {})
-            result['formatted_metadata'] = self._format_metadata(metadata)
+            metadata = result.get("metadata", {})
+            result["formatted_metadata"] = self._format_metadata(metadata)
 
             # Add relevance label
-            score = result.get('score', 0)
+            score = result.get("score", 0)
             if score > 0.8:
-                result['relevance'] = 'High'
+                result["relevance"] = "High"
             elif score > 0.6:
-                result['relevance'] = 'Medium'
+                result["relevance"] = "Medium"
             else:
-                result['relevance'] = 'Low'
+                result["relevance"] = "Low"
 
         return results
 
@@ -305,11 +301,11 @@ class SemanticSearchEngine:
 
         # Try to break at sentence boundary
         snippet = text[:max_length]
-        last_period = snippet.rfind('.')
+        last_period = snippet.rfind(".")
         if last_period > max_length * 0.5:
-            snippet = snippet[:last_period + 1]
+            snippet = snippet[: last_period + 1]
         else:
-            snippet += '...'
+            snippet += "..."
 
         return snippet
 
@@ -325,21 +321,19 @@ class SemanticSearchEngine:
         """
         formatted_parts = []
 
-        if 'start_time' in metadata:
+        if "start_time" in metadata:
             formatted_parts.append(f"Time: {metadata['start_time']}")
 
-        if 'agent_id' in metadata:
+        if "agent_id" in metadata:
             formatted_parts.append(f"Agent: {metadata['agent_id']}")
 
-        if 'duration' in metadata:
-            duration = float(metadata['duration'])
+        if "duration" in metadata:
+            duration = float(metadata["duration"])
             formatted_parts.append(f"Duration: {duration:.1f}s")
 
         return " | ".join(formatted_parts)
 
-    def find_similar_calls(self,
-                          call_id: str,
-                          top_k: int = 5) -> list[dict[str, Any]]:
+    def find_similar_calls(self, call_id: str, top_k: int = 5) -> list[dict[str, Any]]:
         """
         Find calls similar to a given call.
 
@@ -360,17 +354,15 @@ class SemanticSearchEngine:
                 logger.warning(f"Reference call not found: {call_id}")
                 return []
 
-            reference_text = reference_calls[0].get('document', '')
+            reference_text = reference_calls[0].get("document", "")
 
             # Search for similar calls
             results = self.search(
-                query=reference_text,
-                top_k=top_k + 1,  # Get extra to exclude self
-                filters=None
+                query=reference_text, top_k=top_k + 1, filters=None  # Get extra to exclude self
             )
 
             # Filter out the reference call itself
-            results = [r for r in results if r.get('id') != call_id]
+            results = [r for r in results if r.get("id") != call_id]
 
             return results[:top_k]
 
@@ -378,9 +370,9 @@ class SemanticSearchEngine:
             logger.error(f"Error finding similar calls: {e}")
             return []
 
-    def cluster_search_results(self,
-                              results: list[dict[str, Any]],
-                              n_clusters: int = 3) -> dict[int, list[dict[str, Any]]]:
+    def cluster_search_results(
+        self, results: list[dict[str, Any]], n_clusters: int = 3
+    ) -> dict[int, list[dict[str, Any]]]:
         """
         Cluster search results into groups.
 
@@ -399,7 +391,7 @@ class SemanticSearchEngine:
             from sklearn.cluster import KMeans
 
             # Get embeddings for clustering
-            texts = [r.get('document', '') for r in results]
+            texts = [r.get("document", "") for r in results]
 
             if self.embedder:
                 embeddings = self.embedder.generate_embeddings(texts)
@@ -437,14 +429,12 @@ class SemanticSearchEngine:
         """
         from sklearn.feature_extraction.text import TfidfVectorizer
 
-        vectorizer = TfidfVectorizer(max_features=100, stop_words='english')
+        vectorizer = TfidfVectorizer(max_features=100, stop_words="english")
         features = vectorizer.fit_transform(texts).toarray()
 
         return features
 
-    def explain_relevance(self,
-                         query: str,
-                         result: dict[str, Any]) -> dict[str, Any]:
+    def explain_relevance(self, query: str, result: dict[str, Any]) -> dict[str, Any]:
         """
         Explain why a result is relevant to the query.
 
@@ -455,7 +445,7 @@ class SemanticSearchEngine:
         Returns:
             Explanation dictionary
         """
-        document = result.get('document', '')
+        document = result.get("document", "")
 
         # Find matching keywords
         query_words = set(query.lower().split())
@@ -481,11 +471,11 @@ class SemanticSearchEngine:
                 matching_phrases.append(bigram)
 
         explanation = {
-            'score': result.get('score', 0),
-            'matching_keywords': list(matching_words),
-            'keyword_overlap_ratio': keyword_overlap,
-            'matching_phrases': matching_phrases,
-            'relevance_label': result.get('relevance', 'Unknown')
+            "score": result.get("score", 0),
+            "matching_keywords": list(matching_words),
+            "keyword_overlap_ratio": keyword_overlap,
+            "matching_phrases": matching_phrases,
+            "relevance_label": result.get("relevance", "Unknown"),
         }
 
         return explanation
@@ -509,10 +499,9 @@ class HybridSearchEngine:
 
         logger.info("HybridSearchEngine initialized")
 
-    def search(self,
-              query: str,
-              top_k: int = 10,
-              semantic_weight: float = 0.7) -> list[dict[str, Any]]:
+    def search(
+        self, query: str, top_k: int = 10, semantic_weight: float = 0.7
+    ) -> list[dict[str, Any]]:
         """
         Perform hybrid search combining semantic and keyword approaches.
 
@@ -531,11 +520,7 @@ class HybridSearchEngine:
         keyword_results = self._keyword_search(query, top_k=top_k * 2)
 
         # Combine and rerank results
-        combined_results = self._combine_results(
-            semantic_results,
-            keyword_results,
-            semantic_weight
-        )
+        combined_results = self._combine_results(semantic_results, keyword_results, semantic_weight)
 
         return combined_results[:top_k]
 
@@ -550,7 +535,7 @@ class HybridSearchEngine:
         Returns:
             Keyword search results
         """
-        if self.df.empty or 'transcript' not in self.df.columns:
+        if self.df.empty or "transcript" not in self.df.columns:
             return []
 
         # Simple keyword matching
@@ -558,7 +543,7 @@ class HybridSearchEngine:
         scores = []
 
         for idx, row in self.df.iterrows():
-            transcript = str(row.get('transcript', '')).lower()
+            transcript = str(row.get("transcript", "")).lower()
 
             # Calculate simple relevance score
             score = 0
@@ -567,23 +552,27 @@ class HybridSearchEngine:
                     score += 1
 
             if score > 0:
-                scores.append({
-                    'id': row.get('call_id', idx),
-                    'document': row.get('transcript', ''),
-                    'score': score / len(query_lower.split()),
-                    'metadata': row.to_dict(),
-                    'source': 'keyword'
-                })
+                scores.append(
+                    {
+                        "id": row.get("call_id", idx),
+                        "document": row.get("transcript", ""),
+                        "score": score / len(query_lower.split()),
+                        "metadata": row.to_dict(),
+                        "source": "keyword",
+                    }
+                )
 
         # Sort by score
-        scores.sort(key=lambda x: x['score'], reverse=True)
+        scores.sort(key=lambda x: x["score"], reverse=True)
 
         return scores[:top_k]
 
-    def _combine_results(self,
-                        semantic_results: list[dict[str, Any]],
-                        keyword_results: list[dict[str, Any]],
-                        semantic_weight: float) -> list[dict[str, Any]]:
+    def _combine_results(
+        self,
+        semantic_results: list[dict[str, Any]],
+        keyword_results: list[dict[str, Any]],
+        semantic_weight: float,
+    ) -> list[dict[str, Any]]:
         """
         Combine and rerank results from different search methods.
 
@@ -600,32 +589,32 @@ class HybridSearchEngine:
 
         # Add semantic results
         for result in semantic_results:
-            call_id = result.get('id')
+            call_id = result.get("id")
             if call_id:
                 combined[call_id] = {
                     **result,
-                    'combined_score': result.get('score', 0) * semantic_weight,
-                    'sources': ['semantic']
+                    "combined_score": result.get("score", 0) * semantic_weight,
+                    "sources": ["semantic"],
                 }
 
         # Add or update with keyword results
         for result in keyword_results:
-            call_id = result.get('id')
+            call_id = result.get("id")
             if call_id:
                 if call_id in combined:
                     # Update existing result
-                    combined[call_id]['combined_score'] += result.get('score', 0) * keyword_weight
-                    combined[call_id]['sources'].append('keyword')
+                    combined[call_id]["combined_score"] += result.get("score", 0) * keyword_weight
+                    combined[call_id]["sources"].append("keyword")
                 else:
                     # Add new result
                     combined[call_id] = {
                         **result,
-                        'combined_score': result.get('score', 0) * keyword_weight,
-                        'sources': ['keyword']
+                        "combined_score": result.get("score", 0) * keyword_weight,
+                        "sources": ["keyword"],
                     }
 
         # Convert to list and sort by combined score
         results = list(combined.values())
-        results.sort(key=lambda x: x['combined_score'], reverse=True)
+        results.sort(key=lambda x: x["combined_score"], reverse=True)
 
         return results

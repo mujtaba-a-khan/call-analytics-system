@@ -49,16 +49,16 @@ class IndexRebuilder:
                 self.logger.info("No existing index to backup")
                 return True
 
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = backup_dir / f"index_backup_{timestamp}"
             backup_path.mkdir(parents=True, exist_ok=True)
 
-            shutil.copytree(persist_dir, backup_path / 'vectorstore', dirs_exist_ok=True)
+            shutil.copytree(persist_dir, backup_path / "vectorstore", dirs_exist_ok=True)
 
             metadata = self.vector_client.get_statistics()
-            metadata['timestamp'] = timestamp
+            metadata["timestamp"] = timestamp
 
-            with open(backup_path / 'metadata.json', 'w') as f:
+            with open(backup_path / "metadata.json", "w") as f:
                 json.dump(metadata, f, indent=2)
 
             self.logger.info("Backup created at %s", backup_path)
@@ -125,7 +125,7 @@ class IndexRebuilder:
         """Return statistics reported by the vector client."""
         try:
             stats = self.vector_client.get_statistics()
-            stats['generated_at'] = datetime.now().isoformat()
+            stats["generated_at"] = datetime.now().isoformat()
             return stats
         except Exception as exc:  # pragma: no cover - defensive
             self.logger.error("Failed to generate index stats: %s", exc)
@@ -135,10 +135,10 @@ class IndexRebuilder:
 def load_vector_config(config_path: Path, persist_dir: Path | None) -> dict[str, Any]:
     """Load vector store configuration and apply CLI overrides."""
     config_data = toml.load(config_path)
-    vector_cfg = dict(config_data.get('vectorstore', {}))
+    vector_cfg = dict(config_data.get("vectorstore", {}))
 
     if persist_dir is not None:
-        vector_cfg['persist_dir'] = str(persist_dir)
+        vector_cfg["persist_dir"] = str(persist_dir)
 
     return vector_cfg
 
@@ -148,72 +148,45 @@ def main():
     Main function to run the index rebuild script.
     """
     parser = argparse.ArgumentParser(
-        description='Rebuild vector database index for Call Analytics System'
+        description="Rebuild vector database index for Call Analytics System"
     )
 
     parser.add_argument(
-        '--data-dir',
+        "--data-dir", type=Path, default=Path("data"), help="Data directory containing call records"
+    )
+
+    parser.add_argument(
+        "--vector-config",
         type=Path,
-        default=Path('data'),
-        help='Data directory containing call records'
+        default=Path("config/vectorstore.toml"),
+        help="Path to vector store configuration TOML file",
     )
 
     parser.add_argument(
-        '--vector-config',
+        "--vector-db-path",
         type=Path,
-        default=Path('config/vectorstore.toml'),
-        help='Path to vector store configuration TOML file'
+        default=Path("data/vectorstore"),
+        help="Override vector store persistence directory",
     )
 
     parser.add_argument(
-        '--vector-db-path',
-        type=Path,
-        default=Path('data/vectorstore'),
-        help='Override vector store persistence directory'
+        "--backup-dir", type=Path, default=Path("backups"), help="Directory for index backups"
     )
 
-    parser.add_argument(
-        '--backup-dir',
-        type=Path,
-        default=Path('backups'),
-        help='Directory for index backups'
-    )
+    parser.add_argument("--batch-size", type=int, default=100, help="Batch size for indexing")
 
-    parser.add_argument(
-        '--batch-size',
-        type=int,
-        default=100,
-        help='Batch size for indexing'
-    )
+    parser.add_argument("--no-backup", action="store_true", help="Skip backup of existing index")
 
-    parser.add_argument(
-        '--no-backup',
-        action='store_true',
-        help='Skip backup of existing index'
-    )
+    parser.add_argument("--no-clear", action="store_true", help="Do not clear existing index")
 
-    parser.add_argument(
-        '--no-clear',
-        action='store_true',
-        help='Do not clear existing index'
-    )
+    parser.add_argument("--verify", action="store_true", help="Verify index after rebuild")
 
-    parser.add_argument(
-        '--verify',
-        action='store_true',
-        help='Verify index after rebuild'
-    )
-
-    parser.add_argument(
-        '--stats-only',
-        action='store_true',
-        help='Only show index statistics'
-    )
+    parser.add_argument("--stats-only", action="store_true", help="Only show index statistics")
 
     args = parser.parse_args()
 
     # Setup logging
-    setup_logging(log_level='INFO', console_output=True)
+    setup_logging(log_level="INFO", console_output=True)
     logger = get_logger(__name__)
 
     try:
@@ -227,20 +200,20 @@ def main():
         vector_config = load_vector_config(args.vector_config, args.vector_db_path)
         vector_client = ChromaClient(vector_config)
 
-        indexing_config = dict(vector_config.get('indexing', {}))
-        indexing_config.setdefault('text_fields', ['transcript', 'notes'])
-        indexing_config.setdefault('min_text_length', 10)
+        indexing_config = dict(vector_config.get("indexing", {}))
+        indexing_config.setdefault("text_fields", ["transcript", "notes"])
+        indexing_config.setdefault("min_text_length", 10)
         indexing_config.setdefault(
-            'metadata_fields',
+            "metadata_fields",
             [
-                'call_id',
-                'agent_id',
-                'campaign',
-                'call_type',
-                'outcome',
-                'timestamp',
-                'duration',
-                'revenue',
+                "call_id",
+                "agent_id",
+                "campaign",
+                "call_type",
+                "outcome",
+                "timestamp",
+                "duration",
+                "revenue",
             ],
         )
 
@@ -261,12 +234,9 @@ def main():
 
         else:
             # Backup existing index
-            if (
-                not args.no_backup
-                and not rebuilder.backup_existing_index(args.backup_dir)
-            ):
-                    logger.error("Backup failed, aborting rebuild")
-                    sys.exit(1)
+            if not args.no_backup and not rebuilder.backup_existing_index(args.backup_dir):
+                logger.error("Backup failed, aborting rebuild")
+                sys.exit(1)
 
             # Load records
             records = rebuilder.load_records()
@@ -298,8 +268,8 @@ def main():
             logger.info(json.dumps(stats, indent=2))
 
             # Save stats to file
-            stats_file = args.data_dir / 'index_stats.json'
-            with open(stats_file, 'w') as f:
+            stats_file = args.data_dir / "index_stats.json"
+            with open(stats_file, "w") as f:
                 json.dump(stats, f, indent=2)
             logger.info(f"Statistics saved to {stats_file}")
 
@@ -310,5 +280,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -25,16 +25,15 @@ class FilterState:
     Provides serialization and restoration of filter selections.
     """
 
-    date_range: tuple[date, date] = field(default_factory=lambda: (
-        date.today() - timedelta(days=30),
-        date.today()
-    ))
+    date_range: tuple[date, date] = field(
+        default_factory=lambda: (date.today() - timedelta(days=30), date.today())
+    )
     selected_agents: list[str] = field(default_factory=list)
     selected_campaigns: list[str] = field(default_factory=list)
     selected_outcomes: list[str] = field(default_factory=list)
     selected_types: list[str] = field(default_factory=list)
-    duration_range: tuple[float, float] = field(default=(0.0, float('inf')))
-    revenue_range: tuple[float, float] = field(default=(0.0, float('inf')))
+    duration_range: tuple[float, float] = field(default=(0.0, float("inf")))
+    revenue_range: tuple[float, float] = field(default=(0.0, float("inf")))
     search_query: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -45,21 +44,18 @@ class FilterState:
             Dictionary representation of filter state
         """
         return {
-            'date_range': [
-                self.date_range[0].isoformat(),
-                self.date_range[1].isoformat()
-            ],
-            'selected_agents': self.selected_agents,
-            'selected_campaigns': self.selected_campaigns,
-            'selected_outcomes': self.selected_outcomes,
-            'selected_types': self.selected_types,
-            'duration_range': list(self.duration_range),
-            'revenue_range': list(self.revenue_range),
-            'search_query': self.search_query
+            "date_range": [self.date_range[0].isoformat(), self.date_range[1].isoformat()],
+            "selected_agents": self.selected_agents,
+            "selected_campaigns": self.selected_campaigns,
+            "selected_outcomes": self.selected_outcomes,
+            "selected_types": self.selected_types,
+            "duration_range": list(self.duration_range),
+            "revenue_range": list(self.revenue_range),
+            "search_query": self.search_query,
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'FilterState':
+    def from_dict(cls, data: dict[str, Any]) -> "FilterState":
         """
         Create FilterState from dictionary.
 
@@ -71,16 +67,16 @@ class FilterState:
         """
         return cls(
             date_range=(
-                date.fromisoformat(data['date_range'][0]),
-                date.fromisoformat(data['date_range'][1])
+                date.fromisoformat(data["date_range"][0]),
+                date.fromisoformat(data["date_range"][1]),
             ),
-            selected_agents=data.get('selected_agents', []),
-            selected_campaigns=data.get('selected_campaigns', []),
-            selected_outcomes=data.get('selected_outcomes', []),
-            selected_types=data.get('selected_types', []),
-            duration_range=tuple(data.get('duration_range', [0.0, float('inf')])),
-            revenue_range=tuple(data.get('revenue_range', [0.0, float('inf')])),
-            search_query=data.get('search_query', '')
+            selected_agents=data.get("selected_agents", []),
+            selected_campaigns=data.get("selected_campaigns", []),
+            selected_outcomes=data.get("selected_outcomes", []),
+            selected_types=data.get("selected_types", []),
+            duration_range=tuple(data.get("duration_range", [0.0, float("inf")])),
+            revenue_range=tuple(data.get("revenue_range", [0.0, float("inf")])),
+            search_query=data.get("search_query", ""),
         )
 
     def apply_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -96,56 +92,52 @@ class FilterState:
         filtered_df = df.copy()
 
         # Apply date range filter
-        if 'timestamp' in filtered_df.columns:
-            filtered_df['timestamp'] = pd.to_datetime(filtered_df['timestamp'])
+        if "timestamp" in filtered_df.columns:
+            filtered_df["timestamp"] = pd.to_datetime(filtered_df["timestamp"])
             start_datetime = pd.Timestamp(self.date_range[0])
             end_datetime = pd.Timestamp(self.date_range[1]) + pd.Timedelta(days=1)
             filtered_df = filtered_df[
-                (filtered_df['timestamp'] >= start_datetime) &
-                (filtered_df['timestamp'] < end_datetime)
+                (filtered_df["timestamp"] >= start_datetime)
+                & (filtered_df["timestamp"] < end_datetime)
             ]
 
         # Apply agent filter
-        if self.selected_agents and 'agent_id' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['agent_id'].isin(self.selected_agents)]
+        if self.selected_agents and "agent_id" in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df["agent_id"].isin(self.selected_agents)]
 
         # Apply campaign filter
-        if self.selected_campaigns and 'campaign' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['campaign'].isin(self.selected_campaigns)]
+        if self.selected_campaigns and "campaign" in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df["campaign"].isin(self.selected_campaigns)]
 
         # Apply outcome filter
-        if self.selected_outcomes and 'outcome' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['outcome'].isin(self.selected_outcomes)]
+        if self.selected_outcomes and "outcome" in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df["outcome"].isin(self.selected_outcomes)]
 
         # Apply type filter
-        if self.selected_types and 'call_type' in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df['call_type'].isin(self.selected_types)]
+        if self.selected_types and "call_type" in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df["call_type"].isin(self.selected_types)]
 
         # Apply duration range filter
-        if 'duration' in filtered_df.columns:
+        if "duration" in filtered_df.columns:
             filtered_df = filtered_df[
-                (filtered_df['duration'] >= self.duration_range[0]) &
-                (filtered_df['duration'] <= self.duration_range[1])
+                (filtered_df["duration"] >= self.duration_range[0])
+                & (filtered_df["duration"] <= self.duration_range[1])
             ]
 
         # Apply revenue range filter
-        if 'revenue' in filtered_df.columns:
+        if "revenue" in filtered_df.columns:
             filtered_df = filtered_df[
-                (filtered_df['revenue'] >= self.revenue_range[0]) &
-                (filtered_df['revenue'] <= self.revenue_range[1])
+                (filtered_df["revenue"] >= self.revenue_range[0])
+                & (filtered_df["revenue"] <= self.revenue_range[1])
             ]
 
         # Apply search query to notes/transcript
         if self.search_query:
-            search_cols = ['notes', 'transcript']
+            search_cols = ["notes", "transcript"]
             mask = pd.Series([False] * len(filtered_df))
             for col in search_cols:
                 if col in filtered_df.columns:
-                    mask |= filtered_df[col].str.contains(
-                        self.search_query,
-                        case=False,
-                        na=False
-                    )
+                    mask |= filtered_df[col].str.contains(self.search_query, case=False, na=False)
             filtered_df = filtered_df[mask]
 
         return filtered_df
@@ -158,18 +150,18 @@ class DateRangeFilter:
     """
 
     PRESET_RANGES = {
-        'Today': lambda: (date.today(), date.today()),
-        'Yesterday': lambda: (date.today() - timedelta(days=1), date.today() - timedelta(days=1)),
-        'Last 7 Days': lambda: (date.today() - timedelta(days=6), date.today()),
-        'Last 30 Days': lambda: (date.today() - timedelta(days=29), date.today()),
-        'Last 90 Days': lambda: (date.today() - timedelta(days=89), date.today()),
-        'This Month': lambda: (date.today().replace(day=1), date.today()),
-        'Last Month': lambda: (
+        "Today": lambda: (date.today(), date.today()),
+        "Yesterday": lambda: (date.today() - timedelta(days=1), date.today() - timedelta(days=1)),
+        "Last 7 Days": lambda: (date.today() - timedelta(days=6), date.today()),
+        "Last 30 Days": lambda: (date.today() - timedelta(days=29), date.today()),
+        "Last 90 Days": lambda: (date.today() - timedelta(days=89), date.today()),
+        "This Month": lambda: (date.today().replace(day=1), date.today()),
+        "Last Month": lambda: (
             (date.today().replace(day=1) - timedelta(days=1)).replace(day=1),
-            date.today().replace(day=1) - timedelta(days=1)
+            date.today().replace(day=1) - timedelta(days=1),
         ),
-        'This Year': lambda: (date(date.today().year, 1, 1), date.today()),
-        'Custom': None
+        "This Year": lambda: (date(date.today().year, 1, 1), date.today()),
+        "Custom": None,
     }
 
     @staticmethod
@@ -237,10 +229,12 @@ class DateRangeFilter:
         return start_date, end_date
 
     @classmethod
-    def render(cls,
-               container: Any = None,
-               key_prefix: str = 'date_filter',
-               default_range: str = 'Last 30 Days') -> tuple[date, date]:
+    def render(
+        cls,
+        container: Any = None,
+        key_prefix: str = "date_filter",
+        default_range: str = "Last 30 Days",
+    ) -> tuple[date, date]:
         """
         Render date range filter component.
 
@@ -260,22 +254,17 @@ class DateRangeFilter:
 
         preset_options = list(cls.PRESET_RANGES.keys())
         default_index = (
-            preset_options.index(default_range)
-            if default_range in preset_options
-            else 0
+            preset_options.index(default_range) if default_range in preset_options else 0
         )
 
         if state_key not in st.session_state:
             st.session_state[state_key] = cls._resolve_preset_range(preset_options[default_index])
 
         preset = container.selectbox(
-            "Date Range",
-            options=preset_options,
-            index=default_index,
-            key=preset_key
+            "Date Range", options=preset_options, index=default_index, key=preset_key
         )
 
-        if preset == 'Custom':
+        if preset == "Custom":
             default_value = cls._resolve_preset_range(preset_options[default_index])
             current_value = st.session_state.get(state_key, default_value)
 
@@ -287,7 +276,7 @@ class DateRangeFilter:
                 value=current_value,
                 key=picker_key,
                 label_visibility="collapsed",
-                disabled=False
+                disabled=False,
             )
 
             normalized = cls._normalize_selection(date_selection, current_value)
@@ -305,12 +294,10 @@ class DateRangeFilter:
                 value=(start_date, end_date),
                 key=picker_key,
                 label_visibility="collapsed",
-                disabled=True
+                disabled=True,
             )
 
-        container.caption(
-            f"📅 {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
-        )
+        container.caption(f"📅 {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
 
         return start_date, end_date
 
@@ -322,14 +309,16 @@ class MultiSelectFilter:
     """
 
     @classmethod
-    def render(cls,
-               label: str,
-               options: list[str],
-               default: list[str] | None = None,
-               container: Any = None,
-               key: str = 'multiselect',
-               help_text: str | None = None,
-               max_selections: int | None = None) -> list[str]:
+    def render(
+        cls,
+        label: str,
+        options: list[str],
+        default: list[str] | None = None,
+        container: Any = None,
+        key: str = "multiselect",
+        help_text: str | None = None,
+        max_selections: int | None = None,
+    ) -> list[str]:
         """
         Render multi-select filter component with enhanced features.
 
@@ -371,7 +360,7 @@ class MultiSelectFilter:
                 options=options,
                 default=st.session_state[f"{key}_selected"],
                 key=f"{key}_widget",
-                help=help_text
+                help=help_text,
             )
 
         # Update session state
@@ -390,15 +379,17 @@ class RangeSliderFilter:
     """
 
     @classmethod
-    def render(cls,
-               label: str,
-               min_value: float,
-               max_value: float,
-               default_range: tuple[float, float] | None = None,
-               container: Any = None,
-               key: str = 'range_slider',
-               step: float = 1.0,
-               format_func: callable | None = None) -> tuple[float, float]:
+    def render(
+        cls,
+        label: str,
+        min_value: float,
+        max_value: float,
+        default_range: tuple[float, float] | None = None,
+        container: Any = None,
+        key: str = "range_slider",
+        step: float = 1.0,
+        format_func: callable | None = None,
+    ) -> tuple[float, float]:
         """
         Render range slider filter component.
 
@@ -447,12 +438,14 @@ class SearchFilter:
     """
 
     @classmethod
-    def render(cls,
-               container: Any = None,
-               key: str = 'search',
-               placeholder: str = "Search calls...",
-               suggestions: list[str] | None = None,
-               help_text: str = "Search in notes and transcripts") -> str:
+    def render(
+        cls,
+        container: Any = None,
+        key: str = "search",
+        placeholder: str = "Search calls...",
+        suggestions: list[str] | None = None,
+        help_text: str = "Search in notes and transcripts",
+    ) -> str:
         """
         Render search filter component with autocomplete.
 
@@ -470,28 +463,24 @@ class SearchFilter:
 
         # Search input
         search_query = container.text_input(
-            "Search",
-            placeholder=placeholder,
-            key=key,
-            help=help_text
+            "Search", placeholder=placeholder, key=key, help=help_text
         )
 
         # Show search operators help
         with container.expander("Search Tips"):
-            st.markdown("""
+            st.markdown(
+                """
             **Search Operators:**
             - Use quotes for exact phrases: `"customer complaint"`
             - Use AND/OR for multiple terms: `billing AND payment`
             - Use - to exclude terms: `support -technical`
             - Use wildcards: `call*` matches 'calls', 'calling', etc.
-            """)
+            """
+            )
 
         # Show suggestions if query is being typed
         if suggestions and search_query and len(search_query) >= 2:
-            matching_suggestions = [
-                s for s in suggestions
-                if search_query.lower() in s.lower()
-            ][:5]
+            matching_suggestions = [s for s in suggestions if search_query.lower() in s.lower()][:5]
 
             if matching_suggestions:
                 st.caption("Suggestions:")
@@ -510,10 +499,9 @@ class QuickFilters:
     """
 
     @classmethod
-    def render(cls,
-               data: pd.DataFrame,
-               container: Any = None,
-               key_prefix: str = 'quick') -> dict[str, bool]:
+    def render(
+        cls, data: pd.DataFrame, container: Any = None, key_prefix: str = "quick"
+    ) -> dict[str, bool]:
         """
         Render quick filter buttons.
 
@@ -529,12 +517,12 @@ class QuickFilters:
 
         # Define quick filters
         quick_filters = {
-            '✅ Connected Calls': lambda df: df[df['outcome'] == 'connected'],
-            '❌ Failed Calls': lambda df: df[df['outcome'].isin(['failed', 'no_answer'])],
-            '⏱️ Long Calls (>5 min)': lambda df: df[df['duration'] > 300],
-            '💰 Revenue Calls': lambda df: df[df['revenue'] > 0],
+            "✅ Connected Calls": lambda df: df[df["outcome"] == "connected"],
+            "❌ Failed Calls": lambda df: df[df["outcome"].isin(["failed", "no_answer"])],
+            "⏱️ Long Calls (>5 min)": lambda df: df[df["duration"] > 300],
+            "💰 Revenue Calls": lambda df: df[df["revenue"] > 0],
             "📅 Today's Calls": lambda df: df[
-                pd.to_datetime(df['timestamp']).dt.date == date.today()
+                pd.to_datetime(df["timestamp"]).dt.date == date.today()
             ],
         }
 
@@ -546,9 +534,7 @@ class QuickFilters:
         for idx, (label, _filter_func) in enumerate(quick_filters.items()):
             with cols[idx]:
                 filter_states[label] = st.checkbox(
-                    label,
-                    key=f"{key_prefix}_{label}",
-                    help=f"Apply {label} filter"
+                    label, key=f"{key_prefix}_{label}", help=f"Apply {label} filter"
                 )
 
         return filter_states
@@ -564,13 +550,13 @@ def save_filter_preset(name: str, filter_state: FilterState) -> None:
     """
     try:
         # Load existing presets
-        presets = st.session_state.get('filter_presets', {})
+        presets = st.session_state.get("filter_presets", {})
 
         # Add new preset
         presets[name] = filter_state.to_dict()
 
         # Save to session state
-        st.session_state['filter_presets'] = presets
+        st.session_state["filter_presets"] = presets
 
         logger.info(f"Saved filter preset: {name}")
         st.success(f"Filter preset '{name}' saved successfully!")
@@ -591,7 +577,7 @@ def load_filter_preset(name: str) -> FilterState | None:
         FilterState if preset exists, None otherwise
     """
     try:
-        presets = st.session_state.get('filter_presets', {})
+        presets = st.session_state.get("filter_presets", {})
 
         if name in presets:
             filter_state = FilterState.from_dict(presets[name])

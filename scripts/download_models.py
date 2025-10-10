@@ -23,65 +23,59 @@ from src.utils.logger import get_logger, setup_logging
 
 # Model configurations
 MODELS_CONFIG = {
-    'whisper': {
-        'models': {
-            'tiny': {
-                'url': (
-                    'https://openaipublic.azureedge.net/main/whisper/models/'
-                    '65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt'
+    "whisper": {
+        "models": {
+            "tiny": {
+                "url": (
+                    "https://openaipublic.azureedge.net/main/whisper/models/"
+                    "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt"
                 ),
-                'size': '39 MB',
-                'sha256': '65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9'
+                "size": "39 MB",
+                "sha256": "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9",
             },
-            'base': {
-                'url': (
-                    'https://openaipublic.azureedge.net/main/whisper/models/'
-                    'ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt'
+            "base": {
+                "url": (
+                    "https://openaipublic.azureedge.net/main/whisper/models/"
+                    "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt"
                 ),
-                'size': '74 MB',
-                'sha256': 'ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e'
+                "size": "74 MB",
+                "sha256": "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e",
             },
-            'small': {
-                'url': (
-                    'https://openaipublic.azureedge.net/main/whisper/models/'
-                    '9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt'
+            "small": {
+                "url": (
+                    "https://openaipublic.azureedge.net/main/whisper/models/"
+                    "9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt"
                 ),
-                'size': '244 MB',
-                'sha256': '9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794'
+                "size": "244 MB",
+                "sha256": "9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794",
             },
-            'medium': {
-                'url': (
-                    'https://openaipublic.azureedge.net/main/whisper/models/'
-                    '345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt'
+            "medium": {
+                "url": (
+                    "https://openaipublic.azureedge.net/main/whisper/models/"
+                    "345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt"
                 ),
-                'size': '769 MB',
-                'sha256': '345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1'
+                "size": "769 MB",
+                "sha256": "345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1",
             },
-            'large': {
-                'url': (
-                    'https://openaipublic.azureedge.net/main/whisper/models/'
-                    '81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt'
+            "large": {
+                "url": (
+                    "https://openaipublic.azureedge.net/main/whisper/models/"
+                    "81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt"
                 ),
-                'size': '1550 MB',
-                'sha256': '81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524'
-            }
+                "size": "1550 MB",
+                "sha256": "81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524",
+            },
         }
     },
-    'sentence_transformers': {
-        'models': [
-            'all-MiniLM-L6-v2',
-            'all-mpnet-base-v2',
-            'multi-qa-MiniLM-L6-cos-v1',
-            'paraphrase-multilingual-MiniLM-L12-v2'
+    "sentence_transformers": {
+        "models": [
+            "all-MiniLM-L6-v2",
+            "all-mpnet-base-v2",
+            "multi-qa-MiniLM-L6-cos-v1",
+            "paraphrase-multilingual-MiniLM-L12-v2",
         ]
     },
-    'ollama': {
-        'models': [
-            'llama3',
-            'mistral',
-            'nomic-embed-text'
-        ]
-    }
+    "ollama": {"models": ["llama3", "mistral", "nomic-embed-text"]},
 }
 
 
@@ -127,15 +121,18 @@ class ModelDownloader:
             response.raise_for_status()
 
             # Get total file size
-            total_size = int(response.headers.get('content-length', 0))
+            total_size = int(response.headers.get("content-length", 0))
 
             # Download with progress bar
-            with open(destination, 'wb') as file, tqdm(
-                total=total_size,
-                unit='B',
-                unit_scale=True,
-                desc=destination.name,
-            ) as pbar:
+            with (
+                open(destination, "wb") as file,
+                tqdm(
+                    total=total_size,
+                    unit="B",
+                    unit_scale=True,
+                    desc=destination.name,
+                ) as pbar,
+            ):
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
                     pbar.update(len(chunk))
@@ -181,15 +178,15 @@ class ModelDownloader:
         Args:
             model_sizes: List of model sizes to download
         """
-        whisper_dir = self.models_dir / 'whisper'
+        whisper_dir = self.models_dir / "whisper"
         whisper_dir.mkdir(exist_ok=True)
 
         for size in model_sizes:
-            if size not in MODELS_CONFIG['whisper']['models']:
+            if size not in MODELS_CONFIG["whisper"]["models"]:
                 self.logger.warning(f"Unknown Whisper model size: {size}")
                 continue
 
-            model_info = MODELS_CONFIG['whisper']['models'][size]
+            model_info = MODELS_CONFIG["whisper"]["models"][size]
             model_path = whisper_dir / f"{size}.pt"
 
             # Check if already exists
@@ -199,11 +196,7 @@ class ModelDownloader:
 
             # Download model
             self.logger.info(f"Downloading Whisper {size} model ({model_info['size']})...")
-            success = self.download_file(
-                model_info['url'],
-                model_path,
-                model_info.get('sha256')
-            )
+            success = self.download_file(model_info["url"], model_path, model_info.get("sha256"))
 
             if not success:
                 self.logger.error(f"Failed to download Whisper {size} model")
@@ -218,7 +211,7 @@ class ModelDownloader:
         try:
             from sentence_transformers import SentenceTransformer
 
-            st_dir = self.models_dir / 'sentence_transformers'
+            st_dir = self.models_dir / "sentence_transformers"
             st_dir.mkdir(exist_ok=True)
 
             for model_name in model_names:
@@ -231,12 +224,16 @@ class ModelDownloader:
 
                     # Save model info
                     info_path = st_dir / f"{model_name}_info.json"
-                    with open(info_path, 'w') as f:
-                        json.dump({
-                            'name': model_name,
-                            'dimension': model.get_sentence_embedding_dimension(),
-                            'max_seq_length': model.max_seq_length
-                        }, f, indent=2)
+                    with open(info_path, "w") as f:
+                        json.dump(
+                            {
+                                "name": model_name,
+                                "dimension": model.get_sentence_embedding_dimension(),
+                                "max_seq_length": model.max_seq_length,
+                            },
+                            f,
+                            indent=2,
+                        )
 
                 except Exception as e:
                     self.logger.error(f"Failed to download {model_name}: {e}")
@@ -255,7 +252,7 @@ class ModelDownloader:
         """
         # Check if Ollama is installed
         try:
-            result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
+            result = subprocess.run(["ollama", "--version"], capture_output=True, text=True)
             if result.returncode != 0:
                 self.logger.warning("Ollama not installed or not in PATH")
                 return
@@ -269,9 +266,7 @@ class ModelDownloader:
             try:
                 # Pull model using Ollama CLI
                 result = subprocess.run(
-                    ['ollama', 'pull', model_name],
-                    capture_output=True,
-                    text=True
+                    ["ollama", "pull", model_name], capture_output=True, text=True
                 )
 
                 if result.returncode == 0:
@@ -286,53 +281,45 @@ class ModelDownloader:
         """
         Create a registry file with information about all downloaded models.
         """
-        registry = {
-            'whisper': {},
-            'sentence_transformers': {},
-            'ollama': {}
-        }
+        registry = {"whisper": {}, "sentence_transformers": {}, "ollama": {}}
 
         # Check Whisper models
-        whisper_dir = self.models_dir / 'whisper'
+        whisper_dir = self.models_dir / "whisper"
         if whisper_dir.exists():
-            for model_file in whisper_dir.glob('*.pt'):
+            for model_file in whisper_dir.glob("*.pt"):
                 size = model_file.stem
-                registry['whisper'][size] = {
-                    'path': str(model_file),
-                    'size': model_file.stat().st_size
+                registry["whisper"][size] = {
+                    "path": str(model_file),
+                    "size": model_file.stat().st_size,
                 }
 
         # Check sentence transformer models
-        st_dir = self.models_dir / 'sentence_transformers'
+        st_dir = self.models_dir / "sentence_transformers"
         if st_dir.exists():
-            for info_file in st_dir.glob('*_info.json'):
+            for info_file in st_dir.glob("*_info.json"):
                 with open(info_file) as f:
                     info = json.load(f)
-                    registry['sentence_transformers'][info['name']] = info
+                    registry["sentence_transformers"][info["name"]] = info
 
         # Check Ollama models
         try:
-            result = subprocess.run(
-                ['ollama', 'list'],
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
 
             if result.returncode == 0:
                 # Parse Ollama list output
-                lines = result.stdout.strip().split('\n')[1:]  # Skip header
+                lines = result.stdout.strip().split("\n")[1:]  # Skip header
                 for line in lines:
                     if line:
                         parts = line.split()
                         if parts:
                             model_name = parts[0]
-                            registry['ollama'][model_name] = {'installed': True}
+                            registry["ollama"][model_name] = {"installed": True}
         except Exception:
             pass
 
         # Save registry
-        registry_path = self.models_dir / 'model_registry.json'
-        with open(registry_path, 'w') as f:
+        registry_path = self.models_dir / "model_registry.json"
+        with open(registry_path, "w") as f:
             json.dump(registry, f, indent=2)
 
         self.logger.info(f"Model registry saved to {registry_path}")
@@ -347,19 +334,19 @@ class ModelDownloader:
         status = {}
 
         # Check Whisper
-        whisper_dir = self.models_dir / 'whisper'
-        status['whisper'] = whisper_dir.exists() and any(whisper_dir.glob('*.pt'))
+        whisper_dir = self.models_dir / "whisper"
+        status["whisper"] = whisper_dir.exists() and any(whisper_dir.glob("*.pt"))
 
         # Check sentence transformers
-        st_dir = self.models_dir / 'sentence_transformers'
-        status['sentence_transformers'] = st_dir.exists() and any(st_dir.glob('*_info.json'))
+        st_dir = self.models_dir / "sentence_transformers"
+        status["sentence_transformers"] = st_dir.exists() and any(st_dir.glob("*_info.json"))
 
         # Check Ollama
         try:
-            result = subprocess.run(['ollama', 'list'], capture_output=True)
-            status['ollama'] = result.returncode == 0
+            result = subprocess.run(["ollama", "list"], capture_output=True)
+            status["ollama"] = result.returncode == 0
         except Exception:
-            status['ollama'] = False
+            status["ollama"] = False
 
         return status
 
@@ -369,66 +356,55 @@ def main():
     Main function to run the model download script.
     """
     parser = argparse.ArgumentParser(
-        description='Download and setup ML models for Call Analytics System'
+        description="Download and setup ML models for Call Analytics System"
     )
 
     parser.add_argument(
-        '--models-dir',
+        "--models-dir",
         type=Path,
-        default=Path('models'),
-        help='Directory to store models (default: models/)'
+        default=Path("models"),
+        help="Directory to store models (default: models/)",
     )
 
     parser.add_argument(
-        '--whisper-sizes',
-        nargs='+',
-        default=['small'],
-        choices=['tiny', 'base', 'small', 'medium', 'large'],
-        help='Whisper model sizes to download (default: small)'
+        "--whisper-sizes",
+        nargs="+",
+        default=["small"],
+        choices=["tiny", "base", "small", "medium", "large"],
+        help="Whisper model sizes to download (default: small)",
     )
 
     parser.add_argument(
-        '--sentence-transformers',
-        nargs='+',
-        default=['all-MiniLM-L6-v2'],
-        help='Sentence transformer models to download'
+        "--sentence-transformers",
+        nargs="+",
+        default=["all-MiniLM-L6-v2"],
+        help="Sentence transformer models to download",
     )
 
     parser.add_argument(
-        '--ollama-models',
-        nargs='+',
-        default=['nomic-embed-text'],
-        help='Ollama models to pull'
+        "--ollama-models", nargs="+", default=["nomic-embed-text"], help="Ollama models to pull"
     )
 
     parser.add_argument(
-        '--skip-whisper',
-        action='store_true',
-        help='Skip downloading Whisper models'
+        "--skip-whisper", action="store_true", help="Skip downloading Whisper models"
     )
 
     parser.add_argument(
-        '--skip-sentence-transformers',
-        action='store_true',
-        help='Skip downloading sentence transformer models'
+        "--skip-sentence-transformers",
+        action="store_true",
+        help="Skip downloading sentence transformer models",
     )
 
-    parser.add_argument(
-        '--skip-ollama',
-        action='store_true',
-        help='Skip setting up Ollama models'
-    )
+    parser.add_argument("--skip-ollama", action="store_true", help="Skip setting up Ollama models")
 
     parser.add_argument(
-        '--verify-only',
-        action='store_true',
-        help='Only verify existing installations'
+        "--verify-only", action="store_true", help="Only verify existing installations"
     )
 
     args = parser.parse_args()
 
     # Setup logging
-    setup_logging(log_level='INFO', console_output=True)
+    setup_logging(log_level="INFO", console_output=True)
     logger = get_logger(__name__)
 
     # Create downloader
@@ -484,5 +460,5 @@ def main():
             sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

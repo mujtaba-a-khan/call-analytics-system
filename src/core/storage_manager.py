@@ -55,7 +55,7 @@ class StorageManager:
             self.processed_path,
             self.snapshots_path,
             self.cache_path,
-            self.exports_path
+            self.exports_path,
         ]
 
         for directory in directories:
@@ -87,31 +87,29 @@ class StorageManager:
             Default metadata dictionary
         """
         return {
-            'version': '1.0.0',
-            'created_at': datetime.now().isoformat(),
-            'last_modified': datetime.now().isoformat(),
-            'snapshots': [],
-            'total_calls_processed': 0,
-            'storage_format': 'parquet',
-            'primary_file': 'call_records.parquet'
+            "version": "1.0.0",
+            "created_at": datetime.now().isoformat(),
+            "last_modified": datetime.now().isoformat(),
+            "snapshots": [],
+            "total_calls_processed": 0,
+            "storage_format": "parquet",
+            "primary_file": "call_records.parquet",
         }
 
     def _save_metadata(self):
         """Save metadata to file"""
-        self.metadata['last_modified'] = datetime.now().isoformat()
+        self.metadata["last_modified"] = datetime.now().isoformat()
 
         try:
-            with open(self.metadata_file, 'w') as f:
+            with open(self.metadata_file, "w") as f:
                 json.dump(self.metadata, f, indent=2)
             logger.debug("Metadata saved successfully")
         except Exception as e:
             logger.error(f"Error saving metadata: {e}")
 
-    def save_dataframe(self,
-                      df: pd.DataFrame,
-                      name: str,
-                      format: str = 'parquet',
-                      create_snapshot: bool = False) -> Path:
+    def save_dataframe(
+        self, df: pd.DataFrame, name: str, format: str = "parquet", create_snapshot: bool = False
+    ) -> Path:
         """
         Save a DataFrame to storage.
 
@@ -125,13 +123,13 @@ class StorageManager:
             Path to saved file
         """
         # Determine file path
-        if format == 'parquet':
+        if format == "parquet":
             file_path = self.processed_path / f"{name}.parquet"
             df.to_parquet(file_path, index=False)
-        elif format == 'csv':
+        elif format == "csv":
             file_path = self.processed_path / f"{name}.csv"
             df.to_csv(file_path, index=False)
-        elif format == 'pickle':
+        elif format == "pickle":
             file_path = self.processed_path / f"{name}.pkl"
             df.to_pickle(file_path)
         else:
@@ -142,8 +140,8 @@ class StorageManager:
             self.create_snapshot(df, name)
 
         # Update metadata
-        self.metadata['total_calls_processed'] = len(df)
-        self.metadata['primary_file'] = file_path.name
+        self.metadata["total_calls_processed"] = len(df)
+        self.metadata["primary_file"] = file_path.name
         self._save_metadata()
 
         # Clear cache since data has changed
@@ -152,7 +150,7 @@ class StorageManager:
         logger.info(f"Saved {len(df)} records to {file_path}")
         return file_path
 
-    def load_dataframe(self, name: str, format: str = 'parquet') -> pd.DataFrame | None:
+    def load_dataframe(self, name: str, format: str = "parquet") -> pd.DataFrame | None:
         """
         Load a DataFrame from storage.
 
@@ -164,15 +162,15 @@ class StorageManager:
             Loaded DataFrame or None if not found
         """
         try:
-            if format == 'parquet':
+            if format == "parquet":
                 file_path = self.processed_path / f"{name}.parquet"
                 if file_path.exists():
                     return pd.read_parquet(file_path)
-            elif format == 'csv':
+            elif format == "csv":
                 file_path = self.processed_path / f"{name}.csv"
                 if file_path.exists():
                     return pd.read_csv(file_path)
-            elif format == 'pickle':
+            elif format == "pickle":
                 file_path = self.processed_path / f"{name}.pkl"
                 if file_path.exists():
                     return pd.read_pickle(file_path)
@@ -198,11 +196,11 @@ class StorageManager:
                 return self._data_cache.copy()
 
         # Try to load the primary file
-        primary_file = self.metadata.get('primary_file', 'call_records.parquet')
+        primary_file = self.metadata.get("primary_file", "call_records.parquet")
 
         # Try different formats
-        for format in ['parquet', 'csv', 'pickle']:
-            name = primary_file.rsplit('.', 1)[0] if '.' in primary_file else primary_file
+        for format in ["parquet", "csv", "pickle"]:
+            name = primary_file.rsplit(".", 1)[0] if "." in primary_file else primary_file
             df = self.load_dataframe(name, format)
             if df is not None:
                 # Update cache
@@ -211,7 +209,7 @@ class StorageManager:
                 return df.copy()
 
         # If no file found, check for any data files
-        for file_path in self.processed_path.glob('*.parquet'):
+        for file_path in self.processed_path.glob("*.parquet"):
             try:
                 df = pd.read_parquet(file_path)
                 self._data_cache = df
@@ -224,9 +222,9 @@ class StorageManager:
         logger.warning("No call records found in storage")
         return pd.DataFrame()
 
-    def load_call_records(self,
-                         start_date: datetime | date | None = None,
-                         end_date: datetime | date | None = None) -> pd.DataFrame:
+    def load_call_records(
+        self, start_date: datetime | date | None = None, end_date: datetime | date | None = None
+    ) -> pd.DataFrame:
         """
         Load call records filtered by date range.
 
@@ -244,24 +242,24 @@ class StorageManager:
             return df
 
         # Check if timestamp column exists
-        if 'timestamp' not in df.columns:
+        if "timestamp" not in df.columns:
             logger.warning("No timestamp column found in data")
             return df
 
         # Convert timestamp to datetime if needed
-        if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
 
         # Apply date filters
         if start_date is not None:
             if isinstance(start_date, date) and not isinstance(start_date, datetime):
                 start_date = datetime.combine(start_date, datetime.min.time())
-            df = df[df['timestamp'] >= start_date]
+            df = df[df["timestamp"] >= start_date]
 
         if end_date is not None:
             if isinstance(end_date, date) and not isinstance(end_date, datetime):
                 end_date = datetime.combine(end_date, datetime.max.time())
-            df = df[df['timestamp'] <= end_date]
+            df = df[df["timestamp"] <= end_date]
 
         logger.info(f"Loaded {len(df)} records for date range {start_date} to {end_date}")
         return df
@@ -322,16 +320,16 @@ class StorageManager:
         """
         df = self.load_all_records()
 
-        if df.empty or 'timestamp' not in df.columns:
+        if df.empty or "timestamp" not in df.columns:
             logger.warning("No timestamp data available")
             return None
 
         # Convert to datetime if needed
-        if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-        min_date = df['timestamp'].min()
-        max_date = df['timestamp'].max()
+        min_date = df["timestamp"].min()
+        max_date = df["timestamp"].max()
 
         return (min_date, max_date)
 
@@ -355,15 +353,15 @@ class StorageManager:
             combined_df = pd.concat([existing_df, new_df], ignore_index=True)
 
         # Remove duplicates if requested
-        if deduplicate and 'call_id' in combined_df.columns:
+        if deduplicate and "call_id" in combined_df.columns:
             original_count = len(combined_df)
-            combined_df = combined_df.drop_duplicates(subset=['call_id'], keep='last')
+            combined_df = combined_df.drop_duplicates(subset=["call_id"], keep="last")
             duplicates_removed = original_count - len(combined_df)
             if duplicates_removed > 0:
                 logger.info(f"Removed {duplicates_removed} duplicate records")
 
         # Save the combined data
-        self.save_dataframe(combined_df, 'call_records')
+        self.save_dataframe(combined_df, "call_records")
 
         records_added = len(combined_df) - len(existing_df)
         logger.info(f"Added {records_added} new records")
@@ -372,7 +370,7 @@ class StorageManager:
     def store_call_records(
         self,
         records: list[dict[str, Any]] | dict[str, Any] | pd.DataFrame,
-        deduplicate: bool = True
+        deduplicate: bool = True,
     ) -> int:
         """Persist new call records provided as list/dict/DataFrame.
 
@@ -403,8 +401,8 @@ class StorageManager:
             return 0
 
         # Normalize timestamps
-        if 'timestamp' in new_df.columns:
-            new_df['timestamp'] = pd.to_datetime(new_df['timestamp'], errors='coerce')
+        if "timestamp" in new_df.columns:
+            new_df["timestamp"] = pd.to_datetime(new_df["timestamp"], errors="coerce")
 
         added = self.append_records(new_df, deduplicate=deduplicate)
         logger.info(f"Stored {added} call record(s)")
@@ -421,19 +419,21 @@ class StorageManager:
         Returns:
             Path to snapshot file
         """
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         snapshot_name = f"{name}_{timestamp}"
         snapshot_path = self.snapshots_path / f"{snapshot_name}.parquet"
 
         df.to_parquet(snapshot_path, index=False)
 
         # Update metadata
-        self.metadata['snapshots'].append({
-            'name': snapshot_name,
-            'path': str(snapshot_path),
-            'created_at': datetime.now().isoformat(),
-            'record_count': len(df)
-        })
+        self.metadata["snapshots"].append(
+            {
+                "name": snapshot_name,
+                "path": str(snapshot_path),
+                "created_at": datetime.now().isoformat(),
+                "record_count": len(df),
+            }
+        )
         self._save_metadata()
 
         logger.info(f"Created snapshot: {snapshot_name}")
@@ -446,7 +446,7 @@ class StorageManager:
         Returns:
             List of snapshot metadata
         """
-        return self.metadata.get('snapshots', [])
+        return self.metadata.get("snapshots", [])
 
     def load_snapshot(self, snapshot_name: str) -> pd.DataFrame | None:
         """
@@ -458,16 +458,16 @@ class StorageManager:
         Returns:
             DataFrame or None if not found
         """
-        for snapshot in self.metadata.get('snapshots', []):
-            if snapshot['name'] == snapshot_name:
-                snapshot_path = Path(snapshot['path'])
+        for snapshot in self.metadata.get("snapshots", []):
+            if snapshot["name"] == snapshot_name:
+                snapshot_path = Path(snapshot["path"])
                 if snapshot_path.exists():
                     return pd.read_parquet(snapshot_path)
 
         logger.warning(f"Snapshot not found: {snapshot_name}")
         return None
 
-    def export_data(self, df: pd.DataFrame, filename: str, format: str = 'csv') -> Path:
+    def export_data(self, df: pd.DataFrame, filename: str, format: str = "csv") -> Path:
         """
         Export data to the exports directory.
 
@@ -479,15 +479,15 @@ class StorageManager:
         Returns:
             Path to exported file
         """
-        if format == 'csv':
+        if format == "csv":
             export_path = self.exports_path / f"{filename}.csv"
             df.to_csv(export_path, index=False)
-        elif format == 'excel':
+        elif format == "excel":
             export_path = self.exports_path / f"{filename}.xlsx"
             df.to_excel(export_path, index=False)
-        elif format == 'json':
+        elif format == "json":
             export_path = self.exports_path / f"{filename}.json"
-            df.to_json(export_path, orient='records', indent=2)
+            df.to_json(export_path, orient="records", indent=2)
         else:
             raise ValueError(f"Unsupported export format: {format}")
 
@@ -508,33 +508,33 @@ class StorageManager:
             Dictionary with storage statistics
         """
         stats = {
-            'total_records': self.get_record_count(),
-            'snapshots_count': len(self.metadata.get('snapshots', [])),
-            'last_modified': self.metadata.get('last_modified'),
-            'storage_format': self.metadata.get('storage_format', 'parquet')
+            "total_records": self.get_record_count(),
+            "snapshots_count": len(self.metadata.get("snapshots", [])),
+            "last_modified": self.metadata.get("last_modified"),
+            "storage_format": self.metadata.get("storage_format", "parquet"),
         }
 
         # Calculate storage size
         total_size = 0
         for path in [self.processed_path, self.snapshots_path]:
-            for file in path.glob('*'):
+            for file in path.glob("*"):
                 if file.is_file():
                     total_size += file.stat().st_size
 
-        stats['storage_size_mb'] = round(total_size / (1024 * 1024), 2)
+        stats["storage_size_mb"] = round(total_size / (1024 * 1024), 2)
 
         # Get date range
         date_range = self.get_date_range()
         if date_range:
-            stats['earliest_date'] = date_range[0].isoformat()
-            stats['latest_date'] = date_range[1].isoformat()
+            stats["earliest_date"] = date_range[0].isoformat()
+            stats["latest_date"] = date_range[1].isoformat()
 
         return stats
 
     def clear_import_history(self):
         """Clear import history from metadata"""
-        if 'import_history' in self.metadata:
-            self.metadata['import_history'] = []
+        if "import_history" in self.metadata:
+            self.metadata["import_history"] = []
             self._save_metadata()
             logger.info("Import history cleared")
 
@@ -545,8 +545,8 @@ class StorageManager:
         Args:
             record: Import record dictionary
         """
-        if 'import_history' not in self.metadata:
-            self.metadata['import_history'] = []
+        if "import_history" not in self.metadata:
+            self.metadata["import_history"] = []
 
         # Ensure values are JSON serializable (e.g., convert datetimes)
         serializable_record = {}
@@ -556,7 +556,7 @@ class StorageManager:
             else:
                 serializable_record[key] = value
 
-        self.metadata['import_history'].append(serializable_record)
+        self.metadata["import_history"].append(serializable_record)
         self._save_metadata()
         logger.info(f"Added import record: {record.get('filename', 'unknown')}")
 
@@ -567,7 +567,7 @@ class StorageManager:
         Returns:
             DataFrame with import history
         """
-        history = self.metadata.get('import_history', [])
+        history = self.metadata.get("import_history", [])
         if history:
             return pd.DataFrame(history)
         return pd.DataFrame()

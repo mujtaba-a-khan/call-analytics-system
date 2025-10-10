@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LabelingResult:
     """Container for labeling results"""
+
     connection_status: str
     call_type: str
     outcome: str
@@ -41,16 +42,16 @@ class LabelingEngine:
             rules_config: Dictionary containing labeling rules
         """
         self.rules = rules_config
-        self.connection_rules = rules_config.get('connection', {})
-        self.call_type_rules = rules_config.get('call_types', {})
-        self.outcome_rules = rules_config.get('outcomes', {})
-        self.scoring_config = rules_config.get('scoring', {})
-        self.priorities = rules_config.get('priorities', {})
+        self.connection_rules = rules_config.get("connection", {})
+        self.call_type_rules = rules_config.get("call_types", {})
+        self.outcome_rules = rules_config.get("outcomes", {})
+        self.scoring_config = rules_config.get("scoring", {})
+        self.priorities = rules_config.get("priorities", {})
         self.custom_patterns = self._compile_custom_patterns()
 
         # Configure fuzzy matching
-        self.fuzzy_enabled = self.scoring_config.get('fuzzy_matching', True)
-        self.fuzzy_threshold = self.scoring_config.get('fuzzy_threshold', 0.85) * 100
+        self.fuzzy_enabled = self.scoring_config.get("fuzzy_matching", True)
+        self.fuzzy_threshold = self.scoring_config.get("fuzzy_threshold", 0.85) * 100
 
         logger.info("LabelingEngine initialized with rules")
 
@@ -62,7 +63,7 @@ class LabelingEngine:
             Dictionary of compiled regex patterns
         """
         patterns = {}
-        custom_rules = self.rules.get('custom_rules', {})
+        custom_rules = self.rules.get("custom_rules", {})
 
         for name, pattern_str in custom_rules.items():
             try:
@@ -73,10 +74,9 @@ class LabelingEngine:
 
         return patterns
 
-    def label_call(self,
-                   transcript: str,
-                   duration_seconds: float,
-                   metadata: dict[str, Any] | None = None) -> LabelingResult:
+    def label_call(
+        self, transcript: str, duration_seconds: float, metadata: dict[str, Any] | None = None
+    ) -> LabelingResult:
         """
         Apply all labeling rules to a call.
 
@@ -97,17 +97,17 @@ class LabelingEngine:
             transcript, duration_seconds
         )
         matched_keywords.extend(conn_keywords)
-        confidence_scores['connection'] = conn_confidence
+        confidence_scores["connection"] = conn_confidence
 
         # Determine call type
         call_type, type_confidence, type_keywords = self._determine_call_type(transcript)
         matched_keywords.extend(type_keywords)
-        confidence_scores['call_type'] = type_confidence
+        confidence_scores["call_type"] = type_confidence
 
         # Determine outcome
         outcome, outcome_confidence, outcome_keywords = self._determine_outcome(transcript)
         matched_keywords.extend(outcome_keywords)
-        confidence_scores['outcome'] = outcome_confidence
+        confidence_scores["outcome"] = outcome_confidence
 
         # Apply custom pattern overrides if matched
         call_type, outcome = self._apply_custom_patterns(transcript, call_type, outcome)
@@ -117,12 +117,12 @@ class LabelingEngine:
             call_type=call_type,
             outcome=outcome,
             confidence_scores=confidence_scores,
-            matched_keywords=list(set(matched_keywords))  # Remove duplicates
+            matched_keywords=list(set(matched_keywords)),  # Remove duplicates
         )
 
-    def _determine_connection_status(self,
-                                    transcript: str,
-                                    duration: float) -> tuple[str, float, list[str]]:
+    def _determine_connection_status(
+        self, transcript: str, duration: float
+    ) -> tuple[str, float, list[str]]:
         """
         Determine if the call was connected or disconnected.
 
@@ -137,11 +137,11 @@ class LabelingEngine:
         matched_keywords = []
 
         # Check duration threshold
-        min_duration = self.connection_rules.get('min_duration_seconds', 30)
-        min_words = self.connection_rules.get('min_transcript_words', 40)
+        min_duration = self.connection_rules.get("min_duration_seconds", 30)
+        min_words = self.connection_rules.get("min_transcript_words", 40)
 
         # Check for disconnection keywords
-        disconnection_keywords = self.connection_rules.get('disconnection_keywords', [])
+        disconnection_keywords = self.connection_rules.get("disconnection_keywords", [])
         for keyword in disconnection_keywords:
             if self._keyword_match(transcript, keyword):
                 matched_keywords.append(keyword)
@@ -156,7 +156,7 @@ class LabelingEngine:
             return "Disconnected", confidence, []
 
         # Check for connection keywords
-        connection_keywords = self.connection_rules.get('connection_keywords', [])
+        connection_keywords = self.connection_rules.get("connection_keywords", [])
         for keyword in connection_keywords:
             if self._keyword_match(transcript, keyword):
                 matched_keywords.append(keyword)
@@ -196,9 +196,9 @@ class LabelingEngine:
                     matches.append(keyword)
                     # Apply weighted scoring
                     if len(keyword.split()) > 1:  # Phrase
-                        score += self.scoring_config.get('phrase_weight', 2.0)
+                        score += self.scoring_config.get("phrase_weight", 2.0)
                     else:  # Single word
-                        score += self.scoring_config.get('keyword_weight', 1.0)
+                        score += self.scoring_config.get("keyword_weight", 1.0)
 
             scores[call_type] = score
             keyword_matches[call_type] = matches
@@ -213,7 +213,7 @@ class LabelingEngine:
 
         if len(tied_types) > 1:
             # Use priority order
-            priority_order = self.priorities.get('call_type_priority', [])
+            priority_order = self.priorities.get("call_type_priority", [])
             for priority_type in priority_order:
                 if priority_type in tied_types:
                     best_type = priority_type
@@ -228,11 +228,11 @@ class LabelingEngine:
         confidence = min(1.0, scores[best_type] / max(total_keywords * 0.1, 1))
 
         # Apply minimum confidence threshold
-        min_confidence = self.scoring_config.get('min_confidence_score', 0.6)
+        min_confidence = self.scoring_config.get("min_confidence_score", 0.6)
         if confidence < min_confidence:
             return "Unknown", confidence, []
 
-        return best_type.replace('_', '/').title(), confidence, keyword_matches[best_type]
+        return best_type.replace("_", "/").title(), confidence, keyword_matches[best_type]
 
     def _determine_outcome(self, transcript: str) -> tuple[str, float, list[str]]:
         """
@@ -248,7 +248,7 @@ class LabelingEngine:
         transcript_length = len(transcript)
         if transcript_length > 500:
             # Analyze last 30% of transcript for outcome
-            last_portion = transcript[int(transcript_length * 0.7):]
+            last_portion = transcript[int(transcript_length * 0.7) :]
         else:
             last_portion = transcript
 
@@ -264,7 +264,7 @@ class LabelingEngine:
                 # Check in full transcript and give bonus for last portion
                 if self._keyword_match(transcript, keyword):
                     matches.append(keyword)
-                    score += self.scoring_config.get('keyword_weight', 1.0)
+                    score += self.scoring_config.get("keyword_weight", 1.0)
 
                     # Bonus if found in last portion
                     if self._keyword_match(last_portion, keyword):
@@ -283,7 +283,7 @@ class LabelingEngine:
 
         if len(tied_outcomes) > 1:
             # Use priority order
-            priority_order = self.priorities.get('outcome_priority', [])
+            priority_order = self.priorities.get("outcome_priority", [])
             for priority_outcome in priority_order:
                 if priority_outcome in tied_outcomes:
                     best_outcome = priority_outcome
@@ -298,12 +298,12 @@ class LabelingEngine:
         confidence = min(1.0, scores[best_outcome] / max(total_keywords * 0.1, 1))
 
         # Apply minimum confidence threshold
-        min_confidence = self.scoring_config.get('min_confidence_score', 0.6)
+        min_confidence = self.scoring_config.get("min_confidence_score", 0.6)
         if confidence < min_confidence:
             return "Unknown", confidence, []
 
         # Format outcome name
-        outcome_formatted = best_outcome.replace('_', '-').title()
+        outcome_formatted = best_outcome.replace("_", "-").title()
 
         return outcome_formatted, confidence, keyword_matches[best_outcome]
 
@@ -362,18 +362,16 @@ class LabelingEngine:
             Tuple of (call_type, outcome) with overrides applied
         """
         # Check for urgent complaint pattern
-        if (
-            'urgent_complaint' in self.custom_patterns
-            and self.custom_patterns['urgent_complaint'].search(transcript)
-        ):
+        if "urgent_complaint" in self.custom_patterns and self.custom_patterns[
+            "urgent_complaint"
+        ].search(transcript):
             call_type = "Complaint"
             logger.debug("Applied urgent_complaint pattern override")
 
         # Check for technical escalation pattern
-        if (
-            'technical_escalation' in self.custom_patterns
-            and self.custom_patterns['technical_escalation'].search(transcript)
-        ):
+        if "technical_escalation" in self.custom_patterns and self.custom_patterns[
+            "technical_escalation"
+        ].search(transcript):
             outcome = "Callback"  # Technical escalations often need callbacks
             logger.debug("Applied technical_escalation pattern override")
 
@@ -390,47 +388,46 @@ class LabelingEngine:
             DataFrame with added label columns
         """
         # Ensure required columns exist
-        if 'transcript' not in df.columns or 'duration_seconds' not in df.columns:
+        if "transcript" not in df.columns or "duration_seconds" not in df.columns:
             raise ValueError("DataFrame must have 'transcript' and 'duration_seconds' columns")
 
         # Initialize new columns
-        df['connection_status'] = ''
-        df['call_type'] = ''
-        df['outcome'] = ''
-        df['labeling_confidence'] = 0.0
-        df['matched_keywords'] = ''
+        df["connection_status"] = ""
+        df["call_type"] = ""
+        df["outcome"] = ""
+        df["labeling_confidence"] = 0.0
+        df["matched_keywords"] = ""
 
         # Process each row
         for idx, row in df.iterrows():
             try:
                 result = self.label_call(
-                    transcript=str(row['transcript']),
-                    duration_seconds=float(row['duration_seconds']),
-                    metadata=row.to_dict()
+                    transcript=str(row["transcript"]),
+                    duration_seconds=float(row["duration_seconds"]),
+                    metadata=row.to_dict(),
                 )
 
-                df.at[idx, 'connection_status'] = result.connection_status
-                df.at[idx, 'call_type'] = result.call_type
-                df.at[idx, 'outcome'] = result.outcome
+                df.at[idx, "connection_status"] = result.connection_status
+                df.at[idx, "call_type"] = result.call_type
+                df.at[idx, "outcome"] = result.outcome
 
                 # Average confidence across all labels
-                avg_confidence = (
-                    sum(result.confidence_scores.values())
-                    / len(result.confidence_scores)
+                avg_confidence = sum(result.confidence_scores.values()) / len(
+                    result.confidence_scores
                 )
-                df.at[idx, 'labeling_confidence'] = avg_confidence
+                df.at[idx, "labeling_confidence"] = avg_confidence
 
                 # Store matched keywords as comma-separated string
-                df.at[idx, 'matched_keywords'] = ', '.join(
+                df.at[idx, "matched_keywords"] = ", ".join(
                     result.matched_keywords[:5]
                 )  # Limit to 5
 
             except Exception as e:
                 logger.error(f"Error labeling row {idx}: {e}")
-                df.at[idx, 'connection_status'] = 'Unknown'
-                df.at[idx, 'call_type'] = 'Unknown'
-                df.at[idx, 'outcome'] = 'Unknown'
-                df.at[idx, 'labeling_confidence'] = 0.0
+                df.at[idx, "connection_status"] = "Unknown"
+                df.at[idx, "call_type"] = "Unknown"
+                df.at[idx, "outcome"] = "Unknown"
+                df.at[idx, "labeling_confidence"] = 0.0
 
         logger.info(f"Labeled {len(df)} calls")
         return df
@@ -446,29 +443,29 @@ class LabelingEngine:
             Dictionary with labeling statistics
         """
         stats = {
-            'total_calls': len(df),
-            'connection_distribution': {},
-            'type_distribution': {},
-            'outcome_distribution': {},
-            'average_confidence': 0.0,
-            'low_confidence_count': 0
+            "total_calls": len(df),
+            "connection_distribution": {},
+            "type_distribution": {},
+            "outcome_distribution": {},
+            "average_confidence": 0.0,
+            "low_confidence_count": 0,
         }
 
         # Connection distribution
-        if 'connection_status' in df.columns:
-            stats['connection_distribution'] = df['connection_status'].value_counts().to_dict()
+        if "connection_status" in df.columns:
+            stats["connection_distribution"] = df["connection_status"].value_counts().to_dict()
 
         # Type distribution
-        if 'call_type' in df.columns:
-            stats['type_distribution'] = df['call_type'].value_counts().to_dict()
+        if "call_type" in df.columns:
+            stats["type_distribution"] = df["call_type"].value_counts().to_dict()
 
         # Outcome distribution
-        if 'outcome' in df.columns:
-            stats['outcome_distribution'] = df['outcome'].value_counts().to_dict()
+        if "outcome" in df.columns:
+            stats["outcome_distribution"] = df["outcome"].value_counts().to_dict()
 
         # Confidence statistics
-        if 'labeling_confidence' in df.columns:
-            stats['average_confidence'] = float(df['labeling_confidence'].mean())
-            stats['low_confidence_count'] = int((df['labeling_confidence'] < 0.6).sum())
+        if "labeling_confidence" in df.columns:
+            stats["average_confidence"] = float(df["labeling_confidence"].mean())
+            stats["low_confidence_count"] = int((df["labeling_confidence"] < 0.6).sum())
 
         return stats

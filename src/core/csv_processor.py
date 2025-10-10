@@ -34,64 +34,71 @@ class CSVProcessor:
         """
         config = config or {}
 
-        self.encoding = config.get('encoding', 'utf-8')
+        self.encoding = config.get("encoding", "utf-8")
 
-        default_required = ['call_id', 'timestamp', 'duration', 'transcript']
+        default_required = ["call_id", "timestamp", "duration", "transcript"]
         default_optional = [
-            'agent_id', 'campaign', 'customer_name', 'phone_number',
-            'product_name', 'amount', 'revenue', 'outcome', 'call_type', 'notes'
+            "agent_id",
+            "campaign",
+            "customer_name",
+            "phone_number",
+            "product_name",
+            "amount",
+            "revenue",
+            "outcome",
+            "call_type",
+            "notes",
         ]
 
         schema_definitions = self._extract_field_schema(config)
 
-        explicit_required = config.get('required_columns')
-        explicit_optional = config.get('optional_columns')
+        explicit_required = config.get("required_columns")
+        explicit_optional = config.get("optional_columns")
 
         derived_required = [
-            field.get('name') for field in schema_definitions
-            if isinstance(field, dict) and field.get('required', False)
+            field.get("name")
+            for field in schema_definitions
+            if isinstance(field, dict) and field.get("required", False)
         ]
         derived_required = [name for name in derived_required if name]
 
         derived_optional = [
-            field.get('name') for field in schema_definitions
-            if isinstance(field, dict) and not field.get('required', False)
+            field.get("name")
+            for field in schema_definitions
+            if isinstance(field, dict) and not field.get("required", False)
         ]
         derived_optional = [name for name in derived_optional if name]
 
         base_optional = explicit_optional or default_optional
         if derived_optional:
-            base_optional = [
-                col for col in base_optional
-                if col not in derived_required
-            ]
+            base_optional = [col for col in base_optional if col not in derived_required]
             base_optional = derived_optional + base_optional
 
         self.required_columns = explicit_required or derived_required or default_required
         self.optional_columns = list(dict.fromkeys(base_optional))
         self.field_definitions = schema_definitions
         self.field_labels = {
-            field['name']: field.get('label', field['name'])
+            field["name"]: field.get("label", field["name"])
             for field in self.field_definitions
-            if isinstance(field, dict) and field.get('name')
+            if isinstance(field, dict) and field.get("name")
         }
         self.field_alias_map = {
-            field['name']: field.get('aliases', [])
+            field["name"]: field.get("aliases", [])
             for field in self.field_definitions
-            if isinstance(field, dict) and field.get('name')
+            if isinstance(field, dict) and field.get("name")
         }
         self.field_pattern_map = {
-            field['name']: field.get('patterns', [])
+            field["name"]: field.get("patterns", [])
             for field in self.field_definitions
-            if isinstance(field, dict) and field.get('name')
+            if isinstance(field, dict) and field.get("name")
         }
         self.date_formats = [
-            '%Y-%m-%d %H:%M:%S',
-            '%Y-%m-%d',
-            '%m/%d/%Y %H:%M:%S',
-            '%m/%d/%Y',
-            '%Y-%m-%dT%H:%M:%S',
-            '%Y-%m-%dT%H:%M:%SZ'
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d",
+            "%m/%d/%Y %H:%M:%S",
+            "%m/%d/%Y",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%SZ",
         ]
 
         # Field mapping for auto-detection
@@ -107,15 +114,14 @@ class CSVProcessor:
             return []
 
         if isinstance(config, dict):
-            if isinstance(config.get('definitions'), list):
-                return config['definitions']
+            if isinstance(config.get("definitions"), list):
+                return config["definitions"]
 
-            fields_section = config.get('fields')
-            if (
-                isinstance(fields_section, dict)
-                and isinstance(fields_section.get('definitions'), list)
+            fields_section = config.get("fields")
+            if isinstance(fields_section, dict) and isinstance(
+                fields_section.get("definitions"), list
             ):
-                return fields_section['definitions']
+                return fields_section["definitions"]
 
         return []
 
@@ -123,8 +129,8 @@ class CSVProcessor:
     def _normalize_header(value: str) -> str:
         """Normalize header strings for comparison."""
         if not isinstance(value, str):
-            return ''
-        return re.sub(r'[^a-z0-9]', '', value.lower())
+            return ""
+        return re.sub(r"[^a-z0-9]", "", value.lower())
 
     def get_field_label(self, name: str) -> str:
         """Return a human-friendly label for a field name."""
@@ -133,8 +139,9 @@ class CSVProcessor:
     def get_mappable_fields(self) -> list[dict[str, Any]]:
         """Return schema fields that should appear in the mapping UI."""
         return [
-            field for field in self.field_definitions
-            if isinstance(field, dict) and field.get('show_in_mapping', True)
+            field
+            for field in self.field_definitions
+            if isinstance(field, dict) and field.get("show_in_mapping", True)
         ]
 
     def detect_encoding(self, file_path: Path) -> str:
@@ -148,24 +155,24 @@ class CSVProcessor:
             Detected encoding string
         """
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 # Read first 10000 bytes for detection
                 raw_data = f.read(10000)
                 result = chardet.detect(raw_data)
-                encoding = result['encoding']
-                confidence = result['confidence']
+                encoding = result["encoding"]
+                confidence = result["confidence"]
 
                 logger.info(f"Detected encoding: {encoding} (confidence: {confidence:.2f})")
 
                 # Fall back to utf-8 if confidence is low
                 if confidence < 0.7:
                     logger.warning("Low confidence in encoding detection, using UTF-8")
-                    return 'utf-8'
+                    return "utf-8"
 
                 return encoding
         except Exception as e:
             logger.error(f"Error detecting encoding: {e}")
-            return 'utf-8'
+            return "utf-8"
 
     def read_csv(self, file_path: Path) -> pd.DataFrame:
         """
@@ -187,7 +194,7 @@ class CSVProcessor:
             return df
         except UnicodeDecodeError:
             # Fallback to different encodings
-            encodings_to_try = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+            encodings_to_try = ["utf-8", "latin-1", "iso-8859-1", "cp1252"]
 
             for enc in encodings_to_try:
                 try:
@@ -199,7 +206,7 @@ class CSVProcessor:
 
             # If all fail, read with error handling
             logger.warning("Reading CSV with error handling")
-            return pd.read_csv(file_path, encoding='utf-8', errors='ignore')
+            return pd.read_csv(file_path, encoding="utf-8", errors="ignore")
 
     def validate_columns(self, df: pd.DataFrame) -> tuple[bool, list[str]]:
         """
@@ -259,15 +266,12 @@ class CSVProcessor:
             if not isinstance(field, dict):
                 continue
 
-            name = field.get('name')
+            name = field.get("name")
             if not name:
                 continue
 
             matched_header = self._match_field_to_header(
-                field,
-                headers,
-                normalized_headers,
-                used_headers
+                field, headers, normalized_headers, used_headers
             )
 
             if matched_header:
@@ -280,16 +284,16 @@ class CSVProcessor:
         """Fallback auto-mapping when no schema is provided."""
         mapping: dict[str, str] = {}
         patterns = {
-            'call_id': r'(call[\s_-]?id|id|identifier|record[\s_-]?id)',
-            'phone_number': r'(phone|telephone|number|contact|mobile|cell)',
-            'timestamp': r'(time|date|timestamp|created|started|datetime)',
-            'duration': r'(duration|length|call[\s_-]?time|call[\s_-]?length|seconds|minutes)',
-            'agent_id': r'(agent|employee|staff|representative|rep[\s_-]?id)',
-            'campaign': r'(campaign|project|program|initiative)',
-            'outcome': r'(outcome|result|status|disposition)',
-            'call_type': r'(type|category|classification|reason)',
-            'notes': r'(notes|comments|remarks|description|transcript)',
-            'revenue': r'(revenue|amount|value|price|cost|sale)',
+            "call_id": r"(call[\s_-]?id|id|identifier|record[\s_-]?id)",
+            "phone_number": r"(phone|telephone|number|contact|mobile|cell)",
+            "timestamp": r"(time|date|timestamp|created|started|datetime)",
+            "duration": r"(duration|length|call[\s_-]?time|call[\s_-]?length|seconds|minutes)",
+            "agent_id": r"(agent|employee|staff|representative|rep[\s_-]?id)",
+            "campaign": r"(campaign|project|program|initiative)",
+            "outcome": r"(outcome|result|status|disposition)",
+            "call_type": r"(type|category|classification|reason)",
+            "notes": r"(notes|comments|remarks|description|transcript)",
+            "revenue": r"(revenue|amount|value|price|cost|sale)",
         }
 
         for standard_field, pattern in patterns.items():
@@ -305,18 +309,16 @@ class CSVProcessor:
         field: dict[str, Any],
         headers: list[str],
         normalized_headers: dict[str, str],
-        used_headers: set[str]
+        used_headers: set[str],
     ) -> str | None:
         """Match a single field definition to the best header."""
-        name = field.get('name')
+        name = field.get("name")
         if not name:
             return None
 
-        label = field.get('label')
+        label = field.get("label")
         aliases = self.field_alias_map.get(name, [])
-        candidates = {
-            self._normalize_header(name)
-        }
+        candidates = {self._normalize_header(name)}
 
         if label:
             candidates.add(self._normalize_header(label))
@@ -340,7 +342,7 @@ class CSVProcessor:
             for header in headers:
                 if header in used_headers:
                     continue
-                normalized_value = normalized_headers.get(header, '')
+                normalized_value = normalized_headers.get(header, "")
                 if compiled.search(header.lower()) or compiled.search(normalized_value):
                     return header
 
@@ -361,17 +363,17 @@ class CSVProcessor:
             df = df.rename(columns={v: k for k, v in self.field_mapping.items()})
 
         # Normalize column names (lowercase, replace spaces with underscores)
-        df.columns = [col.lower().replace(' ', '_').replace('-', '_') for col in df.columns]
+        df.columns = [col.lower().replace(" ", "_").replace("-", "_") for col in df.columns]
 
         # Remove duplicate columns that can break downstream processing
         if df.columns.duplicated().any():
             df = df.loc[:, ~df.columns.duplicated()]
             logger.info("Removed duplicate columns after standardization")
 
-        if 'timestamp' not in df.columns:
-            for fallback in ['start_time', 'created_at', 'date']:
+        if "timestamp" not in df.columns:
+            for fallback in ["start_time", "created_at", "date"]:
                 if fallback in df.columns:
-                    df['timestamp'] = df[fallback]
+                    df["timestamp"] = df[fallback]
                     logger.debug(f"Created timestamp column from {fallback}")
                     break
 
@@ -393,7 +395,7 @@ class CSVProcessor:
         Returns:
             DataFrame with parsed dates
         """
-        date_columns = ['timestamp', 'start_time', 'end_time', 'created_at', 'updated_at']
+        date_columns = ["timestamp", "start_time", "end_time", "created_at", "updated_at"]
 
         for col in date_columns:
             if col in df.columns:
@@ -432,17 +434,17 @@ class CSVProcessor:
             logger.info(f"Removed {original_len - len(df)} duplicate rows")
 
         # Clean phone numbers (remove non-numeric characters)
-        if 'phone_number' in df.columns:
-            df['phone_number'] = df['phone_number'].astype(str).str.replace(r'\D', '', regex=True)
+        if "phone_number" in df.columns:
+            df["phone_number"] = df["phone_number"].astype(str).str.replace(r"\D", "", regex=True)
 
         # Convert duration to seconds if in different format
-        if 'duration' in df.columns and df['duration'].dtype == 'object':
+        if "duration" in df.columns and df["duration"].dtype == "object":
             # If duration is a string like "5:30", convert to seconds
             def parse_duration(val):
                 if pd.isna(val):
                     return 0
-                if ':' in str(val):
-                    parts = str(val).split(':')
+                if ":" in str(val):
+                    parts = str(val).split(":")
                     if len(parts) == 2:
                         return int(parts[0]) * 60 + int(parts[1])
                     if len(parts) == 3:
@@ -450,16 +452,16 @@ class CSVProcessor:
                         return hours * 3600 + minutes * 60 + seconds
                 return float(val)
 
-            df['duration'] = df['duration'].apply(parse_duration)
+            df["duration"] = df["duration"].apply(parse_duration)
 
         # Trim whitespace from string columns
-        string_columns = df.select_dtypes(include=['object']).columns
+        string_columns = df.select_dtypes(include=["object"]).columns
         for col in string_columns:
-            df[col] = df[col].str.strip() if df[col].dtype == 'object' else df[col]
+            df[col] = df[col].str.strip() if df[col].dtype == "object" else df[col]
 
         # Handle missing values
-        df['notes'] = df.get('notes', '').fillna('')
-        df['outcome'] = df.get('outcome', 'unknown').fillna('unknown')
+        df["notes"] = df.get("notes", "").fillna("")
+        df["outcome"] = df.get("outcome", "unknown").fillna("unknown")
 
         logger.info("Data cleaning completed")
         return df
@@ -475,10 +477,10 @@ class CSVProcessor:
             Dictionary with quality metrics
         """
         metrics = {
-            'total_rows': len(df),
-            'duplicate_rows': len(df[df.duplicated()]),
-            'missing_values': {},
-            'quality_score': 100.0
+            "total_rows": len(df),
+            "duplicate_rows": len(df[df.duplicated()]),
+            "missing_values": {},
+            "quality_score": 100.0,
         }
 
         # Check for missing values in required columns
@@ -486,23 +488,23 @@ class CSVProcessor:
             if col in df.columns:
                 missing_count = df[col].isna().sum()
                 if missing_count > 0:
-                    metrics['missing_values'][col] = missing_count
-                    metrics['quality_score'] -= (missing_count / len(df)) * 20
+                    metrics["missing_values"][col] = missing_count
+                    metrics["quality_score"] -= (missing_count / len(df)) * 20
 
         # Additional quality checks
-        if 'phone_number' in df.columns:
-            invalid_phones = df['phone_number'].str.len() < 10
-            metrics['invalid_phone_numbers'] = invalid_phones.sum()
-            if metrics['invalid_phone_numbers'] > 0:
-                metrics['quality_score'] -= 5
+        if "phone_number" in df.columns:
+            invalid_phones = df["phone_number"].str.len() < 10
+            metrics["invalid_phone_numbers"] = invalid_phones.sum()
+            if metrics["invalid_phone_numbers"] > 0:
+                metrics["quality_score"] -= 5
 
-        if 'duration' in df.columns:
-            negative_durations = df['duration'] < 0
-            metrics['negative_durations'] = negative_durations.sum()
-            if metrics['negative_durations'] > 0:
-                metrics['quality_score'] -= 10
+        if "duration" in df.columns:
+            negative_durations = df["duration"] < 0
+            metrics["negative_durations"] = negative_durations.sum()
+            if metrics["negative_durations"] > 0:
+                metrics["quality_score"] -= 10
 
-        metrics['quality_score'] = max(0, metrics['quality_score'])
+        metrics["quality_score"] = max(0, metrics["quality_score"])
 
         logger.info(f"Data quality score: {metrics['quality_score']:.1f}%")
         return metrics
@@ -526,10 +528,9 @@ class CSVProcessor:
             logger.error(f"Error getting CSV preview: {e}")
             return pd.DataFrame()
 
-    def process_csv_batch(self,
-                         file_path: Path,
-                         batch_size: int = 1000,
-                         batch_callback: callable | None = None) -> tuple[int, int]:
+    def process_csv_batch(
+        self, file_path: Path, batch_size: int = 1000, batch_callback: callable | None = None
+    ) -> tuple[int, int]:
         """
         Process CSV file in batches for large files.
 
@@ -570,10 +571,7 @@ class CSVProcessor:
                 except Exception as e:
                     logger.error(f"Error processing batch: {e}")
                     total_errors += len(chunk)
-                    self.errors_log.append({
-                        'batch_start': total_processed,
-                        'error': str(e)
-                    })
+                    self.errors_log.append({"batch_start": total_processed, "error": str(e)})
 
         except Exception as e:
             logger.error(f"Error reading CSV file: {e}")
@@ -601,27 +599,38 @@ class CSVExporter:
     def __init__(self):
         """Initialize CSV exporter"""
         self.export_configs = {
-            'standard': {
-                'columns': ['call_id', 'timestamp', 'phone_number', 'agent_id',
-                           'campaign', 'outcome', 'duration', 'revenue', 'notes'],
-                'date_format': '%Y-%m-%d %H:%M:%S'
+            "standard": {
+                "columns": [
+                    "call_id",
+                    "timestamp",
+                    "phone_number",
+                    "agent_id",
+                    "campaign",
+                    "outcome",
+                    "duration",
+                    "revenue",
+                    "notes",
+                ],
+                "date_format": "%Y-%m-%d %H:%M:%S",
             },
-            'detailed': {
-                'columns': None,  # Include all columns
-                'date_format': '%Y-%m-%d %H:%M:%S'
+            "detailed": {
+                "columns": None,  # Include all columns
+                "date_format": "%Y-%m-%d %H:%M:%S",
             },
-            'summary': {
-                'columns': ['call_id', 'timestamp', 'outcome', 'duration', 'revenue'],
-                'date_format': '%Y-%m-%d'
-            }
+            "summary": {
+                "columns": ["call_id", "timestamp", "outcome", "duration", "revenue"],
+                "date_format": "%Y-%m-%d",
+            },
         }
         logger.info("CSVExporter initialized")
 
-    def export_to_csv(self,
-                     df: pd.DataFrame,
-                     output_path: Path,
-                     format_type: str = 'standard',
-                     encoding: str = 'utf-8') -> Path:
+    def export_to_csv(
+        self,
+        df: pd.DataFrame,
+        output_path: Path,
+        format_type: str = "standard",
+        encoding: str = "utf-8",
+    ) -> Path:
         """
         Export DataFrame to CSV file.
 
@@ -635,24 +644,23 @@ class CSVExporter:
             Path to exported file
         """
         try:
-            config = self.export_configs.get(format_type, self.export_configs['standard'])
+            config = self.export_configs.get(format_type, self.export_configs["standard"])
 
             # Select columns
-            if config['columns']:
+            if config["columns"]:
                 # Only include columns that exist in the DataFrame
-                columns = [col for col in config['columns'] if col in df.columns]
+                columns = [col for col in config["columns"] if col in df.columns]
                 export_df = df[columns].copy()
             else:
                 export_df = df.copy()
 
             # Format dates
-            date_columns = ['timestamp', 'created_at', 'updated_at', 'date']
+            date_columns = ["timestamp", "created_at", "updated_at", "date"]
             for col in date_columns:
-                if (
-                    col in export_df.columns
-                    and pd.api.types.is_datetime64_any_dtype(export_df[col])
+                if col in export_df.columns and pd.api.types.is_datetime64_any_dtype(
+                    export_df[col]
                 ):
-                    export_df[col] = export_df[col].dt.strftime(config['date_format'])
+                    export_df[col] = export_df[col].dt.strftime(config["date_format"])
 
             # Export to CSV
             export_df.to_csv(output_path, index=False, encoding=encoding)
@@ -664,11 +672,13 @@ class CSVExporter:
             logger.error(f"Error exporting to CSV: {e}")
             raise
 
-    def export_to_excel(self,
-                       df: pd.DataFrame,
-                       output_path: Path,
-                       sheet_name: str = 'Call Data',
-                       include_summary: bool = True) -> Path:
+    def export_to_excel(
+        self,
+        df: pd.DataFrame,
+        output_path: Path,
+        sheet_name: str = "Call Data",
+        include_summary: bool = True,
+    ) -> Path:
         """
         Export DataFrame to Excel file with optional summary sheet.
 
@@ -682,14 +692,14 @@ class CSVExporter:
             Path to exported file
         """
         try:
-            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
                 # Write main data
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
 
                 # Add summary sheet if requested
                 if include_summary:
                     summary = self._generate_summary(df)
-                    summary.to_excel(writer, sheet_name='Summary', index=False)
+                    summary.to_excel(writer, sheet_name="Summary", index=False)
 
                 # Auto-adjust column widths
                 for sheet in writer.sheets.values():
@@ -713,11 +723,9 @@ class CSVExporter:
             logger.error(f"Error exporting to Excel: {e}")
             raise
 
-    def export_to_json(self,
-                      df: pd.DataFrame,
-                      output_path: Path,
-                      orient: str = 'records',
-                      indent: int = 2) -> Path:
+    def export_to_json(
+        self, df: pd.DataFrame, output_path: Path, orient: str = "records", indent: int = 2
+    ) -> Path:
         """
         Export DataFrame to JSON file.
 
@@ -735,7 +743,7 @@ class CSVExporter:
             export_df = df.copy()
             for col in export_df.columns:
                 if pd.api.types.is_datetime64_any_dtype(export_df[col]):
-                    export_df[col] = export_df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    export_df[col] = export_df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
 
             # Export to JSON
             export_df.to_json(output_path, orient=orient, indent=indent)
@@ -747,10 +755,9 @@ class CSVExporter:
             logger.error(f"Error exporting to JSON: {e}")
             raise
 
-    def export_for_analytics(self,
-                            df: pd.DataFrame,
-                            output_dir: Path,
-                            split_by: str | None = None) -> list[Path]:
+    def export_for_analytics(
+        self, df: pd.DataFrame, output_dir: Path, split_by: str | None = None
+    ) -> list[Path]:
         """
         Export data optimized for analytics tools.
 
@@ -783,20 +790,20 @@ class CSVExporter:
                 logger.info(f"Exported {len(df)} rows to {output_path}")
 
             # Also create a metadata file
-            has_timestamp = 'timestamp' in df.columns
+            has_timestamp = "timestamp" in df.columns
             metadata = {
-                'export_date': datetime.now().isoformat(),
-                'total_records': len(df),
-                'columns': list(df.columns),
-                'date_range': {
-                    'start': df['timestamp'].min().isoformat() if has_timestamp else None,
-                    'end': df['timestamp'].max().isoformat() if has_timestamp else None
+                "export_date": datetime.now().isoformat(),
+                "total_records": len(df),
+                "columns": list(df.columns),
+                "date_range": {
+                    "start": df["timestamp"].min().isoformat() if has_timestamp else None,
+                    "end": df["timestamp"].max().isoformat() if has_timestamp else None,
                 },
-                'files_created': [str(f) for f in exported_files]
+                "files_created": [str(f) for f in exported_files],
             }
 
             metadata_path = output_dir / "export_metadata.json"
-            with open(metadata_path, 'w') as f:
+            with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
             exported_files.append(metadata_path)
@@ -820,45 +827,47 @@ class CSVExporter:
         summary_data = []
 
         # Basic counts
-        summary_data.append({
-            'Metric': 'Total Calls',
-            'Value': len(df)
-        })
+        summary_data.append({"Metric": "Total Calls", "Value": len(df)})
 
         # Date range
-        if 'timestamp' in df.columns:
-            summary_data.append({
-                'Metric': 'Date Range',
-                'Value': f"{df['timestamp'].min()} to {df['timestamp'].max()}"
-            })
+        if "timestamp" in df.columns:
+            summary_data.append(
+                {
+                    "Metric": "Date Range",
+                    "Value": f"{df['timestamp'].min()} to {df['timestamp'].max()}",
+                }
+            )
 
         # Unique values counts
-        for col in ['agent_id', 'campaign', 'outcome', 'call_type']:
+        for col in ["agent_id", "campaign", "outcome", "call_type"]:
             if col in df.columns:
-                summary_data.append({
-                    'Metric': f'Unique {col.replace("_", " ").title()}s',
-                    'Value': df[col].nunique()
-                })
+                summary_data.append(
+                    {
+                        "Metric": f'Unique {col.replace("_", " ").title()}s',
+                        "Value": df[col].nunique(),
+                    }
+                )
 
         # Numeric statistics
-        if 'duration' in df.columns:
-            summary_data.extend([
-                {'Metric': 'Average Duration (seconds)', 'Value': df['duration'].mean()},
-                {'Metric': 'Total Duration (hours)', 'Value': df['duration'].sum() / 3600}
-            ])
+        if "duration" in df.columns:
+            summary_data.extend(
+                [
+                    {"Metric": "Average Duration (seconds)", "Value": df["duration"].mean()},
+                    {"Metric": "Total Duration (hours)", "Value": df["duration"].sum() / 3600},
+                ]
+            )
 
-        if 'revenue' in df.columns:
-            summary_data.extend([
-                {'Metric': 'Total Revenue', 'Value': df['revenue'].sum()},
-                {'Metric': 'Average Revenue', 'Value': df['revenue'].mean()}
-            ])
+        if "revenue" in df.columns:
+            summary_data.extend(
+                [
+                    {"Metric": "Total Revenue", "Value": df["revenue"].sum()},
+                    {"Metric": "Average Revenue", "Value": df["revenue"].mean()},
+                ]
+            )
 
         # Outcome distribution
-        if 'outcome' in df.columns:
-            for outcome, count in df['outcome'].value_counts().items():
-                summary_data.append({
-                    'Metric': f'Outcome: {outcome}',
-                    'Value': count
-                })
+        if "outcome" in df.columns:
+            for outcome, count in df["outcome"].value_counts().items():
+                summary_data.append({"Metric": f"Outcome: {outcome}", "Value": count})
 
         return pd.DataFrame(summary_data)

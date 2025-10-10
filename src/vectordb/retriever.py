@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RetrievalResult:
     """Container for retrieval results"""
+
     documents: list[dict[str, Any]]
     query: str
     total_results: int
@@ -42,17 +43,19 @@ class DocumentRetriever:
         self.config = config or {}
 
         # Retrieval settings
-        self.min_similarity_score = self.config.get('min_similarity_score', 0.5)
-        self.enable_reranking = self.config.get('enable_reranking', False)
-        self.reranking_candidates = self.config.get('reranking_candidates', 50)
+        self.min_similarity_score = self.config.get("min_similarity_score", 0.5)
+        self.enable_reranking = self.config.get("enable_reranking", False)
+        self.reranking_candidates = self.config.get("reranking_candidates", 50)
 
         logger.info("DocumentRetriever initialized")
 
-    def retrieve(self,
-                query: str,
-                top_k: int = 10,
-                filters: dict[str, Any] | None = None,
-                rerank: bool | None = None) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+        rerank: bool | None = None,
+    ) -> RetrievalResult:
         """
         Retrieve relevant documents for a query.
 
@@ -66,6 +69,7 @@ class DocumentRetriever:
             RetrievalResult with documents and metadata
         """
         import time
+
         start_time = time.time()
 
         # Determine if reranking should be used
@@ -75,11 +79,7 @@ class DocumentRetriever:
         search_k = self.reranking_candidates if use_reranking else top_k
 
         # Perform search
-        results = self.vector_db.search(
-            query_text=query,
-            top_k=search_k,
-            filter_dict=filters
-        )
+        results = self.vector_db.search(query_text=query, top_k=search_k, filter_dict=filters)
 
         # Filter by minimum similarity
         results = self._filter_by_similarity(results)
@@ -101,7 +101,7 @@ class DocumentRetriever:
             query=query,
             total_results=len(results),
             search_time_ms=search_time_ms,
-            filters_applied=filters or {}
+            filters_applied=filters or {},
         )
 
     def _filter_by_similarity(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -117,7 +117,7 @@ class DocumentRetriever:
         filtered = []
 
         for result in results:
-            score = result.get('score', 0)
+            score = result.get("score", 0)
             if score >= self.min_similarity_score:
                 filtered.append(result)
             else:
@@ -129,10 +129,9 @@ class DocumentRetriever:
 
         return filtered
 
-    def _rerank_results(self,
-                       query: str,
-                       results: list[dict[str, Any]],
-                       top_k: int) -> list[dict[str, Any]]:
+    def _rerank_results(
+        self, query: str, results: list[dict[str, Any]], top_k: int
+    ) -> list[dict[str, Any]]:
         """
         Rerank search results using additional signals.
 
@@ -147,7 +146,7 @@ class DocumentRetriever:
         # Calculate additional ranking signals
         for result in results:
             # Original score
-            base_score = result.get('score', 0.5)
+            base_score = result.get("score", 0.5)
 
             # Recency boost (if timestamp available)
             recency_score = self._calculate_recency_score(result)
@@ -159,15 +158,15 @@ class DocumentRetriever:
             overlap_score = self._calculate_overlap_score(query, result)
 
             # Combine scores
-            result['rerank_score'] = (
-                base_score * 0.5 +
-                recency_score * 0.2 +
-                metadata_score * 0.15 +
-                overlap_score * 0.15
+            result["rerank_score"] = (
+                base_score * 0.5
+                + recency_score * 0.2
+                + metadata_score * 0.15
+                + overlap_score * 0.15
             )
 
         # Sort by rerank score
-        results.sort(key=lambda x: x.get('rerank_score', 0), reverse=True)
+        results.sort(key=lambda x: x.get("rerank_score", 0), reverse=True)
 
         return results[:top_k]
 
@@ -181,15 +180,15 @@ class DocumentRetriever:
         Returns:
             Recency score (0-1)
         """
-        metadata = result.get('metadata', {})
+        metadata = result.get("metadata", {})
 
-        if 'start_time' in metadata:
+        if "start_time" in metadata:
             try:
                 # Parse timestamp
-                if isinstance(metadata['start_time'], str):
-                    doc_time = datetime.fromisoformat(metadata['start_time'])
+                if isinstance(metadata["start_time"], str):
+                    doc_time = datetime.fromisoformat(metadata["start_time"])
                 else:
-                    doc_time = metadata['start_time']
+                    doc_time = metadata["start_time"]
 
                 # Calculate age in days
                 age_days = (datetime.now() - doc_time).days
@@ -214,10 +213,10 @@ class DocumentRetriever:
         Returns:
             Metadata score (0-1)
         """
-        metadata = result.get('metadata', {})
+        metadata = result.get("metadata", {})
 
         # Important metadata fields
-        important_fields = ['call_type', 'outcome', 'agent_id', 'duration']
+        important_fields = ["call_type", "outcome", "agent_id", "duration"]
 
         # Count populated fields
         populated = sum(1 for field in important_fields if metadata.get(field))
@@ -235,7 +234,7 @@ class DocumentRetriever:
         Returns:
             Overlap score (0-1)
         """
-        document = result.get('document', '').lower()
+        document = result.get("document", "").lower()
         query_terms = set(query.lower().split())
 
         if not query_terms or not document:
@@ -261,15 +260,12 @@ class DocumentRetriever:
         for result in results:
             # Create processed result
             processed_result = {
-                'id': result.get('id'),
-                'score': result.get('rerank_score', result.get('score', 0)),
-                'document': result.get('document', ''),
-                'metadata': result.get('metadata', {}),
-                'snippet': self._extract_snippet(
-                    result.get('document', ''),
-                    max_length=200
-                ),
-                'highlights': []  # Could add query term highlighting
+                "id": result.get("id"),
+                "score": result.get("rerank_score", result.get("score", 0)),
+                "document": result.get("document", ""),
+                "metadata": result.get("metadata", {}),
+                "snippet": self._extract_snippet(result.get("document", ""), max_length=200),
+                "highlights": [],  # Could add query term highlighting
             }
 
             processed.append(processed_result)
@@ -292,17 +288,17 @@ class DocumentRetriever:
 
         # Try to break at sentence
         snippet = text[:max_length]
-        last_period = snippet.rfind('.')
+        last_period = snippet.rfind(".")
 
         if last_period > max_length * 0.5:
-            return snippet[:last_period + 1]
+            return snippet[: last_period + 1]
 
         # Break at word boundary
-        last_space = snippet.rfind(' ')
+        last_space = snippet.rfind(" ")
         if last_space > 0:
-            return snippet[:last_space] + '...'
+            return snippet[:last_space] + "..."
 
-        return snippet + '...'
+        return snippet + "..."
 
     def retrieve_by_ids(self, ids: list[str]) -> list[dict[str, Any]]:
         """
@@ -321,9 +317,7 @@ class DocumentRetriever:
             logger.error(f"Error retrieving documents by IDs: {e}")
             return []
 
-    def retrieve_similar(self,
-                        document_id: str,
-                        top_k: int = 5) -> list[dict[str, Any]]:
+    def retrieve_similar(self, document_id: str, top_k: int = 5) -> list[dict[str, Any]]:
         """
         Retrieve documents similar to a given document.
 
@@ -341,27 +335,26 @@ class DocumentRetriever:
             logger.warning(f"Reference document not found: {document_id}")
             return []
 
-        ref_text = ref_docs[0].get('document', '')
+        ref_text = ref_docs[0].get("document", "")
 
         # Search for similar documents
         results = self.retrieve(
             query=ref_text[:1000],  # Use first 1000 chars as query
-            top_k=top_k + 1  # Get extra to exclude self
+            top_k=top_k + 1,  # Get extra to exclude self
         )
 
         # Filter out the reference document
-        similar = [
-            doc for doc in results.documents
-            if doc.get('id') != document_id
-        ]
+        similar = [doc for doc in results.documents if doc.get("id") != document_id]
 
         return similar[:top_k]
 
-    def retrieve_with_feedback(self,
-                              query: str,
-                              positive_ids: list[str] | None = None,
-                              negative_ids: list[str] | None = None,
-                              top_k: int = 10) -> RetrievalResult:
+    def retrieve_with_feedback(
+        self,
+        query: str,
+        positive_ids: list[str] | None = None,
+        negative_ids: list[str] | None = None,
+        top_k: int = 10,
+    ) -> RetrievalResult:
         """
         Retrieve with relevance feedback.
 
@@ -380,21 +373,18 @@ class DocumentRetriever:
         if positive_ids or negative_ids:
             # Adjust scores based on feedback
             for doc in results.documents:
-                doc_id = doc.get('id')
+                doc_id = doc.get("id")
 
                 if positive_ids and doc_id in positive_ids:
                     # Boost similar to positive examples
-                    doc['score'] *= 1.5
+                    doc["score"] *= 1.5
 
                 if negative_ids and doc_id in negative_ids:
                     # Reduce similar to negative examples
-                    doc['score'] *= 0.5
+                    doc["score"] *= 0.5
 
             # Re-sort by adjusted scores
-            results.documents.sort(
-                key=lambda x: x.get('score', 0),
-                reverse=True
-            )
+            results.documents.sort(key=lambda x: x.get("score", 0), reverse=True)
 
             # Trim to top_k
             results.documents = results.documents[:top_k]

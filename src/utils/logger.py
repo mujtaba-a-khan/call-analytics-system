@@ -35,30 +35,48 @@ class StructuredFormatter(logging.Formatter):
             JSON-formatted log string
         """
         log_obj = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno
+            "timestamp": datetime.utcnow().isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
         }
 
         # Add exception info if present
         if record.exc_info:
-            log_obj['exception'] = {
-                'type': record.exc_info[0].__name__,
-                'message': str(record.exc_info[1]),
-                'traceback': traceback.format_exception(*record.exc_info)
+            log_obj["exception"] = {
+                "type": record.exc_info[0].__name__,
+                "message": str(record.exc_info[1]),
+                "traceback": traceback.format_exception(*record.exc_info),
             }
 
         # Add extra fields if present
         for key, value in record.__dict__.items():
-            if key not in ['name', 'msg', 'args', 'created', 'filename',
-                          'funcName', 'levelname', 'levelno', 'lineno',
-                          'module', 'msecs', 'message', 'pathname', 'process',
-                          'processName', 'relativeCreated', 'thread', 'threadName',
-                          'exc_info', 'exc_text', 'stack_info']:
+            if key not in [
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "message",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+            ]:
                 log_obj[key] = value
 
         return json.dumps(log_obj)
@@ -72,12 +90,12 @@ class ColoredFormatter(logging.Formatter):
 
     # Color codes
     COLORS = {
-        'DEBUG': '\033[36m',     # Cyan
-        'INFO': '\033[32m',      # Green
-        'WARNING': '\033[33m',   # Yellow
-        'ERROR': '\033[31m',     # Red
-        'CRITICAL': '\033[35m',  # Magenta
-        'RESET': '\033[0m'       # Reset
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[35m",  # Magenta
+        "RESET": "\033[0m",  # Reset
     }
 
     def format(self, record: logging.LogRecord) -> str:
@@ -122,6 +140,7 @@ class PerformanceFilter(logging.Filter):
         # Add memory usage
         try:
             import psutil
+
             process = psutil.Process()
             record.memory_mb = process.memory_info().rss / 1024 / 1024
             record.cpu_percent = process.cpu_percent()
@@ -132,13 +151,13 @@ class PerformanceFilter(logging.Filter):
 
 
 def setup_logging(
-    log_level: str = 'INFO',
+    log_level: str = "INFO",
     log_dir: Path | None = None,
     console_output: bool = True,
     file_output: bool = True,
     structured_logs: bool = False,
     max_bytes: int = 10485760,  # 10MB
-    backup_count: int = 5
+    backup_count: int = 5,
 ) -> None:
     """
     Configure application-wide logging with multiple handlers and formatters.
@@ -157,7 +176,7 @@ def setup_logging(
         log_dir = Path(log_dir)
         log_dir.mkdir(parents=True, exist_ok=True)
     else:
-        log_dir = Path('logs')
+        log_dir = Path("logs")
         log_dir.mkdir(exist_ok=True)
 
     # Get root logger
@@ -172,13 +191,12 @@ def setup_logging(
         file_formatter = StructuredFormatter()
     else:
         file_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
 
     console_formatter = ColoredFormatter(
-        '%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-        datefmt='%H:%M:%S'
+        "%(asctime)s - %(levelname)s - %(name)s - %(message)s", datefmt="%H:%M:%S"
     )
 
     # Add performance filter
@@ -194,37 +212,31 @@ def setup_logging(
     # File handlers
     if file_output:
         # Main application log
-        app_log_file = log_dir / 'application.log'
+        app_log_file = log_dir / "application.log"
         app_handler = logging.handlers.RotatingFileHandler(
-            app_log_file,
-            maxBytes=max_bytes,
-            backupCount=backup_count
+            app_log_file, maxBytes=max_bytes, backupCount=backup_count
         )
         app_handler.setFormatter(file_formatter)
         app_handler.addFilter(perf_filter)
         root_logger.addHandler(app_handler)
 
         # Error log
-        error_log_file = log_dir / 'errors.log'
+        error_log_file = log_dir / "errors.log"
         error_handler = logging.handlers.RotatingFileHandler(
-            error_log_file,
-            maxBytes=max_bytes,
-            backupCount=backup_count
+            error_log_file, maxBytes=max_bytes, backupCount=backup_count
         )
         error_handler.setFormatter(file_formatter)
         error_handler.setLevel(logging.ERROR)
         root_logger.addHandler(error_handler)
 
         # Performance log (for metrics and timing)
-        perf_log_file = log_dir / 'performance.log'
+        perf_log_file = log_dir / "performance.log"
         perf_handler = logging.handlers.RotatingFileHandler(
-            perf_log_file,
-            maxBytes=max_bytes,
-            backupCount=backup_count
+            perf_log_file, maxBytes=max_bytes, backupCount=backup_count
         )
         perf_handler.setFormatter(StructuredFormatter())
         perf_handler.setLevel(logging.DEBUG)
-        perf_handler.addFilter(lambda r: hasattr(r, 'performance'))
+        perf_handler.addFilter(lambda r: hasattr(r, "performance"))
         root_logger.addHandler(perf_handler)
 
     # Configure specific loggers
@@ -244,18 +256,18 @@ def configure_module_loggers() -> None:
     and focus on relevant information.
     """
     # Reduce verbosity of third-party libraries
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('requests').setLevel(logging.WARNING)
-    logging.getLogger('matplotlib').setLevel(logging.WARNING)
-    logging.getLogger('PIL').setLevel(logging.WARNING)
-    logging.getLogger('asyncio').setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
 
     # Set specific levels for application modules
-    logging.getLogger('src.core').setLevel(logging.INFO)
-    logging.getLogger('src.ml').setLevel(logging.INFO)
-    logging.getLogger('src.analysis').setLevel(logging.DEBUG)
-    logging.getLogger('src.ui').setLevel(logging.INFO)
-    logging.getLogger('src.vectordb').setLevel(logging.INFO)
+    logging.getLogger("src.core").setLevel(logging.INFO)
+    logging.getLogger("src.ml").setLevel(logging.INFO)
+    logging.getLogger("src.analysis").setLevel(logging.DEBUG)
+    logging.getLogger("src.ui").setLevel(logging.INFO)
+    logging.getLogger("src.vectordb").setLevel(logging.INFO)
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -281,6 +293,7 @@ def log_execution_time(func):
     Returns:
         Decorated function
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         logger = logging.getLogger(func.__module__)
@@ -292,7 +305,7 @@ def log_execution_time(func):
 
             logger.debug(
                 f"{func.__name__} executed in {execution_time:.3f} seconds",
-                extra={'performance': True, 'execution_time': execution_time}
+                extra={"performance": True, "execution_time": execution_time},
             )
 
             return result
@@ -302,14 +315,14 @@ def log_execution_time(func):
             logger.error(
                 f"{func.__name__} failed after {execution_time:.3f} seconds: {e}",
                 exc_info=True,
-                extra={'performance': True, 'execution_time': execution_time}
+                extra={"performance": True, "execution_time": execution_time},
             )
             raise
 
     return wrapper
 
 
-def log_api_call(service: str, endpoint: str, method: str = 'GET'):
+def log_api_call(service: str, endpoint: str, method: str = "GET"):
     """
     Decorator to log API calls with details.
 
@@ -321,6 +334,7 @@ def log_api_call(service: str, endpoint: str, method: str = 'GET'):
     Returns:
         Decorator function
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -329,7 +343,7 @@ def log_api_call(service: str, endpoint: str, method: str = 'GET'):
 
             logger.info(
                 f"API call to {service}: {method} {endpoint}",
-                extra={'api_service': service, 'api_endpoint': endpoint, 'api_method': method}
+                extra={"api_service": service, "api_endpoint": endpoint, "api_method": method},
             )
 
             try:
@@ -339,12 +353,12 @@ def log_api_call(service: str, endpoint: str, method: str = 'GET'):
                 logger.info(
                     f"API call successful: {service} - {execution_time:.3f}s",
                     extra={
-                        'api_service': service,
-                        'api_endpoint': endpoint,
-                        'api_method': method,
-                        'api_duration': execution_time,
-                        'api_success': True
-                    }
+                        "api_service": service,
+                        "api_endpoint": endpoint,
+                        "api_method": method,
+                        "api_duration": execution_time,
+                        "api_success": True,
+                    },
                 )
 
                 return result
@@ -356,16 +370,17 @@ def log_api_call(service: str, endpoint: str, method: str = 'GET'):
                     f"API call failed: {service} - {e}",
                     exc_info=True,
                     extra={
-                        'api_service': service,
-                        'api_endpoint': endpoint,
-                        'api_method': method,
-                        'api_duration': execution_time,
-                        'api_success': False
-                    }
+                        "api_service": service,
+                        "api_endpoint": endpoint,
+                        "api_method": method,
+                        "api_duration": execution_time,
+                        "api_success": False,
+                    },
                 )
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -374,7 +389,7 @@ class LogContext:
     Context manager for adding contextual information to logs within a scope.
     """
 
-    _context_var: ContextVar[dict[str, Any] | None] = ContextVar('log_context', default=None)
+    _context_var: ContextVar[dict[str, Any] | None] = ContextVar("log_context", default=None)
 
     def __init__(self, **context: Any):
         """
@@ -410,16 +425,20 @@ def log_with_context(**context):
     Returns:
         Decorator function
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             with LogContext(**context):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 # Utility functions for common logging patterns
+
 
 def log_dataframe_info(df, logger: logging.Logger, name: str = "DataFrame") -> None:
     """
@@ -455,7 +474,7 @@ def log_config(config: dict[str, Any], logger: logging.Logger) -> None:
             logger.info(f"  {key}: {value}")
 
 
-def create_audit_logger(name: str = 'audit') -> logging.Logger:
+def create_audit_logger(name: str = "audit") -> logging.Logger:
     """
     Create a specialized logger for audit trails.
 
@@ -470,9 +489,7 @@ def create_audit_logger(name: str = 'audit') -> logging.Logger:
 
     # Create audit log handler
     audit_handler = logging.handlers.RotatingFileHandler(
-        'logs/audit.log',
-        maxBytes=10485760,
-        backupCount=10
+        "logs/audit.log", maxBytes=10485760, backupCount=10
     )
 
     # Use structured format for audit logs

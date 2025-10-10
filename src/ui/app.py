@@ -19,11 +19,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # Configure logging before any other imports
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/app.log', mode='a', encoding='utf-8')
-    ]
+        logging.FileHandler("logs/app.log", mode="a", encoding="utf-8"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ except ImportError as e:
     logger.error(f"Failed to import required package: {e}")
     print("Error: Missing required package. Please install dependencies: pip install -e .")
     sys.exit(1)
+
 
 def _has_streamlit_context() -> bool:
     try:
@@ -64,10 +65,10 @@ def _configure_streamlit_page() -> None:
         layout="wide",
         initial_sidebar_state="expanded",
         menu_items={
-            'Get Help': 'https://github.com/mujtaba-a-khan/call-analytics-system',
-            'Report a bug': 'https://github.com/mujtaba-a-khan/call-analytics-system/issues',
-            'About': 'Call Analytics System v1.0.0 - Professional call center analytics'
-        }
+            "Get Help": "https://github.com/mujtaba-a-khan/call-analytics-system",
+            "Report a bug": "https://github.com/mujtaba-a-khan/call-analytics-system/issues",
+            "About": "Call Analytics System v1.0.0 - Professional call center analytics",
+        },
     )
 
     st.markdown(
@@ -334,7 +335,7 @@ def _configure_streamlit_page() -> None:
         }
         </style>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
 
@@ -366,9 +367,9 @@ class CallAnalyticsApp:
         config = self.get_default_config()
 
         # Try to load configuration files
-        config_dir = Path('config')
+        config_dir = Path("config")
         if config_dir.exists():
-            config_files = sorted(config_dir.glob('*.toml'))
+            config_files = sorted(config_dir.glob("*.toml"))
 
             for config_path in config_files:
                 if config_path.exists():
@@ -390,36 +391,32 @@ class CallAnalyticsApp:
             Dict[str, Any]: Default configuration
         """
         return {
-            'app': {
-                'name': 'Call Analytics System',
-                'version': '1.0.0',
-                'debug': False,
-                'cache_enabled': True,
-                'max_upload_size_mb': 500
+            "app": {
+                "name": "Call Analytics System",
+                "version": "1.0.0",
+                "debug": False,
+                "cache_enabled": True,
+                "max_upload_size_mb": 500,
             },
-            'paths': {
-                'data': 'data',
-                'models': 'models',
-                'logs': 'logs',
-                'exports': 'data/exports',
-                'vector_db': 'data/vector_db'
+            "paths": {
+                "data": "data",
+                "models": "models",
+                "logs": "logs",
+                "exports": "data/exports",
+                "vector_db": "data/vector_db",
             },
-            'whisper': {
-                'enabled': True,
-                'model_size': 'small',
-                'device': 'cpu',
-                'compute_type': 'int8'
+            "whisper": {
+                "enabled": True,
+                "model_size": "small",
+                "device": "cpu",
+                "compute_type": "int8",
             },
-            'vectordb': {
-                'enabled': True,
-                'persist_directory': 'data/vector_db',
-                'collection_name': 'call_transcripts'
+            "vectordb": {
+                "enabled": True,
+                "persist_directory": "data/vector_db",
+                "collection_name": "call_transcripts",
             },
-            'ollama': {
-                'enabled': True,
-                'model': 'llama3:8b',
-                'api_base': 'http://localhost:11434'
-            }
+            "ollama": {"enabled": True, "model": "llama3:8b", "api_base": "http://localhost:11434"},
         }
 
     @staticmethod
@@ -434,7 +431,7 @@ class CallAnalyticsApp:
 
     def initialize_session_state(self) -> None:
         """Initialize Streamlit session state variables"""
-        if 'initialized' not in st.session_state:
+        if "initialized" not in st.session_state:
             st.session_state.initialized = True
             st.session_state.data = None
             st.session_state.filtered_data = None
@@ -442,7 +439,7 @@ class CallAnalyticsApp:
             st.session_state.storage_manager = None
             st.session_state.llm_client = None
             st.session_state.search_results = []
-            st.session_state.current_page = 'Dashboard'
+            st.session_state.current_page = "Dashboard"
             st.session_state.processing = False
             st.session_state.upload_history = []
             st.session_state.filter_state = {}
@@ -456,115 +453,112 @@ class CallAnalyticsApp:
         """
         try:
             # Create required directories
-            for _path_key, path_value in self.config.get('paths', {}).items():
+            for _path_key, path_value in self.config.get("paths", {}).items():
                 Path(path_value).mkdir(parents=True, exist_ok=True)
 
             # Initialize storage manager if not already done
             if st.session_state.storage_manager is None:
                 from core.storage_manager import StorageManager
+
                 st.session_state.storage_manager = StorageManager(
-                    base_path=Path(self.config['paths']['data'])
+                    base_path=Path(self.config["paths"]["data"])
                 )
                 logger.info("Storage manager initialized")
             from vectordb.chroma_client import ChromaClient
+
             if st.session_state.vector_store is None:
-                vector_cfg = self.config.get('vectorstore', {})
+                vector_cfg = self.config.get("vectorstore", {})
                 st.session_state.vector_store = ChromaClient(vector_cfg)
 
                 # Automatically populate the vector store if it is empty
                 try:
                     stats = st.session_state.vector_store.get_statistics()
-                    if stats.get('total_documents', 0) == 0:
+                    if stats.get("total_documents", 0) == 0:
                         data_df = st.session_state.storage_manager.load_all_records()
                         if data_df is not None and not data_df.empty:
                             from vectordb.indexer import DocumentIndexer
 
-                            indexing_config = dict(vector_cfg.get('indexing', {}))
-                            indexing_config.setdefault('text_fields', ['transcript', 'notes'])
-                            indexing_config.setdefault('min_text_length', 10)
+                            indexing_config = dict(vector_cfg.get("indexing", {}))
+                            indexing_config.setdefault("text_fields", ["transcript", "notes"])
+                            indexing_config.setdefault("min_text_length", 10)
                             indexing_config.setdefault(
-                                'metadata_fields',
+                                "metadata_fields",
                                 [
-                                    'call_id',
-                                    'agent_id',
-                                    'campaign',
-                                    'call_type',
-                                    'outcome',
-                                    'timestamp',
-                                    'duration',
-                                    'revenue'
-                                ]
+                                    "call_id",
+                                    "agent_id",
+                                    "campaign",
+                                    "call_type",
+                                    "outcome",
+                                    "timestamp",
+                                    "duration",
+                                    "revenue",
+                                ],
                             )
 
                             indexer = DocumentIndexer(
-                                st.session_state.vector_store,
-                                config=indexing_config
+                                st.session_state.vector_store, config=indexing_config
                             )
 
-                            required_fields = set(indexing_config['metadata_fields'])
+                            required_fields = set(indexing_config["metadata_fields"])
                             existing_fields: set[str] = set()
                             try:
                                 sample = st.session_state.vector_store.collection.peek(1)
-                                if sample and sample.get('metadatas'):
-                                    metadata_sample = sample['metadatas'][0]
+                                if sample and sample.get("metadatas"):
+                                    metadata_sample = sample["metadatas"][0]
                                     if metadata_sample:
                                         existing_fields = set(metadata_sample.keys())
                             except Exception as peek_error:
                                 logger.debug(
-                                    "Unable to inspect vector store metadata: %s",
-                                    peek_error
+                                    "Unable to inspect vector store metadata: %s", peek_error
                                 )
 
-                            needs_reindex = stats.get('total_documents', 0) == 0
+                            needs_reindex = stats.get("total_documents", 0) == 0
                             if not needs_reindex and required_fields - existing_fields:
                                 needs_reindex = True
                                 logger.info(
                                     "Vector store metadata missing fields %s; triggering reindex",
-                                    required_fields - existing_fields
+                                    required_fields - existing_fields,
                                 )
 
                             if needs_reindex:
-                                if stats.get('total_documents', 0) > 0:
+                                if stats.get("total_documents", 0) > 0:
                                     indexed_count = indexer.reindex_all(data_df)
                                 else:
                                     indexed_count = indexer.index_dataframe(data_df)
 
                                 logger.info(
-                                    "Populated vector store with %d document(s)",
-                                    indexed_count
+                                    "Populated vector store with %d document(s)", indexed_count
                                 )
                         else:
                             logger.info("No call records available to index into vector store")
                 except Exception as index_error:
-                    logger.warning(
-                        "Vector store initialization skipped: %s",
-                        index_error
-                    )
+                    logger.warning("Vector store initialization skipped: %s", index_error)
 
             # Initialize LLM client if enabled
-            if (
-                st.session_state.llm_client is None
-                and self.config.get('ollama', {}).get('enabled', False)
+            if st.session_state.llm_client is None and self.config.get("ollama", {}).get(
+                "enabled", False
             ):
                 try:
                     from ml.llm_interface import LocalLLMInterface
 
-                    llm_config = dict(self.config.get('llm', {}))
-                    ollama_cfg = self.config.get('ollama', {})
+                    llm_config = dict(self.config.get("llm", {}))
+                    ollama_cfg = self.config.get("ollama", {})
 
-                    provider = llm_config.get('provider', 'ollama')
-                    llm_config['provider'] = provider
+                    provider = llm_config.get("provider", "ollama")
+                    llm_config["provider"] = provider
 
                     model_name = (
-                        llm_config.pop('model', None)
-                        or llm_config.get('model_name')
-                        or ollama_cfg.get('model', 'llama3')
+                        llm_config.pop("model", None)
+                        or llm_config.get("model_name")
+                        or ollama_cfg.get("model", "llama3")
                     )
-                    llm_config['model_name'] = model_name
+                    llm_config["model_name"] = model_name
 
-                    llm_config.setdefault('endpoint', ollama_cfg.get('api_base', 'http://localhost:11434'))
-                    llm_config.setdefault('temperature', ollama_cfg.get('temperature', 0.7))
-                    llm_config.setdefault('max_tokens', ollama_cfg.get('max_tokens', 1024))
+                    llm_config.setdefault(
+                        "endpoint", ollama_cfg.get("api_base", "http://localhost:11434")
+                    )
+                    llm_config.setdefault("temperature", ollama_cfg.get("temperature", 0.7))
+                    llm_config.setdefault("max_tokens", ollama_cfg.get("max_tokens", 1024))
 
                     st.session_state.llm_client = LocalLLMInterface(llm_config)
 
@@ -572,7 +566,6 @@ class CallAnalyticsApp:
                         logger.warning("LLM client initialized but service is unavailable")
                 except Exception as llm_error:
                     logger.warning(f"Failed to initialize LLM client: {llm_error}")
-
 
             # Components will be initialized on-demand when pages are accessed
             self.components_ready = True
@@ -604,8 +597,7 @@ class CallAnalyticsApp:
                     "Upload Data": "📤",
                     "Analysis": "🔍",
                     "Q&A Interface": "💬",
-                    "Settings": "⚙️"
-
+                    "Settings": "⚙️",
                 }
 
                 selected_page = st.radio(
@@ -613,7 +605,7 @@ class CallAnalyticsApp:
                     options=list(pages.keys()),
                     format_func=lambda x: f"{pages[x]} {x}",
                     index=list(pages.keys()).index(st.session_state.current_page),
-                    label_visibility="collapsed"
+                    label_visibility="collapsed",
                 )
                 st.divider()
                 st.session_state.current_page = selected_page
@@ -625,7 +617,7 @@ class CallAnalyticsApp:
 
         status_items: list[tuple[str, str]] = []
 
-        storage_manager = st.session_state.get('storage_manager')
+        storage_manager = st.session_state.get("storage_manager")
         if storage_manager is not None:
             try:
                 row_count = storage_manager.get_record_count()
@@ -639,19 +631,19 @@ class CallAnalyticsApp:
         else:
             status_items.append(("ℹ️ Storage not ready", "status-info"))
 
-        vector_store = st.session_state.get('vector_store')
+        vector_store = st.session_state.get("vector_store")
         if vector_store is not None:
             status_items.append(("✅ Vector store", "status-ok"))
         else:
             status_items.append(("⚠️ Vector store", "status-warn"))
 
-        whisper_enabled = self.config.get('whisper', {}).get('enabled', False)
+        whisper_enabled = self.config.get("whisper", {}).get("enabled", False)
         if whisper_enabled:
             status_items.append(("✅ Whisper STT", "status-ok"))
         else:
             status_items.append(("ℹ️ Whisper off", "status-info"))
 
-        ollama_enabled = self.config.get('ollama', {}).get('enabled', False)
+        ollama_enabled = self.config.get("ollama", {}).get("enabled", False)
         if ollama_enabled:
             status_items.append(("✅ Ollama LLM", "status-ok"))
         else:
@@ -663,20 +655,21 @@ class CallAnalyticsApp:
         """Render a persistent footer for the main application area."""
 
         current_year = datetime.now().year
-        version_text = self.config.get('app', {}).get('version', '1.0.0')
+        version_text = self.config.get("app", {}).get("version", "1.0.0")
         python_version = f"Python {sys.version_info.major}.{sys.version_info.minor}"
 
         status_badges = self._collect_system_status()
-        status_html = ''.join(
-            f"<span class=\"status-chip {cls}\">{text}</span>" for text, cls in status_badges
-        ) or "<span class=\"status-chip status-info\">ℹ️ Status pending</span>"
+        status_html = (
+            "".join(f'<span class="status-chip {cls}">{text}</span>' for text, cls in status_badges)
+            or '<span class="status-chip status-info">ℹ️ Status pending</span>'
+        )
 
         footer_links = [
             ("Repository", "https://github.com/mujtaba-a-khan/call-analytics-system"),
             ("Support", "https://github.com/mujtaba-a-khan/call-analytics-system/issues"),
             ("Streamlit Docs", "https://docs.streamlit.io"),
         ]
-        links_html = ''.join(
+        links_html = "".join(
             f'<a href="{url}" target="_blank" rel="noopener noreferrer">{label}</a>'
             for label, url in footer_links
         )
@@ -731,9 +724,7 @@ class CallAnalyticsApp:
             from ui.pages.dashboard import render_dashboard_page
 
             # Pass storage manager instead of data
-            render_dashboard_page(
-                storage_manager=st.session_state.storage_manager
-            )
+            render_dashboard_page(storage_manager=st.session_state.storage_manager)
         except ImportError:
             # Fallback to basic dashboard
             st.header("📊 Dashboard")
@@ -751,10 +742,7 @@ class CallAnalyticsApp:
         try:
             from ui.pages.upload import render_upload_page
 
-            render_upload_page(
-                storage_manager=st.session_state.storage_manager,
-                config=self.config
-            )
+            render_upload_page(storage_manager=st.session_state.storage_manager, config=self.config)
         except ImportError:
             # Fallback to basic upload
             st.header("📤 Upload Data")
@@ -762,8 +750,8 @@ class CallAnalyticsApp:
 
             uploaded_file = st.file_uploader(
                 "Choose a CSV file",
-                type=['csv'],
-                help="Upload a CSV file containing call transcripts"
+                type=["csv"],
+                help="Upload a CSV file containing call transcripts",
             )
 
             if uploaded_file is not None:
@@ -782,7 +770,7 @@ class CallAnalyticsApp:
 
             render_analysis_page(
                 storage_manager=st.session_state.storage_manager,
-                vector_store=st.session_state.vector_store
+                vector_store=st.session_state.vector_store,
             )
         except ImportError:
             # Fallback to basic analysis
@@ -803,7 +791,7 @@ class CallAnalyticsApp:
             render_qa_interface(
                 storage_manager=st.session_state.storage_manager,
                 vector_store=st.session_state.vector_store,
-                llm_client=st.session_state.llm_client
+                llm_client=st.session_state.llm_client,
             )
         except ImportError:
             # Fallback to basic Q&A
@@ -843,6 +831,7 @@ class CallAnalyticsApp:
 
         with col3:
             import platform
+
             st.metric("Platform", platform.system())
 
         # Clear cache button
@@ -875,7 +864,7 @@ def main() -> None:
 
     try:
         _configure_streamlit_page()
-        Path('logs').mkdir(exist_ok=True)
+        Path("logs").mkdir(exist_ok=True)
         app = CallAnalyticsApp()
         app.run()
     except KeyboardInterrupt:
