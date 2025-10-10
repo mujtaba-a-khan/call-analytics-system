@@ -95,8 +95,14 @@ pipeline {
     stage('Publish reports') {
       steps {
         junit 'build/reports/junit.xml'
-        publishCoverage adapters: [coberturaAdapter('build/reports/coverage.xml')],
-                        sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+        script {
+          def coverageReport = 'build/reports/coverage.xml'
+          if (fileExists(coverageReport)) {
+            recordCoverage(tools: [cobertura(pattern: coverageReport)])
+          } else {
+            echo "Coverage report ${coverageReport} not found; skipping coverage publish."
+          }
+        }
         archiveArtifacts artifacts: 'docs/_build/html/**', allowEmptyArchive: true
       }
     }
