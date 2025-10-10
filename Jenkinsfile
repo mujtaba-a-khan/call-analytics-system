@@ -67,14 +67,14 @@ pipeline {
           set -euxo pipefail
           . .venv/bin/activate
           mkdir -p build/reports
-          if [ -d tests ]; then
-            pytest -m "not slow" -v \
-              --junitxml=build/reports/junit.xml \
-              --cov=src --cov-report=xml:build/reports/coverage.xml
-          else
-            echo "<testsuite/>" > build/reports/junit.xml
-            printf "<?xml version=\\"1.0\\"?><coverage/>" > build/reports/coverage.xml
+          if [ ! -d tests ]; then
+            echo "Tests directory not found; add tests under ./tests to keep CI healthy." >&2
+            exit 1
           fi
+
+          pytest -m "not slow" -v \
+            --junitxml=build/reports/junit.xml \
+            --cov=src --cov-report=xml:build/reports/coverage.xml
         '''
       }
     }
