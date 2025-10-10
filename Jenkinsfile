@@ -6,7 +6,7 @@ pipeline {
     }
   }
 
-  options { timestamps(), ansiColor('xterm') }
+  options { timestamps(); ansiColor('xterm') }
 
   environment {
     PIP_CACHE_DIR = "${WORKSPACE}/.pip-cache"
