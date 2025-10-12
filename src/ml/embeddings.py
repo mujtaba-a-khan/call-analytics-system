@@ -199,8 +199,9 @@ class HashEmbeddingProvider(EmbeddingProvider):
             text_hash = hashlib.sha256(f"{self.seed}:{text}".encode()).digest()
 
             # Convert hash to embedding vector
-            np.random.seed(int.from_bytes(text_hash[:4], "little"))
-            embedding = np.random.randn(self.dimension)
+            seed_value = int.from_bytes(text_hash[:4], "little")
+            generator = np.random.default_rng(seed_value)
+            embedding = generator.standard_normal(self.dimension)
 
             # Normalize
             embedding = embedding / np.linalg.norm(embedding)
@@ -287,53 +288,100 @@ class EmbeddingManager:
         if not texts:
             return np.array([])
 
-        embeddings = []
-        texts_to_generate = []
-        text_indices = []
+        cache_active = use_cache and self.cache_enabled
 
         # Check cache
-        if use_cache and self.cache_enabled:
-            for i, text in enumerate(texts):
-                cache_key = self._get_cache_key(text)
-                if cache_key in self.cache:
-                    embeddings.append(self.cache[cache_key])
-                else:
-                    texts_to_generate.append(text)
-                    text_indices.append(i)
+        if cache_active:
+            cached_embeddings, missing_indices, texts_to_generate = self._split_cache_hits(texts)
+
+            if not texts_to_generate:
+                return self._assemble_cached_results(len(texts), cached_embeddings)
         else:
-            texts_to_generate = texts
-            text_indices = list(range(len(texts)))
+            cached_embeddings = {}
+            missing_indices = list(range(len(texts)))
+            texts_to_generate = list(texts)
 
         # Generate new embeddings
-        if texts_to_generate:
-            new_embeddings = self.provider.generate(texts_to_generate)
+        new_embeddings = self.provider.generate(texts_to_generate)
 
-            # Add to cache
-            if self.cache_enabled:
-                for text, embedding in zip(texts_to_generate, new_embeddings, strict=False):
-                    cache_key = self._get_cache_key(text)
-                    self.cache[cache_key] = embedding
+        # Add to cache
+        if self.cache_enabled:
+            self._store_in_cache(texts_to_generate, new_embeddings)
 
-            # Merge with cached embeddings
-            if use_cache and self.cache_enabled:
-                result = np.zeros((len(texts), self.provider.get_dimension()))
+        if cache_active:
+            return self._assemble_results(
+                len(texts),
+                cached_embeddings,
+                missing_indices,
+                new_embeddings,
+            )
 
-                # Fill in cached embeddings
-                cache_idx = 0
-                for i, _text in enumerate(texts):
-                    if i not in text_indices:
-                        result[i] = embeddings[cache_idx]
-                        cache_idx += 1
+        return new_embeddings
 
-                # Fill in new embeddings
-                for i, idx in enumerate(text_indices):
-                    result[idx] = new_embeddings[i]
+    def _split_cache_hits(
+        self, texts: list[str]
+    ) -> tuple[dict[int, np.ndarray], list[int], list[str]]:
+        """
+        Split texts into cached embeddings and ones that need generation.
 
-                return result
+        Returns:
+            Cached embeddings, missing indices, texts needing generation
+        """
+        cached_embeddings: dict[int, np.ndarray] = {}
+        missing_indices: list[int] = []
+        texts_to_generate: list[str] = []
+
+        for idx, text in enumerate(texts):
+            cache_key = self._get_cache_key(text)
+            if cache_key in self.cache:
+                cached_embeddings[idx] = self.cache[cache_key]
             else:
-                return new_embeddings
-        else:
-            return np.array(embeddings)
+                missing_indices.append(idx)
+                texts_to_generate.append(text)
+
+        return cached_embeddings, missing_indices, texts_to_generate
+
+    def _store_in_cache(self, texts: list[str], embeddings: np.ndarray) -> None:
+        """
+        Store newly generated embeddings in the cache.
+        """
+        for text, embedding in zip(texts, embeddings, strict=False):
+            cache_key = self._get_cache_key(text)
+            self.cache[cache_key] = embedding
+
+    def _assemble_results(
+        self,
+        total: int,
+        cached_embeddings: dict[int, np.ndarray],
+        missing_indices: list[int],
+        new_embeddings: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Merge cached and newly generated embeddings back into input order.
+        """
+        result = np.empty((total, self.provider.get_dimension()))
+
+        for idx, embedding in cached_embeddings.items():
+            result[idx] = embedding
+
+        for position, idx in enumerate(missing_indices):
+            result[idx] = new_embeddings[position]
+
+        return result
+
+    def _assemble_cached_results(
+        self,
+        total: int,
+        cached_embeddings: dict[int, np.ndarray],
+    ) -> np.ndarray:
+        """
+        Create ordered array when everything is served from cache.
+        """
+        result = np.empty((total, self.provider.get_dimension()))
+        for idx in range(total):
+            result[idx] = cached_embeddings[idx]
+
+        return result
 
     def _get_cache_key(self, text: str) -> str:
         """
