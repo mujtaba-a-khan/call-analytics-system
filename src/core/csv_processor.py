@@ -8,7 +8,7 @@ containing call transcripts and metadata.
 import json
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -317,36 +317,78 @@ class CSVProcessor:
         if not name:
             return None
 
-        label = field.get("label")
-        aliases = self.field_alias_map.get(name, [])
+        candidates = self._build_candidate_headers(field, name)
+        available_headers = self._available_headers(headers, used_headers)
+
+        direct_match = self._find_direct_header_match(
+            available_headers, normalized_headers, candidates
+        )
+        if direct_match:
+            return direct_match
+
+        return self._find_pattern_header_match(name, available_headers, normalized_headers)
+
+    def _build_candidate_headers(self, field: dict[str, Any], name: str) -> set[str]:
+        """Collect normalized candidate headers for a field definition."""
         candidates = {self._normalize_header(name)}
 
+        label = field.get("label")
         if label:
             candidates.add(self._normalize_header(label))
 
+        aliases = self.field_alias_map.get(name, [])
         candidates.update(self._normalize_header(alias) for alias in aliases)
+        return candidates
 
+    @staticmethod
+    def _available_headers(headers: list[str], used_headers: set[str]) -> list[str]:
+        """Return headers that are not already assigned."""
+        return [header for header in headers if header not in used_headers]
+
+    def _find_direct_header_match(
+        self,
+        headers: list[str],
+        normalized_headers: dict[str, str],
+        candidates: set[str],
+    ) -> str | None:
+        """Find a direct match between normalized headers and candidates."""
         for header in headers:
-            if header in used_headers:
-                continue
             if normalized_headers.get(header) in candidates:
                 return header
+        return None
 
-        patterns = self.field_pattern_map.get(name, [])
-        for pattern in patterns:
+    def _find_pattern_header_match(
+        self,
+        name: str,
+        headers: list[str],
+        normalized_headers: dict[str, str],
+    ) -> str | None:
+        """Match headers using configured regex patterns."""
+        for pattern in self._iter_compiled_patterns(name):
+            match = self._match_header_by_pattern(pattern, headers, normalized_headers)
+            if match:
+                return match
+        return None
+
+    def _iter_compiled_patterns(self, name: str) -> Iterable[re.Pattern[str]]:
+        """Yield compiled regex patterns for a field, skipping invalid entries."""
+        for pattern in self.field_pattern_map.get(name, []):
             try:
-                compiled = re.compile(pattern)
+                yield re.compile(pattern)
             except re.error as exc:
                 logger.warning(f"Invalid regex pattern '{pattern}' for field '{name}': {exc}")
-                continue
 
-            for header in headers:
-                if header in used_headers:
-                    continue
-                normalized_value = normalized_headers.get(header, "")
-                if compiled.search(header.lower()) or compiled.search(normalized_value):
-                    return header
-
+    @staticmethod
+    def _match_header_by_pattern(
+        pattern: re.Pattern[str],
+        headers: list[str],
+        normalized_headers: dict[str, str],
+    ) -> str | None:
+        """Return the first header matching the provided regex pattern."""
+        for header in headers:
+            normalized_value = normalized_headers.get(header, "")
+            if pattern.search(header.lower()) or pattern.search(normalized_value):
+                return header
         return None
 
     def standardize_columns(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -396,27 +438,47 @@ class CSVProcessor:
         Returns:
             DataFrame with parsed dates
         """
-        date_columns = ["timestamp", "start_time", "end_time", "created_at", "updated_at"]
-
-        for col in date_columns:
-            if col in df.columns:
-                for date_format in self.date_formats:
-                    try:
-                        df[col] = pd.to_datetime(df[col], format=date_format)
-                        logger.info(f"Parsed {col} with format {date_format}")
-                        break
-                    except (TypeError, ValueError):
-                        continue
-
-                # If no format worked, try pandas auto-detection
-                if not pd.api.types.is_datetime64_any_dtype(df[col]):
-                    try:
-                        df[col] = pd.to_datetime(df[col])
-                        logger.info(f"Parsed {col} with auto-detection")
-                    except (TypeError, ValueError):
-                        logger.warning(f"Could not parse dates in column {col}")
+        for column in self._iter_date_columns(df):
+            self._parse_date_column(df, column)
 
         return df
+
+    @staticmethod
+    def _iter_date_columns(df: pd.DataFrame) -> list[str]:
+        """Return date-like columns present in the DataFrame."""
+        desired_columns = ["timestamp", "start_time", "end_time", "created_at", "updated_at"]
+        return [column for column in desired_columns if column in df.columns]
+
+    def _parse_date_column(self, df: pd.DataFrame, column: str) -> None:
+        """Parse a single date column using configured formats with fallback."""
+        if pd.api.types.is_datetime64_any_dtype(df[column]):
+            return
+
+        if self._parse_with_known_formats(df, column):
+            return
+
+        self._parse_with_auto_detection(df, column)
+
+    def _parse_with_known_formats(self, df: pd.DataFrame, column: str) -> bool:
+        """Attempt to parse using explicitly configured date formats."""
+        for date_format in self.date_formats:
+            try:
+                df[column] = pd.to_datetime(df[column], format=date_format)
+                logger.info(f"Parsed {column} with format {date_format}")
+                return True
+            except (TypeError, ValueError):
+                continue
+
+        return pd.api.types.is_datetime64_any_dtype(df[column])
+
+    @staticmethod
+    def _parse_with_auto_detection(df: pd.DataFrame, column: str) -> None:
+        """Fallback to pandas auto-detection for date parsing."""
+        try:
+            df[column] = pd.to_datetime(df[column])
+            logger.info(f"Parsed {column} with auto-detection")
+        except (TypeError, ValueError):
+            logger.warning(f"Could not parse dates in column {column}")
 
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -428,44 +490,65 @@ class CSVProcessor:
         Returns:
             Cleaned DataFrame
         """
-        # Remove duplicate rows
-        original_len = len(df)
-        df = df.drop_duplicates()
-        if len(df) < original_len:
-            logger.info(f"Removed {original_len - len(df)} duplicate rows")
-
-        # Clean phone numbers (remove non-numeric characters)
-        if "phone_number" in df.columns:
-            df["phone_number"] = df["phone_number"].astype(str).str.replace(r"\D", "", regex=True)
-
-        # Convert duration to seconds if in different format
-        if "duration" in df.columns and df["duration"].dtype == "object":
-            # If duration is a string like "5:30", convert to seconds
-            def parse_duration(val):
-                if pd.isna(val):
-                    return 0
-                if ":" in str(val):
-                    parts = str(val).split(":")
-                    if len(parts) == 2:
-                        return int(parts[0]) * 60 + int(parts[1])
-                    if len(parts) == 3:
-                        hours, minutes, seconds = (int(part) for part in parts)
-                        return hours * 3600 + minutes * 60 + seconds
-                return float(val)
-
-            df["duration"] = df["duration"].apply(parse_duration)
-
-        # Trim whitespace from string columns
-        string_columns = df.select_dtypes(include=["object"]).columns
-        for col in string_columns:
-            df[col] = df[col].str.strip() if df[col].dtype == "object" else df[col]
-
-        # Handle missing values
-        df["notes"] = df.get("notes", "").fillna("")
-        df["outcome"] = df.get("outcome", "unknown").fillna("unknown")
+        df = self._drop_duplicate_rows(df)
+        self._normalize_phone_numbers(df)
+        self._normalize_duration_column(df)
+        self._trim_string_columns(df)
+        self._fill_default_columns(df)
 
         logger.info("Data cleaning completed")
         return df
+
+    def _drop_duplicate_rows(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Remove duplicate rows and log how many were dropped."""
+        original_len = len(df)
+        deduped_df = df.drop_duplicates()
+        removed_rows = original_len - len(deduped_df)
+        if removed_rows > 0:
+            logger.info(f"Removed {removed_rows} duplicate rows")
+        return deduped_df
+
+    def _normalize_phone_numbers(self, df: pd.DataFrame) -> None:
+        """Strip non-numeric characters from phone numbers."""
+        if "phone_number" in df.columns:
+            df["phone_number"] = df["phone_number"].astype(str).str.replace(r"\D", "", regex=True)
+
+    def _normalize_duration_column(self, df: pd.DataFrame) -> None:
+        """Normalize duration values into seconds when stored as text."""
+        if "duration" in df.columns and df["duration"].dtype == "object":
+            df["duration"] = df["duration"].apply(self._parse_duration_value)
+
+    @staticmethod
+    def _parse_duration_value(val: Any) -> float:
+        """Convert duration strings like 'HH:MM:SS' into seconds."""
+        if pd.isna(val):
+            return 0
+        text = str(val)
+        if ":" in text:
+            parts = text.split(":")
+            if len(parts) == 2:
+                minutes, seconds = (int(part) for part in parts)
+                return minutes * 60 + seconds
+            if len(parts) == 3:
+                hours, minutes, seconds = (int(part) for part in parts)
+                return hours * 3600 + minutes * 60 + seconds
+        return float(val)
+
+    @staticmethod
+    def _trim_string_columns(df: pd.DataFrame) -> None:
+        """Trim whitespace from object columns."""
+        for column in df.select_dtypes(include=["object"]).columns:
+            df[column] = df[column].str.strip()
+
+    @staticmethod
+    def _fill_default_columns(df: pd.DataFrame) -> None:
+        """Fill frequently used columns with sensible defaults."""
+        defaults = {"notes": "", "outcome": "unknown"}
+        for column, default_value in defaults.items():
+            if column in df.columns:
+                df[column] = df[column].fillna(default_value)
+            else:
+                df[column] = default_value
 
     def validate_data_quality(self, df: pd.DataFrame) -> dict[str, Any]:
         """
@@ -694,28 +777,8 @@ class CSVExporter:
         """
         try:
             with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-                # Write main data
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-                # Add summary sheet if requested
-                if include_summary:
-                    summary = self._generate_summary(df)
-                    summary.to_excel(writer, sheet_name="Summary", index=False)
-
-                # Auto-adjust column widths
-                for sheet in writer.sheets.values():
-                    for column in sheet.columns:
-                        max_length = 0
-                        column_letter = column[0].column_letter
-                        for cell in column:
-                            value = cell.value
-                            if value is None:
-                                continue
-                            cell_length = len(str(value))
-                            if cell_length > max_length:
-                                max_length = cell_length
-                        adjusted_width = min(max_length + 2, 50)
-                        sheet.column_dimensions[column_letter].width = adjusted_width
+                self._write_excel_content(writer, df, sheet_name, include_summary)
+                self._auto_adjust_column_widths(writer)
 
             logger.info(f"Exported {len(df)} rows to Excel: {output_path}")
             return output_path
@@ -723,6 +786,31 @@ class CSVExporter:
         except Exception as e:
             logger.error(f"Error exporting to Excel: {e}")
             raise
+
+    def _write_excel_content(
+        self,
+        writer: pd.ExcelWriter,
+        df: pd.DataFrame,
+        sheet_name: str,
+        include_summary: bool,
+    ) -> None:
+        """Write main data and optional summary sheet to an Excel writer."""
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+        if include_summary:
+            summary = self._generate_summary(df)
+            summary.to_excel(writer, sheet_name="Summary", index=False)
+
+    @staticmethod
+    def _auto_adjust_column_widths(writer: pd.ExcelWriter) -> None:
+        """Auto-adjust column widths for all sheets in an Excel writer."""
+        for sheet in writer.sheets.values():
+            for column in sheet.columns:
+                column_letter = column[0].column_letter
+                max_length = max(
+                    (len(str(cell.value)) for cell in column if cell.value is not None),
+                    default=0,
+                )
+                sheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
 
     def export_to_json(
         self, df: pd.DataFrame, output_path: Path, orient: str = "records", indent: int = 2
