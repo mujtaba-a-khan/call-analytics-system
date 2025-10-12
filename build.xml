@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="call-analytics-system" default="ci" basedir=".">
+  <!-- Paths -->
+  <property name="venv.dir" value=".venv"/>
+  <property name="venv.bin" value="${venv.dir}/bin"/>
+  <property name="junit.out" value="test-reports/junit.xml"/>
+
+  <target name="clean">
+    <delete dir="docs/_build"/>
+    <delete dir="dist"/>
+    <delete dir="build"/>
+    <delete dir=".pytest_cache"/>
+  </target>
+
+  <target name="setup">
+    <exec executable="python3" failonerror="true">
+      <arg value="-m"/><arg value="venv"/><arg value="${venv.dir}"/>
+    </exec>
+    <exec executable="${venv.bin}/python" failonerror="true">
+      <arg value="-m"/><arg value="pip"/><arg value="install"/><arg value="-U"/><arg value="pip"/><arg value="build"/>
+    </exec>
+    <exec executable="${venv.bin}/pip" failonerror="true">
+      <arg value="install"/><arg value="-e"/><arg value=".[dev,docs]"/>
+    </exec>
+  </target>
+
+  <target name="lint">
+    <exec executable="${venv.bin}/ruff" failonerror="true">
+      <arg value="check"/><arg value="src"/><arg value="scripts"/>
+    </exec>
+    <exec executable="${venv.bin}/black" failonerror="true">
+      <arg value="--check"/><arg value="src"/><arg value="scripts"/>
+    </exec>
+    <exec executable="${venv.bin}/mypy" failonerror="true">
+      <arg value="src"/>
+    </exec>
+  </target>
+
+  <target name="test">
+    <mkdir dir="test-reports"/>
+    <exec executable="${venv.bin}/pytest" failonerror="true">
+      <arg value="-q"/>
+      <arg value="--junitxml=${junit.out}"/>
+      <arg value="--maxfail=1"/>
+    </exec>
+  </target>
+
+  <target name="docs">
+    <exec executable="${venv.bin}/sphinx-build" failonerror="true">
+      <arg value="-b"/><arg value="html"/>
+      <arg value="docs"/><arg value="docs/_build/html"/>
+    </exec>
+  </target>
+
+  <target name="wheel">
+    <exec executable="${venv.bin}/python" failonerror="true">
+      <arg value="-m"/><arg value="build"/><arg value="--wheel"/>
+    </exec>
+  </target>
+
+  <target name="ci" depends="clean,setup,lint,test,docs,wheel"/>
+</project>

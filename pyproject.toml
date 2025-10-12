@@ -8,13 +8,12 @@ version = "1.0.0"
 description = "Professional call analytics system with local LLM and semantic search"
 readme = "README.md"
 requires-python = ">=3.13"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Mujtaba Khan", email = "mmak.edu.de@gmail.com" }]
 keywords = ["analytics", "call-center", "speech-to-text", "semantic-search", "nlp"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Business",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.13",
     "Topic :: Office/Business",
 ]
@@ -265,3 +264,8 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+# System tools used in CI
+[tool.ci.system-requirements]
+ant = "Apache Ant 1.10+"
+maven = "Apache Maven 3.8+"

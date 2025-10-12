@@ -8,7 +8,10 @@ configuration files, dependencies, and initial data structures.
 import argparse
 import importlib.util
 import logging
+import os
+import platform
 import secrets
+import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -98,40 +101,37 @@ class EnvironmentSetup:
         "temp",
     ]
 
-    # Required Python packages
-    REQUIRED_PACKAGES = [
-        "streamlit>=1.28.0",
-        "pandas>=2.0.0",
-        "numpy>=1.24.0",
-        "plotly>=5.17.0",
-        "pydantic>=2.0.0",
-        "toml>=0.10.2",
-        "python-dateutil>=2.8.2",
-        "pytz>=2023.3",
-        "phonenumbers>=8.13.0",
-        "tqdm>=4.65.0",
-        "requests>=2.31.0",
-        "psutil>=5.9.0",
-        "chardet>=5.2.0",
-        "xlsxwriter>=3.1.0",
-        "openpyxl>=3.1.0",
-        "sentence-transformers>=2.2.0",
-        "chromadb>=0.4.0",
-        "faster-whisper>=0.9.0",
-        "soundfile>=0.12.0",
-        "librosa>=0.10.0",
-        "pytest>=7.4.0",
-        "black>=23.0.0",
-        "pylint>=3.0.0",
+    # Python package spec installed in editable mode
+    CORE_PACKAGE_SPEC = ".[dev,test,docs]"
+
+    OPTIONAL_PACKAGES = [
+        "ollama>=0.3.0,<1.0.0",
+        "torch>=2.3.0,<3.0.0",
+        "transformers>=4.40.0,<5.0.0",
+        "accelerate>=0.30.0,<1.0.0",
     ]
 
-    # Optional packages
-    OPTIONAL_PACKAGES = [
-        "ollama>=0.1.0",
-        "torch>=2.0.0",
-        "transformers>=4.30.0",
-        "accelerate>=0.20.0",
-    ]
+    BREW_INSTALL_COMMAND = (
+        '/bin/bash -c "'
+        '$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    )
+
+    HOMEBREW_PATHS = [Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
+
+    SYSTEM_DEPENDENCIES: dict[str, list[dict[str, str]]] = {
+        "darwin": [
+            {"binary": "ant", "package": "ant", "description": "Apache Ant"},
+            {"binary": "mvn", "package": "maven", "description": "Apache Maven"},
+            {"binary": "ffmpeg", "package": "ffmpeg", "description": "FFmpeg"},
+            {"binary": "graphviz", "package": "graphviz", "description": "Graphviz"},
+        ],
+        "linux": [
+            {"binary": "ant", "package": "ant", "description": "Apache Ant"},
+            {"binary": "mvn", "package": "maven", "description": "Apache Maven"},
+            {"binary": "ffmpeg", "package": "ffmpeg", "description": "FFmpeg"},
+            {"binary": "dot", "package": "graphviz", "description": "Graphviz"},
+        ],
+    }
 
     def __init__(self, base_dir: Path, logger: logging.Logger):
         """
@@ -143,6 +143,167 @@ class EnvironmentSetup:
         """
         self.base_dir = base_dir
         self.logger = logger
+        self._apt_updated = False
+
+    def _extend_path_for_homebrew(self) -> None:
+        """Ensure Homebrew's default binary locations are on PATH."""
+        path_env = os.environ.get("PATH", "")
+        path_parts = path_env.split(os.pathsep) if path_env else []
+        for candidate in self.HOMEBREW_PATHS:
+            candidate_str = str(candidate)
+            if candidate.exists() and candidate_str not in path_parts:
+                path_parts.insert(0, candidate_str)
+        if path_parts:
+            os.environ["PATH"] = os.pathsep.join(path_parts)
+
+    def _run_command(
+        self,
+        command: Sequence[str] | str,
+        *,
+        shell: bool = False,
+        cwd: Path | None = None,
+    ) -> tuple[bool, str]:
+        """Execute a command and capture its output."""
+        try:
+            result = subprocess.run(
+                command,
+                shell=shell,
+                capture_output=True,
+                text=True,
+                cwd=str(cwd) if cwd else None,
+            )
+        except FileNotFoundError as exc:
+            return False, str(exc)
+
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            stdout = result.stdout.strip()
+            return False, stderr or stdout
+
+        return True, result.stdout.strip()
+
+    def _ensure_homebrew(self) -> bool:
+        """Install Homebrew if it is not already available."""
+        self._extend_path_for_homebrew()
+        if shutil.which("brew"):
+            return True
+
+        self.logger.info("Homebrew not detected; attempting installation...")
+        success, output = self._run_command(self.BREW_INSTALL_COMMAND, shell=True)
+        if not success:
+            self.logger.error("Homebrew installation failed: %s", output)
+            self.logger.info("Install Homebrew manually from https://brew.sh and rerun setup.")
+            return False
+
+        self._extend_path_for_homebrew()
+        if shutil.which("brew"):
+            return True
+
+        self.logger.warning("Homebrew installed but not found on PATH.")
+        self.logger.info("Ensure /opt/homebrew/bin or /usr/local/bin is included in PATH.")
+        return False
+
+    @staticmethod
+    def _detect_linux_manager() -> str | None:
+        """Detect an available Linux package manager."""
+        for manager in ("apt-get", "apt", "dnf", "yum", "pacman"):
+            if shutil.which(manager):
+                return manager
+        return None
+
+    def install_system_dependencies(self) -> bool:
+        """
+        Install required system-level dependencies (Ant, Maven, FFmpeg, Graphviz).
+
+        Returns:
+            True if dependencies are installed or already present, False otherwise.
+        """
+        system = platform.system().lower()
+        dependencies = self.SYSTEM_DEPENDENCIES.get(system)
+
+        if not dependencies:
+            self.logger.info(
+                "Automatic system dependency installation is not supported on %s. "
+                "Please ensure Ant, Maven, FFmpeg, and Graphviz are installed manually.",
+                system,
+            )
+            return True
+
+        if system == "darwin":
+            if not self._ensure_homebrew():
+                return False
+            manager = "brew"
+        elif system == "linux":
+            manager = self._detect_linux_manager()
+            if manager is None:
+                self.logger.warning(
+                    "Could not detect a supported package manager. "
+                    "Install Ant, Maven, FFmpeg, and Graphviz manually."
+                )
+                return True
+            if manager not in {"apt-get", "apt"}:
+                self.logger.warning(
+                    "Package manager '%s' is not supported for automated installation. "
+                    "Install Ant, Maven, FFmpeg, and Graphviz manually.",
+                    manager,
+                )
+                return True
+        else:
+            # Other platforms (e.g., Windows) are not automated; provide guidance.
+            self.logger.info(
+                "Automatic installation is not implemented for %s. "
+                "Install Ant, Maven, FFmpeg, and Graphviz manually.",
+                system,
+            )
+            return True
+
+        sudo_prefix: list[str] = ["sudo"] if shutil.which("sudo") else []
+
+        for dependency in dependencies:
+            binary = dependency.get("binary")
+            package = dependency["package"]
+            description = dependency.get("description", package)
+
+            if binary and shutil.which(binary):
+                self.logger.info("✓ %s already available", description)
+                continue
+
+            self.logger.info("Installing %s...", description)
+
+            if manager in {"apt-get", "apt"} and not self._apt_updated:
+                update_cmd = sudo_prefix + [manager, "update"]
+                success, output = self._run_command(update_cmd)
+                if not success:
+                    self.logger.error("Failed to update package index: %s", output)
+                    self.logger.info(
+                        "Install %s manually using '%s install %s' and rerun setup.",
+                        description,
+                        manager,
+                        package,
+                    )
+                    return False
+                self._apt_updated = True
+
+            if manager in {"apt-get", "apt"}:
+                install_cmd = sudo_prefix + [manager, "install", "-y", package]
+            else:  # Homebrew
+                install_cmd = ["brew", "install", package]
+
+            success, output = self._run_command(install_cmd)
+            if not success:
+                self.logger.error("Failed to install %s: %s", description, output)
+                self.logger.info(
+                    "Install %s manually and rerun the setup script once it is available.",
+                    description,
+                )
+                return False
+
+            if manager == "brew":
+                self._extend_path_for_homebrew()
+
+            self.logger.info("✓ Installed %s", description)
+
+        return True
 
     def check_python_version(self) -> bool:
         """
@@ -198,40 +359,49 @@ class EnvironmentSetup:
         Returns:
             True if successful, False otherwise
         """
-        self.logger.info("Installing required packages...")
+        self.logger.info("Installing Python dependencies from pyproject.toml...")
 
-        # Prepare pip command
-        pip_cmd = [sys.executable, "-m", "pip", "install"]
+        upgrade_cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "pip",
+            "setuptools",
+            "wheel",
+            "build",
+        ]
+        success, output = self._run_command(upgrade_cmd, cwd=self.base_dir)
+        if not success:
+            self.logger.error("Failed to upgrade pip tooling: %s", output)
+            return False
+
+        install_cmd: list[str] = [sys.executable, "-m", "pip", "install"]
         if upgrade:
-            pip_cmd.append("--upgrade")
+            install_cmd.append("--upgrade")
+        install_cmd.extend(["-e", self.CORE_PACKAGE_SPEC])
 
-        # Install required packages
-        for package in self.REQUIRED_PACKAGES:
-            try:
-                self.logger.info(f"Installing {package}...")
-                result = subprocess.run(pip_cmd + [package], capture_output=True, text=True)
+        success, output = self._run_command(install_cmd, cwd=self.base_dir)
+        if not success:
+            self.logger.error("Failed to install project dependencies: %s", output)
+            self.logger.info(
+                "You can try running '%s' manually inside %s",
+                " ".join(install_cmd),
+                self.base_dir,
+            )
+            return False
 
-                if result.returncode != 0:
-                    self.logger.error(f"Failed to install {package}: {result.stderr}")
-                    return False
-
-            except Exception as e:
-                self.logger.error(f"Error installing {package}: {e}")
-                return False
-
-        # Try to install optional packages
-        self.logger.info("Installing optional packages...")
+        # Install optional extras that are safe to skip
+        if self.OPTIONAL_PACKAGES:
+            self.logger.info("Installing optional packages (best-effort)...")
         for package in self.OPTIONAL_PACKAGES:
-            try:
-                result = subprocess.run(pip_cmd + [package], capture_output=True, text=True)
-
-                if result.returncode == 0:
-                    self.logger.info(f"✓ Installed optional package: {package}")
-                else:
-                    self.logger.warning(f"Could not install optional package: {package}")
-
-            except Exception as e:
-                self.logger.warning(f"Skipping optional package {package}: {e}")
+            optional_cmd = [sys.executable, "-m", "pip", "install", package]
+            success, output = self._run_command(optional_cmd, cwd=self.base_dir)
+            if success:
+                self.logger.info("✓ Installed optional package: %s", package)
+            else:
+                self.logger.warning("Could not install optional package %s: %s", package, output)
 
         self.logger.info("✓ Package installation complete")
         return True
@@ -845,6 +1015,12 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--skip-system-deps",
+        action="store_true",
+        help="Skip installation of system dependencies (Ant, Maven, FFmpeg, Graphviz)",
+    )
+
+    parser.add_argument(
         "--skip-sample-data",
         action="store_true",
         help="Skip creating sample data",
@@ -894,6 +1070,13 @@ def run_full_setup(
 
     if not setup.check_python_version():
         return 1
+
+    if args.skip_system_deps:
+        logger.info("Skipping system dependency installation (flag provided).")
+    else:
+        if not setup.install_system_dependencies():
+            logger.error("System dependency installation failed.")
+            return 1
 
     if not setup.create_directories():
         return 1
