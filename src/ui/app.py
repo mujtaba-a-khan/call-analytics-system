@@ -452,129 +452,151 @@ class CallAnalyticsApp:
         Components are only initialized when needed.
         """
         try:
-            # Create required directories
-            for _path_key, path_value in self.config.get("paths", {}).items():
-                Path(path_value).mkdir(parents=True, exist_ok=True)
+            self._ensure_directories()
+            self._ensure_storage_manager()
+            self._ensure_vector_store()
+            self._ensure_llm_client()
 
-            # Initialize storage manager if not already done
-            if st.session_state.storage_manager is None:
-                from core.storage_manager import StorageManager
-
-                st.session_state.storage_manager = StorageManager(
-                    base_path=Path(self.config["paths"]["data"])
-                )
-                logger.info("Storage manager initialized")
-            from vectordb.chroma_client import ChromaClient
-
-            if st.session_state.vector_store is None:
-                vector_cfg = self.config.get("vectorstore", {})
-                st.session_state.vector_store = ChromaClient(vector_cfg)
-
-                # Automatically populate the vector store if it is empty
-                try:
-                    stats = st.session_state.vector_store.get_statistics()
-                    if stats.get("total_documents", 0) == 0:
-                        data_df = st.session_state.storage_manager.load_all_records()
-                        if data_df is not None and not data_df.empty:
-                            from vectordb.indexer import DocumentIndexer
-
-                            indexing_config = dict(vector_cfg.get("indexing", {}))
-                            indexing_config.setdefault("text_fields", ["transcript", "notes"])
-                            indexing_config.setdefault("min_text_length", 10)
-                            indexing_config.setdefault(
-                                "metadata_fields",
-                                [
-                                    "call_id",
-                                    "agent_id",
-                                    "campaign",
-                                    "call_type",
-                                    "outcome",
-                                    "timestamp",
-                                    "duration",
-                                    "revenue",
-                                ],
-                            )
-
-                            indexer = DocumentIndexer(
-                                st.session_state.vector_store, config=indexing_config
-                            )
-
-                            required_fields = set(indexing_config["metadata_fields"])
-                            existing_fields: set[str] = set()
-                            try:
-                                sample = st.session_state.vector_store.collection.peek(1)
-                                if sample and sample.get("metadatas"):
-                                    metadata_sample = sample["metadatas"][0]
-                                    if metadata_sample:
-                                        existing_fields = set(metadata_sample.keys())
-                            except Exception as peek_error:
-                                logger.debug(
-                                    "Unable to inspect vector store metadata: %s", peek_error
-                                )
-
-                            needs_reindex = stats.get("total_documents", 0) == 0
-                            if not needs_reindex and required_fields - existing_fields:
-                                needs_reindex = True
-                                logger.info(
-                                    "Vector store metadata missing fields %s; triggering reindex",
-                                    required_fields - existing_fields,
-                                )
-
-                            if needs_reindex:
-                                if stats.get("total_documents", 0) > 0:
-                                    indexed_count = indexer.reindex_all(data_df)
-                                else:
-                                    indexed_count = indexer.index_dataframe(data_df)
-
-                                logger.info(
-                                    "Populated vector store with %d document(s)", indexed_count
-                                )
-                        else:
-                            logger.info("No call records available to index into vector store")
-                except Exception as index_error:
-                    logger.warning("Vector store initialization skipped: %s", index_error)
-
-            # Initialize LLM client if enabled
-            if st.session_state.llm_client is None and self.config.get("ollama", {}).get(
-                "enabled", False
-            ):
-                try:
-                    from ml.llm_interface import LocalLLMInterface
-
-                    llm_config = dict(self.config.get("llm", {}))
-                    ollama_cfg = self.config.get("ollama", {})
-
-                    provider = llm_config.get("provider", "ollama")
-                    llm_config["provider"] = provider
-
-                    model_name = (
-                        llm_config.pop("model", None)
-                        or llm_config.get("model_name")
-                        or ollama_cfg.get("model", "llama3")
-                    )
-                    llm_config["model_name"] = model_name
-
-                    llm_config.setdefault(
-                        "endpoint", ollama_cfg.get("api_base", "http://localhost:11434")
-                    )
-                    llm_config.setdefault("temperature", ollama_cfg.get("temperature", 0.7))
-                    llm_config.setdefault("max_tokens", ollama_cfg.get("max_tokens", 1024))
-
-                    st.session_state.llm_client = LocalLLMInterface(llm_config)
-
-                    if not st.session_state.llm_client.is_available:
-                        logger.warning("LLM client initialized but service is unavailable")
-                except Exception as llm_error:
-                    logger.warning(f"Failed to initialize LLM client: {llm_error}")
-
-            # Components will be initialized on-demand when pages are accessed
             self.components_ready = True
             logger.info("Components setup completed")
 
         except Exception as e:
-            logger.error(f"Failed to setup components: {e}")
+            logger.error("Failed to setup components: %s", e)
             self.components_ready = False
             raise
+
+    def _ensure_directories(self) -> None:
+        """Create required directories defined in configuration."""
+        for path_value in self.config.get("paths", {}).values():
+            Path(path_value).mkdir(parents=True, exist_ok=True)
+
+    def _ensure_storage_manager(self) -> None:
+        """Initialize the storage manager if it has not been set up."""
+        if st.session_state.storage_manager is not None:
+            return
+
+        from core.storage_manager import StorageManager
+
+        st.session_state.storage_manager = StorageManager(
+            base_path=Path(self.config["paths"]["data"])
+        )
+        logger.info("Storage manager initialized")
+
+    def _ensure_vector_store(self) -> None:
+        """Initialize the vector store and populate it when necessary."""
+        if st.session_state.vector_store is not None:
+            return
+
+        from vectordb.chroma_client import ChromaClient
+
+        vector_cfg = self.config.get("vectorstore", {})
+        st.session_state.vector_store = ChromaClient(vector_cfg)
+
+        try:
+            self._populate_vector_store_if_needed(vector_cfg)
+        except Exception as index_error:
+            logger.warning("Vector store initialization skipped: %s", index_error)
+
+    def _populate_vector_store_if_needed(self, vector_cfg: dict[str, Any]) -> None:
+        """Populate or reindex the vector store depending on current state."""
+        vector_store = st.session_state.vector_store
+        stats = vector_store.get_statistics()
+        total_documents = stats.get("total_documents", 0)
+
+        indexing_config = self._build_indexing_config(vector_cfg)
+
+        if total_documents > 0 and not self._find_missing_metadata_fields(indexing_config):
+            return
+
+        data_df = st.session_state.storage_manager.load_all_records()
+        if data_df is None or data_df.empty:
+            logger.info("No call records available to index into vector store")
+            return
+
+        from vectordb.indexer import DocumentIndexer
+
+        indexer = DocumentIndexer(vector_store, config=indexing_config)
+
+        if total_documents > 0:
+            indexed_count = indexer.reindex_all(data_df)
+        else:
+            indexed_count = indexer.index_dataframe(data_df)
+
+        logger.info("Populated vector store with %d document(s)", indexed_count)
+
+    def _build_indexing_config(self, vector_cfg: dict[str, Any]) -> dict[str, Any]:
+        """Construct indexing configuration with sensible defaults."""
+        indexing_config = dict(vector_cfg.get("indexing", {}))
+        indexing_config.setdefault("text_fields", ["transcript", "notes"])
+        indexing_config.setdefault("min_text_length", 10)
+        indexing_config.setdefault(
+            "metadata_fields",
+            [
+                "call_id",
+                "agent_id",
+                "campaign",
+                "call_type",
+                "outcome",
+                "timestamp",
+                "duration",
+                "revenue",
+            ],
+        )
+        return indexing_config
+
+    def _find_missing_metadata_fields(self, indexing_config: dict[str, Any]) -> set[str]:
+        """Inspect the vector store and return metadata fields that are missing."""
+        required_fields = set(indexing_config["metadata_fields"])
+        existing_fields: set[str] = set()
+
+        try:
+            sample = st.session_state.vector_store.collection.peek(1)
+            if sample and sample.get("metadatas"):
+                metadata_sample = sample["metadatas"][0] or {}
+                existing_fields = set(metadata_sample.keys())
+        except Exception as peek_error:
+            logger.debug("Unable to inspect vector store metadata: %s", peek_error)
+
+        missing_fields = required_fields - existing_fields
+        if missing_fields:
+            logger.info(
+                "Vector store metadata missing fields %s; triggering reindex",
+                missing_fields,
+            )
+        return missing_fields
+
+    def _ensure_llm_client(self) -> None:
+        """Initialize the local LLM client when Ollama support is enabled."""
+        if st.session_state.llm_client is not None:
+            return
+
+        ollama_cfg = self.config.get("ollama", {})
+        if not ollama_cfg.get("enabled", False):
+            return
+
+        try:
+            from ml.llm_interface import LocalLLMInterface
+
+            llm_config = dict(self.config.get("llm", {}))
+            llm_config["provider"] = llm_config.get("provider", "ollama")
+
+            model_name = (
+                llm_config.pop("model", None)
+                or llm_config.get("model_name")
+                or ollama_cfg.get("model", "llama3")
+            )
+            llm_config["model_name"] = model_name
+
+            llm_config.setdefault("endpoint", ollama_cfg.get("api_base", "http://localhost:11434"))
+            llm_config.setdefault("temperature", ollama_cfg.get("temperature", 0.7))
+            llm_config.setdefault("max_tokens", ollama_cfg.get("max_tokens", 1024))
+
+            st.session_state.llm_client = LocalLLMInterface(llm_config)
+
+            if not st.session_state.llm_client.is_available:
+                logger.warning("LLM client initialized but service is unavailable")
+        except Exception as llm_error:
+            logger.warning("Failed to initialize LLM client: %s", llm_error)
 
     def render_sidebar(self) -> str:
         """
@@ -585,7 +607,6 @@ class CallAnalyticsApp:
         """
         with st.sidebar:
             sidebar_main = st.container()
-            # sidebar_footer = st.container()
 
             with sidebar_main:
                 st.title("📞 Call Analytics")
