@@ -7,6 +7,7 @@ and outcome determination based on configurable rules.
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -173,6 +174,60 @@ class LabelingEngine:
 
         return "Unknown", 0.3, []
 
+    def _score_entities(
+        self,
+        transcript: str,
+        rules: dict[str, list[str]],
+        scorer: Callable[[str], float],
+    ) -> tuple[dict[str, float], dict[str, list[str]]]:
+        """Return score and keyword matches for each rule group."""
+        scores: dict[str, float] = {}
+        keyword_matches: dict[str, list[str]] = {}
+
+        for label, keywords in rules.items():
+            matches = [kw for kw in keywords if self._keyword_match(transcript, kw)]
+            keyword_matches[label] = matches
+            scores[label] = float(sum(scorer(keyword) for keyword in matches))
+
+        return scores, keyword_matches
+
+    def _resolve_best_label(self, scores: dict[str, float], priority: list[str]) -> str | None:
+        """Resolve the highest-scoring label, honoring optional priority ordering."""
+        if not scores:
+            return None
+
+        max_score = max(scores.values(), default=0.0)
+        if max_score == 0:
+            return None
+
+        tied = [label for label, score in scores.items() if score == max_score]
+        if len(tied) == 1:
+            return tied[0]
+
+        for candidate in priority:
+            if candidate in tied:
+                return candidate
+
+        return tied[0] if tied else None
+
+    def _calculate_confidence(
+        self,
+        scores: dict[str, float],
+        label: str,
+        rules: dict[str, list[str]],
+    ) -> float:
+        """Convert the winning label's score into a bounded confidence value."""
+        total_keywords = sum(len(keywords) for keywords in rules.values())
+        denominator = max(total_keywords * 0.1, 1)
+        return min(1.0, scores.get(label, 0.0) / denominator)
+
+    def _outcome_analysis_segment(self, transcript: str) -> str:
+        """Return the transcript segment used for outcome bonus scoring."""
+        if len(transcript) <= 500:
+            return transcript
+        start_index = int(len(transcript) * 0.7)
+        return transcript[start_index:]
+
     def _determine_call_type(self, transcript: str) -> tuple[str, float, list[str]]:
         """
         Determine the call type based on transcript content.
@@ -183,49 +238,23 @@ class LabelingEngine:
         Returns:
             Tuple of (call_type, confidence, matched_keywords)
         """
-        scores = {}
-        keyword_matches = {}
+        keyword_weight = float(self.scoring_config.get("keyword_weight", 1.0))
+        phrase_weight = float(self.scoring_config.get("phrase_weight", 2.0))
 
-        # Score each call type
-        for call_type, keywords in self.call_type_rules.items():
-            score = 0.0
-            matches = []
+        def call_type_score(keyword: str) -> float:
+            return phrase_weight if len(keyword.split()) > 1 else keyword_weight
 
-            for keyword in keywords:
-                if self._keyword_match(transcript, keyword):
-                    matches.append(keyword)
-                    # Apply weighted scoring
-                    if len(keyword.split()) > 1:  # Phrase
-                        score += self.scoring_config.get("phrase_weight", 2.0)
-                    else:  # Single word
-                        score += self.scoring_config.get("keyword_weight", 1.0)
+        scores, keyword_matches = self._score_entities(
+            transcript=transcript,
+            rules=self.call_type_rules,
+            scorer=call_type_score,
+        )
+        best_type = self._resolve_best_label(scores, self.priorities.get("call_type_priority", []))
 
-            scores[call_type] = score
-            keyword_matches[call_type] = matches
-
-        # Find the best match
-        if not scores or all(score == 0 for score in scores.values()):
+        if not best_type:
             return "Unknown", 0.0, []
 
-        # Apply priority ordering for ties
-        max_score = max(scores.values())
-        tied_types = [t for t, s in scores.items() if s == max_score]
-
-        if len(tied_types) > 1:
-            # Use priority order
-            priority_order = self.priorities.get("call_type_priority", [])
-            for priority_type in priority_order:
-                if priority_type in tied_types:
-                    best_type = priority_type
-                    break
-            else:
-                best_type = tied_types[0]
-        else:
-            best_type = tied_types[0]
-
-        # Calculate confidence
-        total_keywords = sum(len(kw) for kw in self.call_type_rules.values())
-        confidence = min(1.0, scores[best_type] / max(total_keywords * 0.1, 1))
+        confidence = self._calculate_confidence(scores, best_type, self.call_type_rules)
 
         # Apply minimum confidence threshold
         min_confidence = self.scoring_config.get("min_confidence_score", 0.6)
@@ -244,58 +273,24 @@ class LabelingEngine:
         Returns:
             Tuple of (outcome, confidence, matched_keywords)
         """
-        # Focus on the last portion of the transcript for outcome
-        transcript_length = len(transcript)
-        if transcript_length > 500:
-            # Analyze last 30% of transcript for outcome
-            last_portion = transcript[int(transcript_length * 0.7) :]
-        else:
-            last_portion = transcript
+        last_portion = self._outcome_analysis_segment(transcript)
+        keyword_weight = float(self.scoring_config.get("keyword_weight", 1.0))
 
-        scores = {}
-        keyword_matches = {}
+        def outcome_score(keyword: str) -> float:
+            bonus = 0.5 if self._keyword_match(last_portion, keyword) else 0.0
+            return keyword_weight + bonus
 
-        # Score each outcome
-        for outcome, keywords in self.outcome_rules.items():
-            score = 0.0
-            matches = []
+        scores, keyword_matches = self._score_entities(
+            transcript=transcript,
+            rules=self.outcome_rules,
+            scorer=outcome_score,
+        )
+        best_outcome = self._resolve_best_label(scores, self.priorities.get("outcome_priority", []))
 
-            for keyword in keywords:
-                # Check in full transcript and give bonus for last portion
-                if self._keyword_match(transcript, keyword):
-                    matches.append(keyword)
-                    score += self.scoring_config.get("keyword_weight", 1.0)
-
-                    # Bonus if found in last portion
-                    if self._keyword_match(last_portion, keyword):
-                        score += 0.5
-
-            scores[outcome] = score
-            keyword_matches[outcome] = matches
-
-        # Find the best match
-        if not scores or all(score == 0 for score in scores.values()):
+        if not best_outcome:
             return "Unknown", 0.0, []
 
-        # Apply priority ordering for ties
-        max_score = max(scores.values())
-        tied_outcomes = [o for o, s in scores.items() if s == max_score]
-
-        if len(tied_outcomes) > 1:
-            # Use priority order
-            priority_order = self.priorities.get("outcome_priority", [])
-            for priority_outcome in priority_order:
-                if priority_outcome in tied_outcomes:
-                    best_outcome = priority_outcome
-                    break
-            else:
-                best_outcome = tied_outcomes[0]
-        else:
-            best_outcome = tied_outcomes[0]
-
-        # Calculate confidence
-        total_keywords = sum(len(kw) for kw in self.outcome_rules.values())
-        confidence = min(1.0, scores[best_outcome] / max(total_keywords * 0.1, 1))
+        confidence = self._calculate_confidence(scores, best_outcome, self.outcome_rules)
 
         # Apply minimum confidence threshold
         min_confidence = self.scoring_config.get("min_confidence_score", 0.6)
