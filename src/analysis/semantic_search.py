@@ -118,9 +118,48 @@ class SemanticSearchEngine:
         if not filters:
             return None
 
-        clauses: list[dict[str, Any]] = []
+        clauses = []
 
         # Categorical filters
+        clauses.extend(self._categorical_filter_clauses(filters))
+
+        # Duration & revenue ranges
+        clauses.extend(
+            self._range_filter_clauses(
+                filters,
+                [
+                    # Duration range (seconds/minutes depending on stored field)
+                    ("duration_range", "duration"),
+                    # Revenue range
+                    ("revenue_range", "revenue"),
+                ],
+            )
+        )
+
+        return self._combine_clauses(clauses)
+
+    def _apply_post_filters(
+        self, results: list[dict[str, Any]], filters: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Filter results using metadata for constraints the vector DB cannot handle."""
+        if not results:
+            return results
+
+        # Prepare date range bounds
+        start_date, end_date = self._date_bounds_from_filters(filters)
+        if not (start_date or end_date):
+            return results
+
+        return [
+            result
+            for result in results
+            if self._result_within_date_bounds(result, start_date, end_date)
+        ]
+
+    @staticmethod
+    def _categorical_filter_clauses(filters: dict[str, Any]) -> list[dict[str, Any]]:
+        """Build vector DB clauses for categorical filters."""
+        clauses: list[dict[str, Any]] = []
         for field, key in [
             ("selected_agents", "agent_id"),
             ("selected_campaigns", "campaign"),
@@ -130,66 +169,73 @@ class SemanticSearchEngine:
             values = filters.get(field)
             if values:
                 clauses.append({key: {"$in": values}})
+        return clauses
 
-        # Duration range (seconds/minutes depending on stored field)
-        duration_range = filters.get("duration_range")
-        if duration_range and len(duration_range) == 2:
-            min_dur, max_dur = duration_range
-            if min_dur and not math.isinf(min_dur):
-                clauses.append({"duration": {"$gte": float(min_dur)}})
-            if max_dur and not math.isinf(max_dur):
-                clauses.append({"duration": {"$lte": float(max_dur)}})
+    def _range_filter_clauses(
+        self, filters: dict[str, Any], mappings: list[tuple[str, str]]
+    ) -> list[dict[str, Any]]:
+        """Build numeric range clauses for the vector DB query."""
+        clauses: list[dict[str, Any]] = []
+        for filter_key, target_field in mappings:
+            bounds = filters.get(filter_key)
+            clauses.extend(self._range_bounds_to_clauses(bounds, target_field))
+        return clauses
 
-        # Revenue range
-        revenue_range = filters.get("revenue_range")
-        if revenue_range and len(revenue_range) == 2:
-            min_rev, max_rev = revenue_range
-            if min_rev and not math.isinf(min_rev):
-                clauses.append({"revenue": {"$gte": float(min_rev)}})
-            if max_rev and not math.isinf(max_rev):
-                clauses.append({"revenue": {"$lte": float(max_rev)}})
-
+    @staticmethod
+    def _combine_clauses(clauses: list[dict[str, Any]]) -> dict[str, Any] | None:
+        """Combine individual clauses into a single filter expression."""
         if not clauses:
             return None
-
         if len(clauses) == 1:
             return clauses[0]
-
         return {"$and": clauses}
 
-    def _apply_post_filters(
-        self, results: list[dict[str, Any]], filters: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        """Filter results using metadata for constraints the vector DB cannot handle."""
-        if not results:
-            return results
-
-        filtered: list[dict[str, Any]] = []
-
-        # Prepare date range bounds
+    def _date_bounds_from_filters(
+        self, filters: dict[str, Any]
+    ) -> tuple[datetime | None, datetime | None]:
+        """Extract parsed date bounds from UI filters."""
         date_range = filters.get("date_range")
-        start_date = end_date = None
         if date_range and len(date_range) == 2:
-            start_date = self._parse_date(date_range[0])
-            end_date = self._parse_date(date_range[1], end_of_day=True)
+            return (
+                self._parse_date(date_range[0]),
+                self._parse_date(date_range[1], end_of_day=True),
+            )
+        return (None, None)
 
-        for result in results:
-            metadata = result.get("metadata", {}) or {}
+    def _result_within_date_bounds(
+        self,
+        result: dict[str, Any],
+        start_date: datetime | None,
+        end_date: datetime | None,
+    ) -> bool:
+        """Determine if a result's timestamp falls within provided bounds."""
+        if not (start_date or end_date):
+            return True
 
-            # Date range filtering
-            if start_date or end_date:
-                ts_value = metadata.get("timestamp") or metadata.get("start_time")
-                ts = self._parse_date(ts_value)
-                if ts is None:
-                    continue
-                if start_date and ts < start_date:
-                    continue
-                if end_date and ts > end_date:
-                    continue
+        metadata = result.get("metadata", {}) or {}
+        ts_value = metadata.get("timestamp") or metadata.get("start_time")
 
-            filtered.append(result)
+        # Date range filtering
+        ts = self._parse_date(ts_value)
+        if ts is None:
+            return False
+        if start_date and ts < start_date:
+            return False
+        return not (end_date and ts > end_date)
 
-        return filtered
+    @staticmethod
+    def _range_bounds_to_clauses(bounds: Any, field: str) -> list[dict[str, Any]]:
+        """Translate a (min, max) tuple into range clauses."""
+        if not bounds or len(bounds) != 2:
+            return []
+
+        min_value, max_value = bounds
+        clauses: list[dict[str, Any]] = []
+        if min_value and not math.isinf(min_value):
+            clauses.append({field: {"$gte": float(min_value)}})
+        if max_value and not math.isinf(max_value):
+            clauses.append({field: {"$lte": float(max_value)}})
+        return clauses
 
     @staticmethod
     def _parse_date(value: str | None, end_of_day: bool = False) -> datetime | None:
