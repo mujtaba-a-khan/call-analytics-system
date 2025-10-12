@@ -83,7 +83,7 @@ class EnvironmentSetup:
     """
 
     # Required Python version
-    REQUIRED_PYTHON = (3, 13)
+    REQUIRED_PYTHON = (3, 11)
 
     # Required directories
     REQUIRED_DIRS = [

@@ -1,8 +1,8 @@
 # 📞 Call Analytics System
 
-A professional, locally-hosted call analytics system with speech-to-text, semantic search, and natural language Q&A capabilities. Built with Python 3.13, Streamlit, and ChromaDB.
+A professional, locally-hosted call analytics system with speech-to-text, semantic search, and natural language Q&A capabilities. Built with Python 3.11, Streamlit, and ChromaDB.
 
-[![Python 3.13](https://img.shields.io/badge/Python-3.13-informational?logo=python)](https://www.python.org/)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-informational?logo=python)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-app-informational?logo=streamlit)](https://streamlit.io/)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-vectorDB-informational)](https://www.trychroma.com/)
 [![Whisper](https://img.shields.io/badge/Whisper-STT-informational?logo=openai)](https://github.com/openai/whisper)
@@ -33,7 +33,7 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
 <a id="quick-start"></a>
 
 ### Prerequisites
-- Python 3.13 or higher  
+- Python 3.11 or higher  
 - FFmpeg (for audio processing)  
 - 8GB+ RAM recommended  
 - CUDA-capable GPU (optional, for faster processing)
@@ -56,7 +56,7 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
    ```
 3. **Create virtual environment**
    ```bash
-   python3.13 -m venv venv
+   python3.11 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 4. **Install dependencies**

@@ -13,6 +13,31 @@ pipeline {
       steps { checkout scm }
     }
 
+    stage('Prepare Python') {
+      steps {
+        sh '''set -e
+if python3 -c "import ensurepip" >/dev/null 2>&1; then
+  echo "ensurepip available; skipping system package install."
+else
+  echo "ensurepip missing; attempting to install python3-venv..."
+  if command -v apt-get >/dev/null 2>&1; then
+    if command -v sudo >/dev/null 2>&1; then
+      sudo apt-get update
+      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv
+    else
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv
+    fi
+    python3 -c "import ensurepip" >/dev/null 2>&1 || { echo "ensurepip still unavailable after installation."; exit 1; }
+  else
+    echo "apt-get not available. Please install python3-venv manually on this agent."
+    exit 1
+  fi
+fi
+'''
+      }
+    }
+
     stage('Ant: Clean + Setup') {
       steps {
         sh 'ant -noinput -buildfile build.xml clean'

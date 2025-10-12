@@ -3,7 +3,7 @@ Main Streamlit Application
 
 Entry point for the Call Analytics System user interface.
 Provides file upload, processing, analysis, and Q&A capabilities.
-Compatible with Python 3.13+
+Compatible with Python 3.11+
 """
 
 import logging
