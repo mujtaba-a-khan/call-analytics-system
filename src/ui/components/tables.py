@@ -10,7 +10,7 @@ import base64
 import logging
 from datetime import datetime
 from io import BytesIO
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlencode
 
 import numpy as np
@@ -19,6 +19,15 @@ import streamlit as st
 
 # Configure module logger
 logger = logging.getLogger(__name__)
+
+
+class PaginationContext(NamedTuple):
+    page_data: pd.DataFrame
+    total_rows: int
+    total_pages: int
+    current_page: int
+    start_idx: int
+    end_idx: int
 
 
 class DataTable:
@@ -58,89 +67,22 @@ class DataTable:
             Filtered/sorted DataFrame based on user interactions
         """
         container = container or st
+        cls._ensure_pagination_state(key)
+        filtered_data = cls._apply_search(container, data.copy(), enable_search, key)
+        pagination = cls._paginate(filtered_data, page_size, key)
 
-        # Initialize session state for pagination
-        if f"{key}_page" not in st.session_state:
-            st.session_state[f"{key}_page"] = 0
-
-        # Search functionality
-        filtered_data = data.copy()
-        if enable_search:
-            search_query = container.text_input(
-                "🔍 Search table", key=f"{key}_search", placeholder="Type to search..."
-            )
-
-            if search_query:
-                # Search across all string columns
-                mask = pd.Series([False] * len(filtered_data))
-                for col in filtered_data.select_dtypes(include=["object"]).columns:
-                    mask |= (
-                        filtered_data[col]
-                        .astype(str)
-                        .str.contains(search_query, case=False, na=False)
-                    )
-                filtered_data = filtered_data[mask]
-
-        # Calculate pagination
-        total_rows = len(filtered_data)
-        total_pages = (total_rows - 1) // page_size + 1 if total_rows > 0 else 1
-        current_page = st.session_state[f"{key}_page"]
-
-        # Ensure current page is valid
-        if current_page >= total_pages:
-            current_page = total_pages - 1
-            st.session_state[f"{key}_page"] = current_page
-
-        # Slice data for current page
-        start_idx = current_page * page_size
-        end_idx = min(start_idx + page_size, total_rows)
-        page_data = filtered_data.iloc[start_idx:end_idx]
-
-        # Display table info
         col1, col2, col3 = container.columns([2, 3, 2])
-        with col1:
-            st.caption(f"Showing {start_idx + 1}-{end_idx} of {total_rows} rows")
+        cls._render_table_summary(
+            col1,
+            pagination.start_idx,
+            pagination.end_idx,
+            pagination.total_rows,
+        )
+        cls._render_pagination_controls(col2, key, pagination.current_page, pagination.total_pages)
+        cls._render_export_controls(col3, enable_export, filtered_data, key)
 
-        # Pagination controls
-        with col2:
-            subcol1, subcol2, subcol3, subcol4, subcol5 = st.columns(5)
-
-            with subcol1:
-                if st.button("⏮️", key=f"{key}_first", disabled=(current_page == 0)):
-                    st.session_state[f"{key}_page"] = 0
-                    st.rerun()
-
-            with subcol2:
-                if st.button("◀️", key=f"{key}_prev", disabled=(current_page == 0)):
-                    st.session_state[f"{key}_page"] = current_page - 1
-                    st.rerun()
-
-            with subcol3:
-                st.caption(f"Page {current_page + 1}/{total_pages}")
-
-            with subcol4:
-                if st.button("▶️", key=f"{key}_next", disabled=(current_page >= total_pages - 1)):
-                    st.session_state[f"{key}_page"] = current_page + 1
-                    st.rerun()
-
-            with subcol5:
-                if st.button("⏭️", key=f"{key}_last", disabled=(current_page >= total_pages - 1)):
-                    st.session_state[f"{key}_page"] = total_pages - 1
-                    st.rerun()
-
-        # Export controls
-        if enable_export:
-            with col3:
-                export_format = st.selectbox(
-                    "Export", ["", "CSV", "Excel", "JSON"], key=f"{key}_export_format"
-                )
-
-                if export_format:
-                    cls._handle_export(filtered_data, export_format, key)
-
-        # Display the table
         st.dataframe(
-            page_data,
+            pagination.page_data,
             use_container_width=True,
             hide_index=not show_index,
             column_config=column_config,
@@ -148,6 +90,113 @@ class DataTable:
         )
 
         return filtered_data
+
+    @staticmethod
+    def _ensure_pagination_state(key: str) -> None:
+        if f"{key}_page" not in st.session_state:
+            st.session_state[f"{key}_page"] = 0
+
+    @staticmethod
+    def _apply_search(
+        container: Any, data: pd.DataFrame, enable_search: bool, key: str
+    ) -> pd.DataFrame:
+        if not enable_search:
+            return data
+
+        search_query = container.text_input(
+            "🔍 Search table", key=f"{key}_search", placeholder="Type to search..."
+        )
+        if not search_query:
+            return data
+
+        mask = pd.Series([False] * len(data))
+        for col in data.select_dtypes(include=["object"]).columns:
+            mask |= data[col].astype(str).str.contains(search_query, case=False, na=False)
+
+        return data[mask]
+
+    @staticmethod
+    def _paginate(data: pd.DataFrame, page_size: int, key: str) -> "PaginationContext":
+        total_rows = len(data)
+        total_pages = max(1, (total_rows - 1) // page_size + 1) if page_size else 1
+        current_page = min(st.session_state.get(f"{key}_page", 0), total_pages - 1)
+        st.session_state[f"{key}_page"] = current_page
+
+        start_idx = current_page * page_size
+        end_idx = min(start_idx + page_size, total_rows)
+        page_data = data.iloc[start_idx:end_idx]
+
+        return PaginationContext(
+            page_data=page_data,
+            total_rows=total_rows,
+            total_pages=total_pages,
+            current_page=current_page,
+            start_idx=start_idx,
+            end_idx=end_idx,
+        )
+
+    @staticmethod
+    def _render_table_summary(col: Any, start_idx: int, end_idx: int, total_rows: int) -> None:
+        with col:
+            first_row = start_idx + 1 if total_rows else 0
+            st.caption(f"Showing {first_row}-{end_idx} of {total_rows} rows")
+
+    @classmethod
+    def _render_pagination_controls(
+        cls, col: Any, key: str, current_page: int, total_pages: int
+    ) -> None:
+        with col:
+            buttons = st.columns(5)
+            cls._pagination_button(buttons[0], "⏮️", f"{key}_first", key, 0, current_page == 0)
+            cls._pagination_button(
+                buttons[1], "◀️", f"{key}_prev", key, current_page - 1, current_page == 0
+            )
+            with buttons[2]:
+                st.caption(f"Page {current_page + 1}/{total_pages}")
+            cls._pagination_button(
+                buttons[3],
+                "▶️",
+                f"{key}_next",
+                key,
+                current_page + 1,
+                current_page >= total_pages - 1,
+            )
+            cls._pagination_button(
+                buttons[4],
+                "⏭️",
+                f"{key}_last",
+                key,
+                total_pages - 1,
+                current_page >= total_pages - 1,
+            )
+
+    @staticmethod
+    def _render_export_controls(
+        col: Any, enable_export: bool, data: pd.DataFrame, key: str
+    ) -> None:
+        if not enable_export:
+            return
+
+        with col:
+            export_format = st.selectbox(
+                "Export", ["", "CSV", "Excel", "JSON"], key=f"{key}_export_format"
+            )
+            if export_format:
+                DataTable._handle_export(data, export_format, key)
+
+    @staticmethod
+    def _pagination_button(
+        col: Any,
+        label: str,
+        state_key: str,
+        base_key: str,
+        target_page: int,
+        disabled: bool,
+    ) -> None:
+        with col:
+            if st.button(label, key=state_key, disabled=disabled):
+                st.session_state[f"{base_key}_page"] = target_page
+                st.rerun()
 
     @staticmethod
     def _handle_export(data: pd.DataFrame, format: str, key: str) -> None:
