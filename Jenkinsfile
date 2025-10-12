@@ -16,24 +16,40 @@ pipeline {
     stage('Prepare Python') {
       steps {
         sh '''set -e
-if python3 -c "import ensurepip" >/dev/null 2>&1; then
-  echo "ensurepip available; skipping system package install."
-else
-  echo "ensurepip missing; attempting to install python3-venv..."
+REQUIRED_PACKAGES="python3-venv python3-dev build-essential"
+ensure_ensurepip() {
+  python3 -c "import ensurepip" >/dev/null 2>&1
+}
+
+needs_install=false
+if ! ensure_ensurepip; then
+  needs_install=true
+fi
+
+if ! command -v gcc >/dev/null 2>&1; then
+  needs_install=true
+fi
+
+if [ "$needs_install" = true ]; then
+  echo "Installing required system packages: $REQUIRED_PACKAGES"
   if command -v apt-get >/dev/null 2>&1; then
     if command -v sudo >/dev/null 2>&1; then
       sudo apt-get update
-      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv
+      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $REQUIRED_PACKAGES
     else
       apt-get update
-      DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv
+      DEBIAN_FRONTEND=noninteractive apt-get install -y $REQUIRED_PACKAGES
     fi
-    python3 -c "import ensurepip" >/dev/null 2>&1 || { echo "ensurepip still unavailable after installation."; exit 1; }
   else
-    echo "apt-get not available. Please install python3-venv manually on this agent."
+    echo "apt-get not available. Please install: $REQUIRED_PACKAGES"
     exit 1
   fi
+else
+  echo "Required Python tooling and compiler already present."
 fi
+
+ensure_ensurepip || { echo "ensurepip still unavailable after attempted installation."; exit 1; }
+command -v gcc >/dev/null 2>&1 || { echo "gcc still unavailable after attempted installation."; exit 1; }
 '''
       }
     }

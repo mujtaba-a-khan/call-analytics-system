@@ -130,6 +130,8 @@ class EnvironmentSetup:
             {"binary": "mvn", "package": "maven", "description": "Apache Maven"},
             {"binary": "ffmpeg", "package": "ffmpeg", "description": "FFmpeg"},
             {"binary": "dot", "package": "graphviz", "description": "Graphviz"},
+            {"binary": "gcc", "package": "build-essential", "description": "GNU build toolchain"},
+            {"package": "python3-dev", "description": "Python development headers"},
         ],
     }
 
@@ -883,10 +885,9 @@ SECRET_KEY=your_secret_key_here
     def _measure_audio_duration(audio_path: Path) -> float:
         """Read actual WAV duration in seconds, returning 0 on failure."""
         try:
+            import aifc  # type: ignore[import-untyped]
             import contextlib
             import wave
-
-            import aifc  # type: ignore[import-untyped]
 
             try:
                 import soundfile as sf  # type: ignore[import-untyped]
