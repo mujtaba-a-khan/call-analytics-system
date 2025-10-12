@@ -16,7 +16,7 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, TypedDict
 
 import toml
 
@@ -75,6 +75,13 @@ class SampleVoiceScript(TypedDict):
     revenue: float
     tags: list[str]
     sentiment: str
+
+
+class ManagerSetupResult(NamedTuple):
+    """Outcome of preparing a package manager prior to installation."""
+
+    manager: str | None
+    success: bool
 
 
 class EnvironmentSetup:
@@ -213,6 +220,118 @@ class EnvironmentSetup:
                 return manager
         return None
 
+    @staticmethod
+    def _sudo_prefix() -> list[str]:
+        """Return sudo prefix if available."""
+        return ["sudo"] if shutil.which("sudo") else []
+
+    def _prepare_package_manager(self, system: str) -> ManagerSetupResult:
+        """
+        Prepare the package manager for the current platform.
+
+        Returns:
+            ManagerSetupResult with manager name if installation should continue,
+            or indicating success/failure when manual installation is required.
+        """
+        if system == "darwin":
+            if not self._ensure_homebrew():
+                return ManagerSetupResult(None, False)
+            return ManagerSetupResult("brew", True)
+
+        if system == "linux":
+            manager = self._detect_linux_manager()
+            if manager is None:
+                self.logger.warning(
+                    "Could not detect a supported package manager. "
+                    "Install Ant, Maven, FFmpeg, and Graphviz manually."
+                )
+                return ManagerSetupResult(None, True)
+            if manager not in {"apt-get", "apt"}:
+                self.logger.warning(
+                    "Package manager '%s' is not supported for automated installation. "
+                    "Install Ant, Maven, FFmpeg, and Graphviz manually.",
+                    manager,
+                )
+                return ManagerSetupResult(None, True)
+            return ManagerSetupResult(manager, True)
+
+        self.logger.info(
+            "Automatic installation is not implemented for %s. "
+            "Install Ant, Maven, FFmpeg, and Graphviz manually.",
+            system,
+        )
+        return ManagerSetupResult(None, True)
+
+    def _ensure_package_index_ready(
+        self,
+        manager: str,
+        dependency: dict[str, str],
+        sudo_prefix: list[str],
+    ) -> bool:
+        """Ensure package index updated before installation."""
+        if manager not in {"apt-get", "apt"} or self._apt_updated:
+            return True
+
+        update_cmd = sudo_prefix + [manager, "update"]
+        success, output = self._run_command(update_cmd)
+        if success:
+            self._apt_updated = True
+            return True
+
+        description = dependency.get("description", dependency["package"])
+        package = dependency["package"]
+        self.logger.error("Failed to update package index: %s", output)
+        self.logger.info(
+            "Install %s manually using '%s install %s' and rerun setup.",
+            description,
+            manager,
+            package,
+        )
+        return False
+
+    @staticmethod
+    def _build_install_command(manager: str, package: str, sudo_prefix: list[str]) -> list[str]:
+        """Construct the install command for the given package manager."""
+        if manager in {"apt-get", "apt"}:
+            return sudo_prefix + [manager, "install", "-y", package]
+        return ["brew", "install", package]
+
+    def _install_dependency(
+        self,
+        manager: str,
+        dependency: dict[str, str],
+        sudo_prefix: list[str],
+    ) -> bool:
+        """Install a single dependency if needed."""
+        binary = dependency.get("binary")
+        package = dependency["package"]
+        description = dependency.get("description", package)
+
+        if binary and shutil.which(binary):
+            self.logger.info("✓ %s already available", description)
+            return True
+
+        self.logger.info("Installing %s...", description)
+
+        if not self._ensure_package_index_ready(manager, dependency, sudo_prefix):
+            return False
+
+        install_cmd = self._build_install_command(manager, package, sudo_prefix)
+        success, output = self._run_command(install_cmd)
+        if not success:
+            self.logger.error("Failed to install %s: %s", description, output)
+            self.logger.info(
+                "Install %s manually and rerun the setup script once it is available.",
+                description,
+            )
+            return False
+
+        if manager == "brew":
+            self._extend_path_for_homebrew()
+
+        self.logger.info("✓ Installed %s", description)
+        return True
+
     def install_system_dependencies(self) -> bool:
         """
         Install required system-level dependencies (Ant, Maven, FFmpeg, Graphviz).
@@ -231,79 +350,18 @@ class EnvironmentSetup:
             )
             return True
 
-        if system == "darwin":
-            if not self._ensure_homebrew():
-                return False
-            manager = "brew"
-        elif system == "linux":
-            manager = self._detect_linux_manager()
-            if manager is None:
-                self.logger.warning(
-                    "Could not detect a supported package manager. "
-                    "Install Ant, Maven, FFmpeg, and Graphviz manually."
-                )
-                return True
-            if manager not in {"apt-get", "apt"}:
-                self.logger.warning(
-                    "Package manager '%s' is not supported for automated installation. "
-                    "Install Ant, Maven, FFmpeg, and Graphviz manually.",
-                    manager,
-                )
-                return True
-        else:
-            # Other platforms (e.g., Windows) are not automated; provide guidance.
-            self.logger.info(
-                "Automatic installation is not implemented for %s. "
-                "Install Ant, Maven, FFmpeg, and Graphviz manually.",
-                system,
-            )
+        manager_result = self._prepare_package_manager(system)
+        if not manager_result.success:
+            return False
+        manager = manager_result.manager
+        if manager is None:
             return True
 
-        sudo_prefix: list[str] = ["sudo"] if shutil.which("sudo") else []
+        sudo_prefix = self._sudo_prefix()
 
         for dependency in dependencies:
-            binary = dependency.get("binary")
-            package = dependency["package"]
-            description = dependency.get("description", package)
-
-            if binary and shutil.which(binary):
-                self.logger.info("✓ %s already available", description)
-                continue
-
-            self.logger.info("Installing %s...", description)
-
-            if manager in {"apt-get", "apt"} and not self._apt_updated:
-                update_cmd = sudo_prefix + [manager, "update"]
-                success, output = self._run_command(update_cmd)
-                if not success:
-                    self.logger.error("Failed to update package index: %s", output)
-                    self.logger.info(
-                        "Install %s manually using '%s install %s' and rerun setup.",
-                        description,
-                        manager,
-                        package,
-                    )
-                    return False
-                self._apt_updated = True
-
-            if manager in {"apt-get", "apt"}:
-                install_cmd = sudo_prefix + [manager, "install", "-y", package]
-            else:  # Homebrew
-                install_cmd = ["brew", "install", package]
-
-            success, output = self._run_command(install_cmd)
-            if not success:
-                self.logger.error("Failed to install %s: %s", description, output)
-                self.logger.info(
-                    "Install %s manually and rerun the setup script once it is available.",
-                    description,
-                )
+            if not self._install_dependency(manager, dependency, sudo_prefix):
                 return False
-
-            if manager == "brew":
-                self._extend_path_for_homebrew()
-
-            self.logger.info("✓ Installed %s", description)
 
         return True
 
