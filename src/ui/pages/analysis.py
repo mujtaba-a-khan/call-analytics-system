@@ -43,6 +43,32 @@ from src.ui.components import (
 # Configure module logger
 logger = logging.getLogger(__name__)
 
+RETENTION_RATE = "Retention Rate"
+AVERAGE_DURATION = "Average Duration"
+REVENUE_PER_COHORT = "Revenue per Cohort"
+CALL_FREQUENCY = "Call Frequency"
+
+COHORT_METRIC_OPTIONS = [
+    RETENTION_RATE,
+    AVERAGE_DURATION,
+    REVENUE_PER_COHORT,
+    CALL_FREQUENCY,
+]
+
+COHORT_HEATMAP_COLORBARS = {
+    RETENTION_RATE: "Retention (%)",
+    AVERAGE_DURATION: "Minutes",
+    REVENUE_PER_COHORT: "Revenue per Cohort",
+    CALL_FREQUENCY: "Call Frequency",
+}
+
+COHORT_HEATMAP_COLORSCALES = {
+    RETENTION_RATE: "Blues",
+    AVERAGE_DURATION: "Oranges",
+    REVENUE_PER_COHORT: "Greens",
+    CALL_FREQUENCY: "Purples",
+}
+
 
 class AnalysisPage:
     """
@@ -310,7 +336,7 @@ class AnalysisPage:
         with col2:
             metric = st.selectbox(
                 "Metric to Track",
-                ["Retention Rate", "Average Duration", "Revenue per Cohort", "Call Frequency"],
+                COHORT_METRIC_OPTIONS,
                 key="cohort_metric",
             )
 
@@ -493,66 +519,83 @@ class AnalysisPage:
         try:
             with st.spinner("Searching..."):
                 filters_dict = filter_state.to_dict()
-                # Perform semantic search
-                results = self.search_engine.search(
-                    query=query, top_k=top_k, threshold=threshold, filters=filters_dict
-                )
+                results = self._perform_semantic_search(query, top_k, threshold, filters_dict)
 
-                if results:
-                    st.success(f"Found {len(results)} relevant calls")
+                if not results:
+                    self._handle_semantic_search_no_results(query, top_k, threshold, filters_dict)
+                    return
 
-                    # Display results
-                    for idx, result in enumerate(results, 1):
-                        score = result.get("score", 0.0)
-                        with st.expander(f"Result {idx} - Score: {score:.3f}"):
-                            metadata = result.get("metadata", {}) or {}
-                            call_id = metadata.get("call_id") or result.get("id", "N/A")
-                            timestamp = (
-                                metadata.get("timestamp") or metadata.get("start_time") or "N/A"
-                            )
-                            agent = metadata.get("agent_id", "N/A")
-                            duration = metadata.get("duration")
-                            outcome = metadata.get("outcome", "N/A")
-                            campaign = metadata.get("campaign", "N/A")
-
-                            col1, col2 = st.columns(2)
-
-                            with col1:
-                                st.write(f"**Call ID:** {call_id}")
-                                st.write(f"**Date:** {timestamp}")
-                                st.write(f"**Agent:** {agent}")
-
-                            with col2:
-                                if duration is not None:
-                                    try:
-                                        duration_value = f"{float(duration):.0f} seconds"
-                                    except (TypeError, ValueError):
-                                        duration_value = str(duration)
-                                else:
-                                    duration_value = "N/A"
-                                st.write(f"**Duration:** {duration_value}")
-                                st.write(f"**Outcome:** {outcome}")
-                                st.write(f"**Campaign:** {campaign}")
-
-                            # Display matched content
-                            st.write("**Matched Content:**")
-                            snippet = result.get("snippet") or result.get("document") or "N/A"
-                            st.write(snippet)
-                else:
-                    st.warning("No results found matching your query")
-                    if threshold > 0:
-                        fallback_results = self.search_engine.search(
-                            query=query, top_k=top_k, threshold=None, filters=filters_dict
-                        )
-                        if fallback_results:
-                            st.info(
-                                "Try lowering the similarity threshold. "
-                                "We found matches with lower scores that were filtered out."
-                            )
+                st.success(f"Found {len(results)} relevant calls")
+                self._render_semantic_results(results)
 
         except Exception as e:
             logger.error(f"Error in semantic search: {e}")
             st.error(f"Search failed: {str(e)}")
+
+    def _perform_semantic_search(
+        self, query: str, top_k: int, threshold: float | None, filters: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        return self.search_engine.search(
+            query=query, top_k=top_k, threshold=threshold, filters=filters
+        )
+
+    def _handle_semantic_search_no_results(
+        self, query: str, top_k: int, threshold: float, filters_dict: dict[str, Any]
+    ) -> None:
+        st.warning("No results found matching your query")
+
+        if threshold <= 0:
+            return
+
+        fallback_results = self._perform_semantic_search(query, top_k, None, filters_dict)
+        if fallback_results:
+            st.info(
+                "Try lowering the similarity threshold. "
+                "We found matches with lower scores that were filtered out."
+            )
+
+    def _render_semantic_results(self, results: list[dict[str, Any]]) -> None:
+        for idx, result in enumerate(results, 1):
+            score = result.get("score", 0.0)
+            with st.expander(f"Result {idx} - Score: {score:.3f}"):
+                metadata = self._extract_result_metadata(result)
+                self._render_result_metadata(metadata)
+                snippet = result.get("snippet") or result.get("document") or "N/A"
+                st.write("**Matched Content:**")
+                st.write(snippet)
+
+    def _extract_result_metadata(self, result: dict[str, Any]) -> dict[str, Any]:
+        metadata = result.get("metadata", {}) or {}
+        return {
+            "call_id": metadata.get("call_id") or result.get("id", "N/A"),
+            "timestamp": metadata.get("timestamp") or metadata.get("start_time") or "N/A",
+            "agent": metadata.get("agent_id", "N/A"),
+            "duration": metadata.get("duration"),
+            "outcome": metadata.get("outcome", "N/A"),
+            "campaign": metadata.get("campaign", "N/A"),
+        }
+
+    def _render_result_metadata(self, metadata: dict[str, Any]) -> None:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write(f"**Call ID:** {metadata['call_id']}")
+            st.write(f"**Date:** {metadata['timestamp']}")
+            st.write(f"**Agent:** {metadata['agent']}")
+
+        with col2:
+            st.write(f"**Duration:** {self._format_duration(metadata['duration'])}")
+            st.write(f"**Outcome:** {metadata['outcome']}")
+            st.write(f"**Campaign:** {metadata['campaign']}")
+
+    def _format_duration(self, duration: Any) -> str:
+        if duration is None:
+            return "N/A"
+
+        try:
+            return f"{float(duration):.0f} seconds"
+        except (TypeError, ValueError):
+            return str(duration)
 
     def _apply_custom_filters(self, filter_state: FilterState) -> pd.DataFrame:
         """
@@ -899,210 +942,290 @@ class AnalysisPage:
             end_date: Analysis end date
         """
         try:
-            # Load data
-            data = self.storage_manager.load_call_records(start_date=start_date, end_date=end_date)
-
-            if data.empty:
-                st.warning("No data available for cohort analysis")
+            df = self._load_cohort_dataset(start_date, end_date)
+            if df is None:
                 return
 
-            if "timestamp" not in data.columns:
-                st.error("Cohort analysis requires a 'timestamp' column in the dataset")
-                return
-
-            df = data.copy()
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-            df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
-
-            if df.empty:
-                st.warning("All records in the selected range have invalid timestamps")
-                return
-
-            # Helper utilities for period handling
-            def get_period_start(series: pd.Series, granularity: str) -> pd.Series:
-                if granularity == "Daily":
-                    return series.dt.floor("D")
-                if granularity == "Weekly":
-                    return series.dt.to_period("W").apply(lambda p: p.start_time)
-                # Default to monthly granularity
-                return series.dt.to_period("M").apply(lambda p: p.start_time)
-
-            def format_period_label(starts: pd.Series, granularity: str) -> pd.Series:
-                if granularity == "Daily":
-                    return starts.dt.strftime("%Y-%m-%d")
-                if granularity == "Weekly":
-                    return starts.dt.strftime("Week of %Y-%m-%d")
-                return starts.dt.strftime("%Y-%m")
-
-            customer_col = None
-            for candidate in ["phone_number", "customer_id", "contact_id", "call_id"]:
-                if candidate in df.columns:
-                    customer_col = candidate
-                    break
-
+            customer_col = self._identify_customer_column(df)
             if customer_col is None:
-                st.error(
-                    "Cohort analysis requires a customer identifier, such as a phone "
-                    "number or call ID."
-                )
                 return
 
-            cohort_start_series: pd.Series
-            cohort_label_series: pd.Series
-
-            if cohort_type == "First Call Date":
-                first_contact = df.groupby(customer_col)["timestamp"].transform("min")
-                cohort_start_series = get_period_start(first_contact, cohort_period)
-                cohort_label_series = format_period_label(cohort_start_series, cohort_period)
-            elif cohort_type == "Campaign Start":
-                if "campaign" not in df.columns:
-                    st.error("Campaign information is not available in the dataset")
-                    return
-                campaign_first = df.groupby("campaign")["timestamp"].transform("min")
-                cohort_start_series = get_period_start(campaign_first, cohort_period)
-                cohort_labels = format_period_label(cohort_start_series, cohort_period)
-                cohort_label_series = (
-                    df["campaign"].fillna("Unknown Campaign") + " • " + cohort_labels
-                )
-            else:  # Agent Assignment
-                agent_col = "agent_id" if "agent_id" in df.columns else "agent"
-                if agent_col not in df.columns:
-                    st.error("Agent information is not available in the dataset")
-                    return
-                agent_first = df.groupby(agent_col)["timestamp"].transform("min")
-                cohort_start_series = get_period_start(agent_first, cohort_period)
-                cohort_labels = format_period_label(cohort_start_series, cohort_period)
-                cohort_label_series = (
-                    df[agent_col].fillna("Unassigned Agent") + " • " + cohort_labels
-                )
-
-            df["cohort_start"] = cohort_start_series
-            df["cohort_label"] = cohort_label_series
-            df = df.dropna(subset=["cohort_start", "cohort_label"])
-
-            if df.empty:
-                st.warning("Unable to determine cohorts for the selected configuration")
+            df = self._annotate_cohort_fields(df, cohort_type, cohort_period, customer_col)
+            if df is None:
                 return
 
-            df["period_start"] = get_period_start(df["timestamp"], cohort_period)
-
-            if cohort_period == "Monthly":
-                df["period_index"] = (
-                    df["period_start"].dt.year - df["cohort_start"].dt.year
-                ) * 12 + (df["period_start"].dt.month - df["cohort_start"].dt.month)
-            else:
-                delta_days = (df["period_start"] - df["cohort_start"]).dt.days
-                if cohort_period == "Weekly":
-                    df["period_index"] = (delta_days // 7).astype(int)
-                else:
-                    df["period_index"] = delta_days.astype(int)
-
-            df = df[(df["period_index"] >= 0) & (df["period_index"] < periods)]
-
-            if df.empty:
-                st.warning("No cohort activity found within the selected number of periods")
+            df = self._add_period_indices(df, cohort_period, periods)
+            if df is None:
                 return
 
-            period_labels = [f"Period {i}" for i in range(periods)]
+            metric_table, caption = self._compute_cohort_metric(df, metric, periods, customer_col)
+            if metric_table is None:
+                return
 
-            def finalize_table(pivot: pd.DataFrame) -> pd.DataFrame:
-                pivot = pivot.reindex(columns=range(periods), fill_value=0)
-                pivot.columns = period_labels
-                # Sort cohorts by their actual start date for consistent ordering
-                ordering = (
-                    df[["cohort_label", "cohort_start"]]
-                    .drop_duplicates()
-                    .set_index("cohort_label")["cohort_start"]
-                )
-                return pivot.reindex(ordering.sort_values().index).fillna(0)
-
-            value_table: pd.DataFrame
-            display_caption = ""
-
-            if metric == "Retention Rate":
-                cohort_sizes = (
-                    df[df["period_index"] == 0]
-                    .groupby("cohort_label")[customer_col]
-                    .nunique()
-                    .replace(0, np.nan)
-                )
-                period_counts = (
-                    df.groupby(["cohort_label", "period_index"])[customer_col]
-                    .nunique()
-                    .unstack(fill_value=0)
-                )
-                value_table = finalize_table(period_counts)
-                value_table = value_table.div(cohort_sizes, axis=0) * 100
-                value_table = value_table.round(2)
-                display_caption = (
-                    "Values show the percentage of the original cohort active in each period."
-                )
-            elif metric == "Average Duration":
-                duration_col = "duration" if "duration" in df.columns else "duration_seconds"
-                if duration_col not in df.columns:
-                    st.error("Duration information is not available in the dataset")
-                    return
-                averages = (
-                    df.groupby(["cohort_label", "period_index"])[duration_col].mean().unstack()
-                )
-                value_table = finalize_table(averages) / 60.0
-                value_table = value_table.round(2)
-                display_caption = "Average call duration (minutes) per cohort period."
-            elif metric == "Revenue per Cohort":
-                if "revenue" not in df.columns:
-                    st.error("Revenue information is not available in the dataset")
-                    return
-                revenues = df.groupby(["cohort_label", "period_index"])["revenue"].sum().unstack()
-                value_table = finalize_table(revenues).round(2)
-                display_caption = "Total revenue generated by each cohort in the specified period."
-            else:  # Call Frequency
-                if "call_id" in df.columns:
-                    call_counts = (
-                        df.groupby(["cohort_label", "period_index"])["call_id"].count().unstack()
-                    )
-                else:
-                    call_counts = df.groupby(["cohort_label", "period_index"]).size().unstack()
-                value_table = finalize_table(call_counts).round(0)
-                display_caption = "Number of calls handled by the cohort in each period."
-
-            st.info(f"Cohort analysis for {metric} by {cohort_type}")
-            st.dataframe(value_table)
-            if display_caption:
-                st.caption(display_caption)
-
-            # Cohort heatmap for visual interpretation
-            heatmap_df = value_table.copy()
-            colorbar_title = metric if metric != "Average Duration" else "Minutes"
-            if metric == "Retention Rate":
-                colorbar_title = "Retention (%)"
-
-            colorscale = "Blues"
-            if metric == "Average Duration":
-                colorscale = "Oranges"
-            elif metric == "Revenue per Cohort":
-                colorscale = "Greens"
-            elif metric == "Call Frequency":
-                colorscale = "Purples"
-
-            heatmap = go.Figure(
-                data=go.Heatmap(
-                    z=heatmap_df.values,
-                    x=heatmap_df.columns,
-                    y=heatmap_df.index,
-                    colorscale=colorscale,
-                    text=heatmap_df.round(2).astype(str),
-                    hovertemplate="Cohort: %{y}<br>%{x}: %{z}<extra></extra>",
-                    colorbar=dict(title=colorbar_title),
-                )
-            )
-            heatmap.update_layout(
-                title=f"{metric} by Cohort Period", xaxis_title="Period", yaxis_title="Cohort"
-            )
-            st.plotly_chart(heatmap, use_container_width=True)
+            self._display_cohort_table(metric_table, metric, cohort_type, caption)
+            self._render_cohort_heatmap(metric_table, metric)
 
         except Exception as e:
             logger.error(f"Error in cohort analysis: {e}")
             st.error(f"Cohort analysis failed: {str(e)}")
+
+    def _load_cohort_dataset(self, start_date: datetime, end_date: datetime) -> pd.DataFrame | None:
+        data = self.storage_manager.load_call_records(start_date=start_date, end_date=end_date)
+
+        if data.empty:
+            st.warning("No data available for cohort analysis")
+            return None
+
+        if "timestamp" not in data.columns:
+            st.error("Cohort analysis requires a 'timestamp' column in the dataset")
+            return None
+
+        df = data.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
+
+        if df.empty:
+            st.warning("All records in the selected range have invalid timestamps")
+            return None
+
+        return df
+
+    def _identify_customer_column(self, df: pd.DataFrame) -> str | None:
+        for candidate in ["phone_number", "customer_id", "contact_id", "call_id"]:
+            if candidate in df.columns:
+                return candidate
+
+        st.error(
+            "Cohort analysis requires a customer identifier, such as a phone number or call ID."
+        )
+        return None
+
+    def _annotate_cohort_fields(
+        self, df: pd.DataFrame, cohort_type: str, cohort_period: str, customer_col: str
+    ) -> pd.DataFrame | None:
+        assignment_handlers = {
+            "First Call Date": lambda: self._assign_first_call_cohort(
+                df, cohort_period, customer_col
+            ),
+            "Campaign Start": lambda: self._assign_campaign_cohort(df, cohort_period),
+            "Agent Assignment": lambda: self._assign_agent_cohort(df, cohort_period),
+        }
+
+        handler = assignment_handlers.get(cohort_type)
+        if handler is None:
+            st.error(f"Unsupported cohort type '{cohort_type}'")
+            return None
+
+        cohort_df = handler()
+        if cohort_df is None:
+            return None
+
+        cohort_df = cohort_df.dropna(subset=["cohort_start", "cohort_label"])
+
+        if cohort_df.empty:
+            st.warning("Unable to determine cohorts for the selected configuration")
+            return None
+
+        return cohort_df
+
+    def _assign_first_call_cohort(
+        self, df: pd.DataFrame, cohort_period: str, customer_col: str
+    ) -> pd.DataFrame:
+        first_contact = df.groupby(customer_col)["timestamp"].transform("min")
+        cohort_start = self._get_period_start(first_contact, cohort_period)
+        df = df.copy()
+        df["cohort_start"] = cohort_start
+        df["cohort_label"] = self._format_period_label(cohort_start, cohort_period)
+        return df
+
+    def _assign_campaign_cohort(self, df: pd.DataFrame, cohort_period: str) -> pd.DataFrame | None:
+        if "campaign" not in df.columns:
+            st.error("Campaign information is not available in the dataset")
+            return None
+
+        campaign_first = df.groupby("campaign")["timestamp"].transform("min")
+        cohort_start = self._get_period_start(campaign_first, cohort_period)
+        cohort_labels = self._format_period_label(cohort_start, cohort_period)
+        df = df.copy()
+        df["cohort_start"] = cohort_start
+        df["cohort_label"] = df["campaign"].fillna("Unknown Campaign") + " • " + cohort_labels
+        return df
+
+    def _assign_agent_cohort(self, df: pd.DataFrame, cohort_period: str) -> pd.DataFrame | None:
+        agent_col = "agent_id" if "agent_id" in df.columns else "agent"
+        if agent_col not in df.columns:
+            st.error("Agent information is not available in the dataset")
+            return None
+
+        agent_first = df.groupby(agent_col)["timestamp"].transform("min")
+        cohort_start = self._get_period_start(agent_first, cohort_period)
+        cohort_labels = self._format_period_label(cohort_start, cohort_period)
+        df = df.copy()
+        df["cohort_start"] = cohort_start
+        df["cohort_label"] = df[agent_col].fillna("Unassigned Agent") + " • " + cohort_labels
+        return df
+
+    def _add_period_indices(
+        self, df: pd.DataFrame, cohort_period: str, periods: int
+    ) -> pd.DataFrame | None:
+        df = df.copy()
+        df["period_start"] = self._get_period_start(df["timestamp"], cohort_period)
+        df["period_index"] = self._calculate_period_index(df, cohort_period)
+
+        df = df[(df["period_index"] >= 0) & (df["period_index"] < periods)]
+
+        if df.empty:
+            st.warning("No cohort activity found within the selected number of periods")
+            return None
+
+        return df
+
+    def _calculate_period_index(self, df: pd.DataFrame, cohort_period: str) -> pd.Series:
+        if cohort_period == "Monthly":
+            return (df["period_start"].dt.year - df["cohort_start"].dt.year) * 12 + (
+                df["period_start"].dt.month - df["cohort_start"].dt.month
+            )
+
+        delta_days = (df["period_start"] - df["cohort_start"]).dt.days
+        if cohort_period == "Weekly":
+            return (delta_days // 7).astype(int)
+        return delta_days.astype(int)
+
+    def _get_period_start(self, series: pd.Series, granularity: str) -> pd.Series:
+        if granularity == "Daily":
+            return series.dt.floor("D")
+        if granularity == "Weekly":
+            return series.dt.to_period("W").apply(lambda p: p.start_time)
+        return series.dt.to_period("M").apply(lambda p: p.start_time)
+
+    def _format_period_label(self, starts: pd.Series, granularity: str) -> pd.Series:
+        if granularity == "Daily":
+            return starts.dt.strftime("%Y-%m-%d")
+        if granularity == "Weekly":
+            return starts.dt.strftime("Week of %Y-%m-%d")
+        return starts.dt.strftime("%Y-%m")
+
+    def _compute_cohort_metric(
+        self, df: pd.DataFrame, metric: str, periods: int, customer_col: str
+    ) -> tuple[pd.DataFrame | None, str]:
+        def finalize(pivot: pd.DataFrame) -> pd.DataFrame:
+            return self._finalize_cohort_table(df, pivot, periods)
+
+        metric_handlers = {
+            RETENTION_RATE: lambda: self._compute_retention_rate(df, customer_col, finalize),
+            AVERAGE_DURATION: lambda: self._compute_average_duration(df, finalize),
+            REVENUE_PER_COHORT: lambda: self._compute_revenue(df, finalize),
+            CALL_FREQUENCY: lambda: self._compute_call_frequency(df, finalize),
+        }
+
+        handler = metric_handlers.get(metric)
+        if handler is None:
+            st.error(f"Unsupported cohort metric '{metric}'")
+            return None, ""
+
+        return handler()
+
+    def _finalize_cohort_table(
+        self, df: pd.DataFrame, pivot: pd.DataFrame, periods: int
+    ) -> pd.DataFrame:
+        period_labels = [f"Period {i}" for i in range(periods)]
+        pivot = pivot.reindex(columns=range(periods), fill_value=0)
+        pivot.columns = period_labels
+        ordering = (
+            df[["cohort_label", "cohort_start"]]
+            .drop_duplicates()
+            .set_index("cohort_label")["cohort_start"]
+            .sort_values()
+        )
+        return pivot.reindex(ordering.index).fillna(0)
+
+    def _compute_retention_rate(
+        self, df: pd.DataFrame, customer_col: str, finalize
+    ) -> tuple[pd.DataFrame | None, str]:
+        cohort_sizes = (
+            df[df["period_index"] == 0]
+            .groupby("cohort_label")[customer_col]
+            .nunique()
+            .replace(0, np.nan)
+        )
+        period_counts = (
+            df.groupby(["cohort_label", "period_index"])[customer_col]
+            .nunique()
+            .unstack(fill_value=0)
+        )
+        table = finalize(period_counts).div(cohort_sizes, axis=0) * 100
+        return (
+            table.round(2),
+            "Values show the percentage of the original cohort active in each period.",
+        )
+
+    def _compute_average_duration(
+        self, df: pd.DataFrame, finalize
+    ) -> tuple[pd.DataFrame | None, str]:
+        duration_col = "duration" if "duration" in df.columns else "duration_seconds"
+        if duration_col not in df.columns:
+            st.error("Duration information is not available in the dataset")
+            return None, ""
+
+        averages = df.groupby(["cohort_label", "period_index"])[duration_col].mean().unstack()
+        table = finalize(averages) / 60.0
+        return (
+            table.round(2),
+            "Average call duration (minutes) per cohort period.",
+        )
+
+    def _compute_revenue(self, df: pd.DataFrame, finalize) -> tuple[pd.DataFrame | None, str]:
+        if "revenue" not in df.columns:
+            st.error("Revenue information is not available in the dataset")
+            return None, ""
+
+        revenues = df.groupby(["cohort_label", "period_index"])["revenue"].sum().unstack()
+        return (
+            finalize(revenues).round(2),
+            "Total revenue generated by each cohort in the specified period.",
+        )
+
+    def _compute_call_frequency(
+        self, df: pd.DataFrame, finalize
+    ) -> tuple[pd.DataFrame | None, str]:
+        if "call_id" in df.columns:
+            call_counts = df.groupby(["cohort_label", "period_index"])["call_id"].count().unstack()
+        else:
+            call_counts = df.groupby(["cohort_label", "period_index"]).size().unstack()
+
+        return (
+            finalize(call_counts).round(0),
+            "Number of calls handled by the cohort in each period.",
+        )
+
+    def _display_cohort_table(
+        self, value_table: pd.DataFrame, metric: str, cohort_type: str, caption: str
+    ) -> None:
+        st.info(f"Cohort analysis for {metric} by {cohort_type}")
+        st.dataframe(value_table)
+        if caption:
+            st.caption(caption)
+
+    def _render_cohort_heatmap(self, value_table: pd.DataFrame, metric: str) -> None:
+        heatmap_df = value_table.copy()
+        colorbar_title = COHORT_HEATMAP_COLORBARS.get(metric, metric)
+        colorscale = COHORT_HEATMAP_COLORSCALES.get(metric, "Blues")
+
+        heatmap = go.Figure(
+            data=go.Heatmap(
+                z=heatmap_df.values,
+                x=heatmap_df.columns,
+                y=heatmap_df.index,
+                colorscale=colorscale,
+                text=heatmap_df.round(2).astype(str),
+                hovertemplate="Cohort: %{y}<br>%{x}: %{z}<extra></extra>",
+                colorbar={"title": colorbar_title},
+            )
+        )
+        heatmap.update_layout(
+            title=f"{metric} by Cohort Period", xaxis_title="Period", yaxis_title="Cohort"
+        )
+        st.plotly_chart(heatmap, use_container_width=True)
 
 
 def render_analysis_page(storage_manager: StorageManager, vector_store=None) -> None:
