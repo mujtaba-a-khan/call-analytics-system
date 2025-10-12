@@ -116,6 +116,11 @@ class _LazyExport(NamedTuple):
     attr: str
 
 
+# Lazy export module paths that are reused multiple times.
+CHROMA_CLIENT_MODULE = "vectordb.chroma_client"
+VALIDATORS_MODULE = "utils.validators"
+
+
 _LAZY_EXPORTS: dict[str, _LazyExport] = {
     # Core modules
     "CallRecord": _LazyExport("core.data_schema", "CallRecord"),
@@ -133,18 +138,18 @@ _LAZY_EXPORTS: dict[str, _LazyExport] = {
     "EmbeddingManager": _LazyExport("ml.embeddings", "EmbeddingManager"),
     "get_ml_capabilities": _LazyExport("ml", "get_ml_capabilities"),
     # Vector DB (with backward compatible aliases)
-    "ChromaClient": _LazyExport("vectordb.chroma_client", "ChromaClient"),
-    "ChromaDBClient": _LazyExport("vectordb.chroma_client", "ChromaClient"),
-    "VectorDBError": _LazyExport("vectordb.chroma_client", "VectorDBError"),
+    "ChromaClient": _LazyExport(CHROMA_CLIENT_MODULE, "ChromaClient"),
+    "ChromaDBClient": _LazyExport(CHROMA_CLIENT_MODULE, "ChromaClient"),
+    "VectorDBError": _LazyExport(CHROMA_CLIENT_MODULE, "VectorDBError"),
     "DocumentIndexer": _LazyExport("vectordb.indexer", "DocumentIndexer"),
     "VectorIndexer": _LazyExport("vectordb.indexer", "DocumentIndexer"),
     "DocumentRetriever": _LazyExport("vectordb.retriever", "DocumentRetriever"),
     "VectorRetriever": _LazyExport("vectordb.retriever", "DocumentRetriever"),
     # Utilities
     "get_logger": _LazyExport("utils.logger", "get_logger"),
-    "validate_phone": _LazyExport("utils.validators", "validate_phone"),
-    "validate_phone_number": _LazyExport("utils.validators", "validate_phone"),
-    "validate_email": _LazyExport("utils.validators", "validate_email"),
+    "validate_phone": _LazyExport(VALIDATORS_MODULE, "validate_phone"),
+    "validate_phone_number": _LazyExport(VALIDATORS_MODULE, "validate_phone"),
+    "validate_email": _LazyExport(VALIDATORS_MODULE, "validate_email"),
     "format_duration": _LazyExport("utils.formatters", "format_duration"),
 }
 
