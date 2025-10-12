@@ -16,7 +16,7 @@ pipeline {
     stage('Prepare Python') {
       steps {
         sh '''set -e
-REQUIRED_PACKAGES="python3-venv python3-dev build-essential"
+REQUIRED_PACKAGES="python3-venv python3-dev build-essential zip"
 ensure_ensurepip() {
   python3 -c "import ensurepip" >/dev/null 2>&1
 }
@@ -27,6 +27,10 @@ if ! ensure_ensurepip; then
 fi
 
 if ! command -v gcc >/dev/null 2>&1; then
+  needs_install=true
+fi
+
+if ! command -v zip >/dev/null 2>&1; then
   needs_install=true
 fi
 
@@ -50,6 +54,7 @@ fi
 
 ensure_ensurepip || { echo "ensurepip still unavailable after attempted installation."; exit 1; }
 command -v gcc >/dev/null 2>&1 || { echo "gcc still unavailable after attempted installation."; exit 1; }
+command -v zip >/dev/null 2>&1 || { echo "zip still unavailable after attempted installation."; exit 1; }
 '''
       }
     }
