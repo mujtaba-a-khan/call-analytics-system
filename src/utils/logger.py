@@ -12,7 +12,7 @@ import sys
 import time
 import traceback
 from contextvars import ContextVar, Token
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
 from typing import Any
@@ -35,7 +35,7 @@ class StructuredFormatter(logging.Formatter):
             JSON-formatted log string
         """
         log_obj = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

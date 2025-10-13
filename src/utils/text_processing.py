@@ -245,7 +245,7 @@ def calculate_text_statistics(text: str) -> dict[str, Any]:
 
     # Word statistics
     avg_word_length = sum(len(w) for w in words) / word_count if word_count > 0 else 0
-    unique_words = len(set(w.lower() for w in words))
+    unique_words = len({w.lower() for w in words})
     lexical_diversity = unique_words / word_count if word_count > 0 else 0
 
     # Sentence statistics
@@ -391,6 +391,72 @@ def highlight_text(
     return text
 
 
+def _jaccard_similarity(text1: str, text2: str) -> float:
+    """Compute Jaccard similarity between two texts."""
+    words1 = set(text1.lower().split())
+    words2 = set(text2.lower().split())
+
+    if not words1 and not words2:
+        return 1.0
+
+    intersection = words1 & words2
+    union = words1 | words2
+    return len(intersection) / len(union) if union else 0.0
+
+
+def _cosine_similarity(text1: str, text2: str) -> float:
+    """Compute cosine similarity between two texts."""
+    counter1 = Counter(text1.lower().split())
+    counter2 = Counter(text2.lower().split())
+    all_words = set(counter1) | set(counter2)
+
+    vec1 = [counter1.get(word, 0) for word in all_words]
+    vec2 = [counter2.get(word, 0) for word in all_words]
+
+    dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
+    magnitude1 = math.sqrt(sum(a * a for a in vec1))
+    magnitude2 = math.sqrt(sum(b * b for b in vec2))
+
+    if magnitude1 == 0 or magnitude2 == 0:
+        return 0.0
+
+    return dot_product / (magnitude1 * magnitude2)
+
+
+def _levenshtein_distance(s1: str, s2: str) -> int:
+    """Calculate the Levenshtein distance between two strings."""
+    if len(s1) < len(s2):
+        return _levenshtein_distance(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = list(range(len(s2) + 1))
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+
+    return previous_row[-1]
+
+
+def _levenshtein_similarity(text1: str, text2: str) -> float:
+    """Compute normalized Levenshtein similarity between two texts."""
+    distance = _levenshtein_distance(text1, text2)
+    max_length = max(len(text1), len(text2))
+    return 1 - (distance / max_length) if max_length > 0 else 1.0
+
+
+_SIMILARITY_HANDLERS = {
+    "jaccard": _jaccard_similarity,
+    "cosine": _cosine_similarity,
+    "levenshtein": _levenshtein_similarity,
+}
+
+
 def calculate_similarity(text1: str, text2: str, method: str = "jaccard") -> float:
     """
     Calculate similarity between two texts.
@@ -406,69 +472,10 @@ def calculate_similarity(text1: str, text2: str, method: str = "jaccard") -> flo
     if not text1 or not text2:
         return 0.0
 
-    if method == "jaccard":
-        # Jaccard similarity
-        words1 = set(text1.lower().split())
-        words2 = set(text2.lower().split())
-
-        if not words1 and not words2:
-            return 1.0
-
-        intersection = words1 & words2
-        union = words1 | words2
-
-        return len(intersection) / len(union) if union else 0.0
-
-    elif method == "cosine":
-        # Simple cosine similarity based on word frequency
-        counter1 = Counter(text1.lower().split())
-        counter2 = Counter(text2.lower().split())
-
-        # Get all unique words
-        all_words = set(counter1.keys()) | set(counter2.keys())
-
-        # Create vectors
-        vec1 = [counter1.get(word, 0) for word in all_words]
-        vec2 = [counter2.get(word, 0) for word in all_words]
-
-        # Calculate cosine similarity
-        dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
-        magnitude1 = math.sqrt(sum(a * a for a in vec1))
-        magnitude2 = math.sqrt(sum(b * b for b in vec2))
-
-        if magnitude1 == 0 or magnitude2 == 0:
-            return 0.0
-
-        return dot_product / (magnitude1 * magnitude2)
-
-    elif method == "levenshtein":
-        # Normalized Levenshtein distance
-        def levenshtein_distance(s1: str, s2: str) -> int:
-            if len(s1) < len(s2):
-                return levenshtein_distance(s2, s1)
-
-            if len(s2) == 0:
-                return len(s1)
-
-            previous_row = list(range(len(s2) + 1))
-            for i, c1 in enumerate(s1):
-                current_row = [i + 1]
-                for j, c2 in enumerate(s2):
-                    insertions = previous_row[j + 1] + 1
-                    deletions = current_row[j] + 1
-                    substitutions = previous_row[j] + (c1 != c2)
-                    current_row.append(min(insertions, deletions, substitutions))
-                previous_row = current_row
-
-            return previous_row[-1]
-
-        distance = levenshtein_distance(text1, text2)
-        max_length = max(len(text1), len(text2))
-
-        return 1 - (distance / max_length) if max_length > 0 else 1.0
-
-    else:
+    handler = _SIMILARITY_HANDLERS.get(method)
+    if handler is None:
         raise ValueError(f"Unknown similarity method: {method}")
+    return handler(text1, text2)
 
 
 def mask_pii(text: str) -> str:
