@@ -16,6 +16,8 @@ from plotly.subplots import make_subplots
 # Configure module logger
 logger = logging.getLogger(__name__)
 
+NUMBER_OF_CALLS_LABEL = "Number of Calls"
+
 
 class ChartTheme:
     """
@@ -133,8 +135,8 @@ class TimeSeriesChart:
                             y=aggregated.values,
                             mode="lines+markers",
                             name=str(group_name),
-                            line=dict(width=2),
-                            marker=dict(size=6),
+                            line={"width": 2},
+                            marker={"size": 6},
                         )
                     )
             else:
@@ -147,8 +149,8 @@ class TimeSeriesChart:
                         y=aggregated.values,
                         mode="lines+markers",
                         name="Call Volume",
-                        line=dict(color=ChartTheme.COLORS["primary"], width=3),
-                        marker=dict(size=8),
+                        line={"color": ChartTheme.COLORS["primary"], "width": 3},
+                        marker={"size": 8},
                         fill="tozeroy",
                         fillcolor="rgba(31, 119, 180, 0.2)",
                     )
@@ -160,7 +162,7 @@ class TimeSeriesChart:
                 {
                     "title": title,
                     "xaxis_title": "Date",
-                    "yaxis_title": "Number of Calls",
+                    "yaxis_title": NUMBER_OF_CALLS_LABEL,
                     "hovermode": "x unified",
                     "showlegend": bool(group_by),
                 }
@@ -223,7 +225,7 @@ class TimeSeriesChart:
                     x=pivot.columns,
                     y=pivot.index,
                     colorscale="Viridis",
-                    colorbar=dict(title="Calls"),
+                    colorbar={"title": "Calls"},
                     hovertemplate="%{x}<br>%{y}:00<br>Calls: %{z}<extra></extra>",
                 )
             )
@@ -314,7 +316,7 @@ class DistributionChart:
                 {
                     "title": title,
                     "xaxis_title": "Duration (minutes)",
-                    "yaxis_title": "Number of Calls",
+                    "yaxis_title": NUMBER_OF_CALLS_LABEL,
                     "bargap": 0.1,
                 }
             )
@@ -424,7 +426,7 @@ class PerformanceChart:
             # Calculate metric by agent
             if metric == "calls":
                 agent_stats = data.groupby(agent_column).size().sort_values(ascending=False)
-                y_title = "Number of Calls"
+                y_title = NUMBER_OF_CALLS_LABEL
             elif metric == "duration":
                 duration_totals = (
                     data.groupby(agent_column)["duration"].sum().sort_values(ascending=False)
@@ -598,7 +600,7 @@ class TrendChart:
                     y=daily_data.values,
                     mode="lines",
                     name="Actual",
-                    line=dict(color=ChartTheme.COLORS["info"], width=1),
+                    line={"color": ChartTheme.COLORS["info"], "width": 1},
                     opacity=0.5,
                 )
             )
@@ -619,7 +621,7 @@ class TrendChart:
                         y=ma.values,
                         mode="lines",
                         name=f"{window}-day MA",
-                        line=dict(color=color, width=2),
+                        line={"color": color, "width": 2},
                     )
                 )
 
