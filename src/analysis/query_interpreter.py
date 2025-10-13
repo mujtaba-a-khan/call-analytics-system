@@ -16,6 +16,62 @@ import dateparser
 logger = logging.getLogger(__name__)
 
 
+# Shared time parsing helpers
+MONTH_NAME_MAP = {
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "sept": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
+}
+MONTH_NAME_PATTERN = re.compile(
+    r"\b(" + "|".join(MONTH_NAME_MAP.keys()) + r")\b\s*(\d{4})",
+    re.IGNORECASE,
+)
+MONTH_KEYWORDS = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+]
+NUMERIC_DAY_PATTERNS = [
+    (re.compile(r"\b(\d{4})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b"), "ymd"),
+    (re.compile(r"\b(0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])[-/](\d{4})\b"), "mdy"),
+]
+NUMERIC_MONTH_PATTERNS = [
+    (re.compile(r"\b(\d{4})[-/](0?[1-9]|1[0-2])\b"), "ym"),
+    (re.compile(r"\b(0?[1-9]|1[0-2])[-/](\d{4})\b"), "my"),
+]
+DAY_PATTERN = re.compile(r"\b(0?[1-9]|[12]\d|3[01])\b")
+
+
 @dataclass
 class QueryIntent:
     """Container for parsed query intent"""
@@ -212,179 +268,158 @@ class QueryInterpreter:
         """
         now = datetime.now()
 
-        # Check for last N days
-        match = self.patterns["last_n_days"].search(query)
-        if match:
-            days = int(match.group(1))
-            start_date = now - timedelta(days=days)
-            return (start_date, now)
+        for candidate in (
+            self._relative_time_range(query, now),
+            self._explicit_numeric_day_range(query),
+            self._month_name_range(query),
+            self._numeric_month_range(query),
+            self._parsed_date_range(query),
+        ):
+            if candidate:
+                return candidate
 
-        # Check for last N hours
-        match = self.patterns["last_n_hours"].search(query)
-        if match:
-            hours = int(match.group(1))
-            start_date = now - timedelta(hours=hours)
-            return (start_date, now)
+        return None
 
-        # Check for yesterday
-        if self.patterns["yesterday"].search(query):
-            yesterday = now - timedelta(days=1)
-            start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
-            return (start_date, end_date)
-
-        # Check for today
-        if self.patterns["today"].search(query):
-            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            return (start_date, now)
-
-        # Check for this week
-        if self.patterns["this_week"].search(query):
-            start_date = now - timedelta(days=now.weekday())
-            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            return (start_date, now)
-
-        # Check for last week
-        if self.patterns["last_week"].search(query):
-            start_date = now - timedelta(days=now.weekday() + 7)
-            end_date = start_date + timedelta(days=6)
-            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-            return (start_date, end_date)
-
-        # Try to parse explicit numeric day (e.g., 2025-11-11 or 11/11/2025)
-        numeric_day_patterns = [
-            (re.compile(r"\b(\d{4})[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])\b"), "ymd"),
-            (re.compile(r"\b(0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01])[-/](\d{4})\b"), "mdy"),
-        ]
-        for pattern, fmt in numeric_day_patterns:
-            match = pattern.search(query)
-            if match:
-                groups = list(map(int, match.groups()))
-                if fmt == "ymd":
-                    year, month, day = groups
-                else:
-                    month, day, year = groups
-                try:
-                    start_date = datetime(year, month, day, 0, 0, 0)
-                    end_date = datetime(year, month, day, 23, 59, 59, 999999)
-                    return (start_date, end_date)
-                except ValueError:
-                    pass
-
-        # Month name (full or abbreviated) + year (e.g., "november 2025" or "nov 2025")
-        month_name_map = {
-            "jan": 1,
-            "january": 1,
-            "feb": 2,
-            "february": 2,
-            "mar": 3,
-            "march": 3,
-            "apr": 4,
-            "april": 4,
-            "may": 5,
-            "jun": 6,
-            "june": 6,
-            "jul": 7,
-            "july": 7,
-            "aug": 8,
-            "august": 8,
-            "sep": 9,
-            "sept": 9,
-            "september": 9,
-            "oct": 10,
-            "october": 10,
-            "nov": 11,
-            "november": 11,
-            "dec": 12,
-            "december": 12,
-        }
-        month_words_pattern = re.compile(
-            r"\b(" + "|".join(month_name_map.keys()) + r")\b\s*(\d{4})",
-            re.IGNORECASE,
+    def _relative_time_range(self, query: str, now: datetime) -> tuple[datetime, datetime] | None:
+        ranged_patterns = (
+            ("last_n_days", lambda amount: now - timedelta(days=amount)),
+            ("last_n_hours", lambda amount: now - timedelta(hours=amount)),
         )
-        month_words_match = month_words_pattern.search(query)
-        if month_words_match:
-            month_word, year = month_words_match.groups()
-            month_index = month_name_map[month_word.lower()]
-            year = int(year)
-            start_date = datetime(year, month_index, 1)
-            if month_index == 12:
-                next_month = datetime(year + 1, 1, 1)
-            else:
-                next_month = datetime(year, month_index + 1, 1)
-            end_date = next_month - timedelta(microseconds=1)
-            return (start_date, end_date)
-
-        # Numeric month/year formats (e.g., 2025-11 or 11/2025)
-        numeric_month_patterns = [
-            (re.compile(r"\b(\d{4})[-/](0?[1-9]|1[0-2])\b"), "ym"),
-            (re.compile(r"\b(0?[1-9]|1[0-2])[-/](\d{4})\b"), "my"),
-        ]
-        for pattern, fmt in numeric_month_patterns:
-            match = pattern.search(query)
+        for key, start_builder in ranged_patterns:
+            match = self.patterns[key].search(query)
             if match:
-                year, month = match.groups()
-                if fmt == "my":
-                    month, year = year, month
-                year, month = int(year), int(month)
-                start_date = datetime(year, month, 1)
-                if month == 12:
-                    next_month = datetime(year + 1, 1, 1)
-                else:
-                    next_month = datetime(year, month + 1, 1)
-                end_date = next_month - timedelta(microseconds=1)
-                return (start_date, end_date)
+                amount = int(match.group(1))
+                start_date = start_builder(amount)
+                return start_date, now
 
-        # Try to parse remaining date expressions with dateparser
+        fixed_patterns = (
+            ("yesterday", lambda: self._full_day_span(now - timedelta(days=1))),
+            ("today", lambda: (self._start_of_day(now), now)),
+            (
+                "this_week",
+                lambda: (
+                    self._start_of_day(now - timedelta(days=now.weekday())),
+                    now,
+                ),
+            ),
+            ("last_week", lambda: self._last_week_range(now)),
+            ("this_month", lambda: (self._start_of_day(now.replace(day=1)), now)),
+            ("last_month", lambda: self._last_month_range(now)),
+        )
+        for key, resolver in fixed_patterns:
+            pattern = self.patterns.get(key)
+            if pattern and pattern.search(query):
+                return resolver()
+
+        return None
+
+    def _explicit_numeric_day_range(self, query: str) -> tuple[datetime, datetime] | None:
+        for pattern, fmt in NUMERIC_DAY_PATTERNS:
+            match = pattern.search(query)
+            if not match:
+                continue
+            groups = list(map(int, match.groups()))
+            if fmt == "ymd":
+                year, month, day = groups
+            else:
+                month, day, year = groups
+            try:
+                start_date = datetime(year, month, day, 0, 0, 0)
+                end_date = datetime(year, month, day, 23, 59, 59, 999999)
+                return start_date, end_date
+            except ValueError:
+                continue
+        return None
+
+    def _month_name_range(self, query: str) -> tuple[datetime, datetime] | None:
+        match = MONTH_NAME_PATTERN.search(query)
+        if not match:
+            return None
+        month_word, year = match.groups()
+        month_index = MONTH_NAME_MAP[month_word.lower()]
+        year = int(year)
+        start_date = datetime(year, month_index, 1)
+        end_date = self._start_of_next_month(start_date) - timedelta(microseconds=1)
+        return start_date, end_date
+
+    def _numeric_month_range(self, query: str) -> tuple[datetime, datetime] | None:
+        for pattern, fmt in NUMERIC_MONTH_PATTERNS:
+            match = pattern.search(query)
+            if not match:
+                continue
+            first, second = match.groups()
+            if fmt == "my":
+                month, year = first, second
+            else:
+                year, month = first, second
+            year, month = int(year), int(month)
+            start_date = datetime(year, month, 1)
+            end_date = self._start_of_next_month(start_date) - timedelta(microseconds=1)
+            return start_date, end_date
+        return None
+
+    def _parsed_date_range(self, query: str) -> tuple[datetime, datetime] | None:
         try:
             settings = {"TIMEZONE": "UTC", "PREFER_DAY_OF_MONTH": "first"}
             parsed_date = dateparser.parse(query, settings=settings)
-            if parsed_date:
-                month_keywords = [
-                    "january",
-                    "february",
-                    "march",
-                    "april",
-                    "may",
-                    "june",
-                    "july",
-                    "august",
-                    "september",
-                    "october",
-                    "november",
-                    "december",
-                ]
-                contains_month = any(keyword in query for keyword in month_keywords)
-                day_pattern = re.compile(r"\b(0?[1-9]|[12][0-9]|3[01])\b")
-                has_explicit_day = bool(day_pattern.search(query))
+        except Exception as error:
+            logger.debug(f"dateparser failed for query '{query}': {error}")
+            return None
 
-                if contains_month and not has_explicit_day:
-                    start_date = parsed_date.replace(
-                        day=1,
-                        hour=0,
-                        minute=0,
-                        second=0,
-                        microsecond=0,
-                    )
-                    if start_date.month == 12:
-                        next_month = start_date.replace(year=start_date.year + 1, month=1)
-                    else:
-                        next_month = start_date.replace(month=start_date.month + 1)
-                    end_date = next_month - timedelta(microseconds=1)
-                else:
-                    start_date = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                    end_date = parsed_date.replace(
-                        hour=23,
-                        minute=59,
-                        second=59,
-                        microsecond=999999,
-                    )
-                return (start_date, end_date)
-        except Exception as e:
-            logger.debug(f"dateparser failed for query '{query}': {e}")
+        if not parsed_date:
+            return None
 
-        return None
+        contains_month = any(keyword in query for keyword in MONTH_KEYWORDS)
+        has_explicit_day = bool(DAY_PATTERN.search(query))
+
+        if contains_month and not has_explicit_day:
+            start_date = parsed_date.replace(
+                day=1,
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            end_date = self._start_of_next_month(start_date) - timedelta(microseconds=1)
+        else:
+            start_date = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = parsed_date.replace(
+                hour=23,
+                minute=59,
+                second=59,
+                microsecond=999999,
+            )
+        return start_date, end_date
+
+    @staticmethod
+    def _start_of_day(dt: datetime) -> datetime:
+        return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    @staticmethod
+    def _end_of_day(dt: datetime) -> datetime:
+        return dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    def _full_day_span(self, dt: datetime) -> tuple[datetime, datetime]:
+        return self._start_of_day(dt), self._end_of_day(dt)
+
+    @staticmethod
+    def _start_of_next_month(start_date: datetime) -> datetime:
+        if start_date.month == 12:
+            return start_date.replace(year=start_date.year + 1, month=1, day=1)
+        return start_date.replace(month=start_date.month + 1, day=1)
+
+    def _last_week_range(self, now: datetime) -> tuple[datetime, datetime]:
+        start_date = now - timedelta(days=now.weekday() + 7)
+        start_date = self._start_of_day(start_date)
+        end_date = self._end_of_day(start_date + timedelta(days=6))
+        return start_date, end_date
+
+    def _last_month_range(self, now: datetime) -> tuple[datetime, datetime]:
+        first_of_this_month = self._start_of_day(now.replace(day=1))
+        last_month_end = first_of_this_month - timedelta(microseconds=1)
+        start_date = self._start_of_day(last_month_end.replace(day=1))
+        end_date = self._end_of_day(last_month_end)
+        return start_date, end_date
 
     def _extract_filters(self, query: str) -> dict[str, Any]:
         """
