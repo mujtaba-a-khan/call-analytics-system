@@ -9,6 +9,7 @@ import argparse
 import logging
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 # Setup logging
@@ -252,45 +253,54 @@ class CallAnalyticsCLI:
             int: Exit code
         """
         try:
-            if args.action == "download":
-                logger.info(f"Downloading models (whisper size: {args.whisper_size})")
-                from scripts.download_models import main as download_main
+            handlers: dict[str, Callable[[argparse.Namespace], int | None]] = {
+                "download": self._download_models,
+                "list": self._list_models,
+                "verify": self._verify_models,
+            }
+            handler = handlers.get(args.action)
+            if handler is None:
+                logger.error("Unknown models action: %s", args.action)
+                return 1
 
-                download_main()
-
-            elif args.action == "list":
-                logger.info("Available models:")
-                models_dir = Path("models")
-                if models_dir.exists():
-                    for model_file in models_dir.rglob("*"):
-                        if model_file.is_file():
-                            size_mb = model_file.stat().st_size / (1024 * 1024)
-                            rel_path = model_file.relative_to(models_dir)
-                            logger.info("  - %s (%.1f MB)", rel_path, size_mb)
-                else:
-                    logger.info("  No models found")
-
-            elif args.action == "verify":
-                logger.info("Verifying models...")
-                from src.ml import get_ml_capabilities
-
-                capabilities = get_ml_capabilities()
-                for key, value in capabilities.items():
-                    status = "✓" if value else "✗"
-                    logger.info(f"  {status} {key}: {value}")
-
-            return 0
-
+            result = handler(args)
+            return 0 if result is None else result
         except Exception as e:
             logger.error(f"Model operation failed: {e}")
             return 1
 
-    def setup_environment(self, args: argparse.Namespace) -> int:
+    def _download_models(self, args: argparse.Namespace) -> None:
+        logger.info(f"Downloading models (whisper size: {args.whisper_size})")
+        from scripts.download_models import main as download_main
+
+        download_main()
+
+    def _list_models(self, _: argparse.Namespace) -> None:
+        logger.info("Available models:")
+        models_dir = Path("models")
+        if not models_dir.exists():
+            logger.info("  No models found")
+            return
+
+        for model_file in models_dir.rglob("*"):
+            if not model_file.is_file():
+                continue
+            size_mb = model_file.stat().st_size / (1024 * 1024)
+            rel_path = model_file.relative_to(models_dir)
+            logger.info("  - %s (%.1f MB)", rel_path, size_mb)
+
+    def _verify_models(self, _: argparse.Namespace) -> None:
+        logger.info("Verifying models...")
+        from src.ml import get_ml_capabilities
+
+        capabilities = get_ml_capabilities()
+        for key, value in capabilities.items():
+            status = "✓" if value else "✗"
+            logger.info(f"  {status} {key}: {value}")
+
+    def setup_environment(self) -> int:
         """
         Setup environment and dependencies.
-
-        Args:
-            args: Parsed command arguments
 
         Returns:
             int: Exit code
@@ -316,42 +326,54 @@ class CallAnalyticsCLI:
             int: Exit code
         """
         try:
-            import toml
+            handlers: dict[str, Callable[[argparse.Namespace], int | None]] = {
+                "show": self._show_config,
+                "validate": self._validate_config,
+                "create": self._create_config,
+            }
+            handler = handlers.get(args.action)
+            if handler is None:
+                logger.error("Unknown config action: %s", args.action)
+                return 1
 
-            config_dir = Path("config")
-
-            if args.action == "show":
-                for config_file in config_dir.glob("*.toml"):
-                    logger.info(f"\n=== {config_file.name} ===")
-                    with open(config_file) as f:
-                        config = toml.load(f)
-                        for key, value in config.items():
-                            logger.info(f"{key}: {value}")
-
-            elif args.action == "validate":
-                logger.info("Validating configuration files...")
-                all_valid = True
-                for config_file in config_dir.glob("*.toml"):
-                    try:
-                        with open(config_file) as f:
-                            toml.load(f)
-                        logger.info(f"  ✓ {config_file.name} is valid")
-                    except Exception as e:
-                        logger.error(f"  ✗ {config_file.name} is invalid: {e}")
-                        all_valid = False
-                return 0 if all_valid else 1
-
-            elif args.action == "create":
-                logger.info("Creating default configuration files...")
-                config_dir.mkdir(exist_ok=True)
-                # Create default configs
-                # Implementation for creating default configs
-
-            return 0
-
+            result = handler(args)
+            return 0 if result is None else result
         except Exception as e:
             logger.error(f"Config operation failed: {e}")
             return 1
+
+    def _show_config(self, _: argparse.Namespace) -> None:
+        import toml
+
+        config_dir = Path("config")
+        for config_file in config_dir.glob("*.toml"):
+            logger.info(f"\n=== {config_file.name} ===")
+            with open(config_file) as file:
+                config = toml.load(file)
+            for key, value in config.items():
+                logger.info(f"{key}: {value}")
+
+    def _validate_config(self, _: argparse.Namespace) -> int:
+        import toml
+
+        logger.info("Validating configuration files...")
+        all_valid = True
+        for config_file in Path("config").glob("*.toml"):
+            try:
+                with open(config_file) as file:
+                    toml.load(file)
+                logger.info(f"  ✓ {config_file.name} is valid")
+            except Exception as e:
+                logger.error(f"  ✗ {config_file.name} is invalid: {e}")
+                all_valid = False
+        return 0 if all_valid else 1
+
+    def _create_config(self, _: argparse.Namespace) -> None:
+        logger.info("Creating default configuration files...")
+        config_dir = Path("config")
+        config_dir.mkdir(exist_ok=True)
+        # Create default configs
+        # Implementation for creating default configs
 
     def export_data(self, args: argparse.Namespace) -> int:
         """
@@ -417,7 +439,7 @@ class CallAnalyticsCLI:
         elif args.command == "models":
             return self.manage_models(args)
         elif args.command == "setup":
-            return self.setup_environment(args)
+            return self.setup_environment()
         elif args.command == "config":
             return self.manage_config(args)
         elif args.command == "export":

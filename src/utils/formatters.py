@@ -50,48 +50,60 @@ def normalize_phone_number(phone: str, country_code: str = "US") -> str:
         return f"+{digits}"
 
 
+def _format_duration_clock(seconds: int) -> str:
+    """Render a duration using clock style (HH:MM:SS)."""
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def _format_duration_short(seconds: int) -> str:
+    """Render a duration using compact units (h/m/s)."""
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, secs = divmod(seconds, 60)
+    if seconds < 3600:
+        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+    return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+
+
+def _format_duration_human(seconds: int) -> str:
+    """Render a duration using descriptive words."""
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    minutes, secs = divmod(seconds, 60)
+    if seconds < 3600:
+        result = f"{minutes} minute{'s' if minutes != 1 else ''}"
+        if secs:
+            result += f" {secs} second{'s' if secs != 1 else ''}"
+        return result
+    hours, remainder = divmod(seconds, 3600)
+    minutes = remainder // 60
+    result = f"{hours} hour{'s' if hours != 1 else ''}"
+    if minutes:
+        result += f" {minutes} minute{'s' if minutes != 1 else ''}"
+    return result
+
+
+_DURATION_FORMATTERS = {
+    "clock": _format_duration_clock,
+    "short": _format_duration_short,
+    "human": _format_duration_human,
+}
+
+
 def format_duration(seconds: int | float | None, format_type: str = "human") -> str:
     """Format a duration (in seconds) into a human readable string."""
     if seconds is None or seconds < 0:
         return "0s"
 
     seconds = int(seconds)
-
-    if format_type == "clock":
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        secs = seconds % 60
-        if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-        return f"{minutes:02d}:{secs:02d}"
-
-    if format_type == "short":
-        if seconds < 60:
-            return f"{seconds}s"
-        if seconds < 3600:
-            minutes = seconds // 60
-            secs = seconds % 60
-            return f"{minutes}m {secs}s" if secs else f"{minutes}m"
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
-
-    if seconds < 60:
-        return f"{seconds} second{'s' if seconds != 1 else ''}"
-    if seconds < 3600:
-        minutes = seconds // 60
-        secs = seconds % 60
-        result = f"{minutes} minute{'s' if minutes != 1 else ''}"
-        if secs:
-            result += f" {secs} second{'s' if secs != 1 else ''}"
-        return result
-
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    result = f"{hours} hour{'s' if hours != 1 else ''}"
-    if minutes:
-        result += f" {minutes} minute{'s' if minutes != 1 else ''}"
-    return result
+    formatter = _DURATION_FORMATTERS.get(format_type, _format_duration_human)
+    return formatter(seconds)
 
 
 def format_bytes(count: int, precision: int = 2) -> str:
@@ -213,25 +225,34 @@ def format_list(items: Iterable[Any], max_items: int = 5, separator: str = ", ")
     return f"{separator.join(str(item) for item in shown_items)} (and {remaining} more)"
 
 
+def _pluralize_time_unit(value: int, unit: str) -> str:
+    """Return a pluralized time label."""
+    suffix = "s" if value != 1 else ""
+    return f"{value} {unit}{suffix} ago"
+
+
 def format_time_ago(dt: datetime, reference: datetime | None = None) -> str:
     """Return a human readable relative time string."""
     reference = reference or (datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now())
     delta = reference - dt
 
-    if delta.days > 365:
-        years = delta.days // 365
-        return f"{years} year{'s' if years != 1 else ''} ago"
-    if delta.days > 30:
-        months = delta.days // 30
-        return f"{months} month{'s' if months != 1 else ''} ago"
-    if delta.days > 0:
-        return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
-    if delta.seconds > 3600:
-        hours = delta.seconds // 3600
-        return f"{hours} hour{'s' if hours != 1 else ''} ago"
-    if delta.seconds > 60:
-        minutes = delta.seconds // 60
-        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    if delta.total_seconds() <= 0:
+        return "just now"
+
+    days = delta.days
+    seconds = delta.seconds
+    checks = (
+        (days > 365, days // 365, "year"),
+        (days > 30, days // 30, "month"),
+        (days > 0, days, "day"),
+        (seconds > 3600, seconds // 3600, "hour"),
+        (seconds > 60, seconds // 60, "minute"),
+    )
+
+    for condition, value, unit in checks:
+        if condition:
+            return _pluralize_time_unit(value, unit)
+
     return "just now"
 
 

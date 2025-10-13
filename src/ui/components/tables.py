@@ -269,19 +269,40 @@ class CallRecordsTable:
             Selected record details if action clicked
         """
         container = container or st
-
         record_session_key = "recent_calls_selected_record"
 
+        records = cls._prepare_records(records, record_session_key)
+        if records is None:
+            return None
+
+        display_data, column_config = cls._build_display_table(records, show_transcript)
+        selected_record = cls._restore_selection(records, record_session_key)
+
+        if show_actions and "call_id" in records.columns:
+            display_data, column_config = cls._attach_actions_column(
+                records, display_data, column_config
+            )
+            cls._render_dataframe(
+                display_data, column_config, container, table_key="recent_calls_table"
+            )
+        else:
+            cls._render_dataframe(display_data, column_config, container)
+
+        return selected_record
+
+    @staticmethod
+    def _prepare_records(records: pd.DataFrame | None, session_key: str) -> pd.DataFrame | None:
         if records is None or records.empty:
             if "view_call" in st.query_params:
                 st.query_params.pop("view_call", None)
-            st.session_state.pop(record_session_key, None)
+            st.session_state.pop(session_key, None)
             return None
+        return records.reset_index(drop=True)
 
-        # Normalize indices to ensure consistent row mapping
-        records = records.reset_index(drop=True)
-
-        # Prepare display columns
+    @classmethod
+    def _build_display_table(
+        cls, records: pd.DataFrame, show_transcript: bool
+    ) -> tuple[pd.DataFrame, dict[str, Any]]:
         display_columns = [
             "call_id",
             "phone_number",
@@ -298,11 +319,9 @@ class CallRecordsTable:
         if "revenue" in records.columns:
             display_columns.append("revenue")
 
-        # Filter to available columns
-        display_columns = [col for col in display_columns if col in records.columns]
-        display_data = records[display_columns].copy()
+        available_columns = [col for col in display_columns if col in records.columns]
+        display_data = records[available_columns].copy()
 
-        # Format columns for display
         if "timestamp" in display_data.columns:
             display_data["timestamp"] = pd.to_datetime(display_data["timestamp"]).dt.strftime(
                 "%Y-%m-%d %H:%M"
@@ -319,8 +338,7 @@ class CallRecordsTable:
         if "transcript" in display_data.columns:
             display_data["transcript"] = display_data["transcript"].str[:100] + "..."
 
-        # Column configuration
-        column_config = {
+        base_config: dict[str, Any] = {
             "call_id": st.column_config.TextColumn("Call ID", width="small"),
             "phone_number": st.column_config.TextColumn("Phone", width="medium"),
             "timestamp": st.column_config.TextColumn("Date/Time", width="medium"),
@@ -332,79 +350,119 @@ class CallRecordsTable:
             "transcript": st.column_config.TextColumn("Transcript Preview", width="large"),
         }
 
-        def _first_value(value: Any) -> str | None:
-            if value is None:
-                return None
-            if isinstance(value, list):
-                return value[0] if value else None
-            return str(value)
+        column_config = {
+            key: value for key, value in base_config.items() if key in display_data.columns
+        }
 
-        def _sync_selection(record: dict[str, Any]) -> None:
-            st.session_state[record_session_key] = record
-            call_id_value = record.get("call_id")
-            if not call_id_value:
-                return
-            current_param = _first_value(st.query_params.get("view_call"))
-            if current_param != call_id_value:
-                st.query_params["view_call"] = call_id_value
+        return display_data, column_config
 
-        selected_record: dict[str, Any] | None = None
+    @staticmethod
+    def _first_value(value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return value[0] if value else None
+        return str(value)
 
-        view_call_param = _first_value(st.query_params.get("view_call"))
-        if view_call_param and "call_id" in records.columns:
-            matches = records.index[records["call_id"] == view_call_param].tolist()
-            if matches:
-                selected_record = records.iloc[matches[0]].to_dict()
-                _sync_selection(selected_record)
-            else:
-                st.query_params.pop("view_call", None)
-                st.session_state.pop(record_session_key, None)
+    @classmethod
+    def _restore_selection(cls, records: pd.DataFrame, session_key: str) -> dict[str, Any] | None:
+        selected = cls._selection_from_query(records, session_key)
+        if selected is not None:
+            return selected
+        return cls._selection_from_session(records, session_key)
 
-        if selected_record is None:
-            cached_record = st.session_state.get(record_session_key)
-            if cached_record and cached_record.get("call_id") in records["call_id"].values:
-                selected_record = cached_record
-                _sync_selection(selected_record)
-            else:
-                st.session_state.pop(record_session_key, None)
+    @classmethod
+    def _selection_from_query(
+        cls, records: pd.DataFrame, session_key: str
+    ) -> dict[str, Any] | None:
+        view_call_param = cls._first_value(st.query_params.get("view_call"))
+        if not view_call_param or "call_id" not in records.columns:
+            return None
 
-        if show_actions and "call_id" in records.columns:
+        matches = records.index[records["call_id"] == view_call_param].tolist()
+        if not matches:
+            st.query_params.pop("view_call", None)
+            st.session_state.pop(session_key, None)
+            return None
 
-            def _build_view_url(call_id: Any) -> str:
-                call_id_str = str(call_id) if call_id is not None else ""
-                if not call_id_str:
-                    return ""
-                query_pairs: list[tuple[str, str]] = []
-                for key in st.query_params:
-                    if key == "view_call":
-                        continue
-                    value = st.query_params.get(key)
-                    if isinstance(value, list):
-                        query_pairs.extend((key, str(item)) for item in value if item is not None)
-                    elif value is not None:
-                        query_pairs.append((key, str(value)))
-                query_pairs.append(("view_call", call_id_str))
-                query_string = urlencode(query_pairs)
-                return f"?{query_string}" if query_string else ""
-
-            display_data["Actions"] = records["call_id"].apply(_build_view_url)
-            column_config["Actions"] = st.column_config.LinkColumn(
-                "Actions", help="Open call details", width="small", display_text="View"
-            )
-
-            st.dataframe(
-                display_data,
-                width="stretch",
-                hide_index=True,
-                column_config=column_config,
-                key="recent_calls_table",
-            )
-        else:
-            st.dataframe(
-                display_data, width="stretch", hide_index=True, column_config=column_config
-            )
-
+        selected_record = records.iloc[matches[0]].to_dict()
+        cls._sync_selection(selected_record, session_key)
         return selected_record
+
+    @classmethod
+    def _selection_from_session(
+        cls, records: pd.DataFrame, session_key: str
+    ) -> dict[str, Any] | None:
+        cached_record = st.session_state.get(session_key)
+        call_ids = records["call_id"].values if "call_id" in records.columns else np.array([])
+        if cached_record and cached_record.get("call_id") in call_ids:
+            cls._sync_selection(cached_record, session_key)
+            return cached_record
+
+        st.session_state.pop(session_key, None)
+        return None
+
+    @classmethod
+    def _sync_selection(cls, record: dict[str, Any], session_key: str) -> None:
+        st.session_state[session_key] = record
+        call_id_value = record.get("call_id")
+        if not call_id_value:
+            return
+
+        current_param = cls._first_value(st.query_params.get("view_call"))
+        if current_param != call_id_value:
+            st.query_params["view_call"] = call_id_value
+
+    @classmethod
+    def _attach_actions_column(
+        cls,
+        records: pd.DataFrame,
+        display_data: pd.DataFrame,
+        column_config: dict[str, Any],
+    ) -> tuple[pd.DataFrame, dict[str, Any]]:
+        display_with_actions = display_data.copy()
+        display_with_actions["Actions"] = records["call_id"].apply(cls._build_view_url)
+        column_config["Actions"] = st.column_config.LinkColumn(
+            "Actions", help="Open call details", width="small", display_text="View"
+        )
+        return display_with_actions, column_config
+
+    @staticmethod
+    def _build_view_url(call_id: Any) -> str:
+        call_id_str = str(call_id) if call_id is not None else ""
+        if not call_id_str:
+            return ""
+
+        query_pairs: list[tuple[str, str]] = []
+        for key in st.query_params:
+            if key == "view_call":
+                continue
+            value = st.query_params.get(key)
+            if isinstance(value, list):
+                query_pairs.extend((key, str(item)) for item in value if item is not None)
+            elif value is not None:
+                query_pairs.append((key, str(value)))
+
+        query_pairs.append(("view_call", call_id_str))
+        query_string = urlencode(query_pairs)
+        return f"?{query_string}" if query_string else ""
+
+    @staticmethod
+    def _render_dataframe(
+        data: pd.DataFrame,
+        column_config: dict[str, Any],
+        container: Any,
+        table_key: str | None = None,
+    ) -> None:
+        render_kwargs = {
+            "width": "stretch",
+            "hide_index": True,
+            "column_config": column_config,
+        }
+        if table_key:
+            render_kwargs["key"] = table_key
+
+        container.dataframe(data, **render_kwargs)
 
     @staticmethod
     def _format_duration(seconds: float) -> str:
@@ -577,47 +635,7 @@ class ComparisonTable:
 
         container.subheader(title)
 
-        display_df = comparison.copy()
-
-        for metric in metrics:
-            change_col = f"{metric}_Change"
-            delta_col = f"{metric}_Delta"
-
-            if change_col in display_df.columns:
-
-                def _format_change(
-                    row: pd.Series,
-                    change_column: str = change_col,
-                    delta_column: str = delta_col,
-                ) -> str:
-                    value = row[change_column]
-                    delta_value = row.get(delta_column)
-
-                    if pd.isna(value):
-                        return "-"
-
-                    if value > 0:
-                        arrow = "↑"
-                    elif value < 0:
-                        arrow = "↓"
-                    else:
-                        arrow = "→"
-
-                    pct_text = f"{abs(value):.1f}%"
-
-                    delta_text = ""
-                    if delta_value is not None and not pd.isna(delta_value) and delta_value != 0:
-                        if float(delta_value).is_integer():
-                            delta_text = f" (Δ {delta_value:+,.0f})"
-                        else:
-                            delta_text = f" (Δ {delta_value:+,.2f})"
-
-                    return f"{arrow} {pct_text}{delta_text}"
-
-                display_df[change_col] = display_df.apply(_format_change, axis=1)
-
-            if delta_col in display_df.columns:
-                display_df.drop(columns=[delta_col], inplace=True)
+        display_df = cls._build_display_frame(comparison, metrics)
 
         container.dataframe(
             display_df,
@@ -628,6 +646,57 @@ class ComparisonTable:
                 for col in display_df.columns
             },
         )
+
+    @classmethod
+    def _build_display_frame(cls, comparison: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
+        display_df = comparison.copy()
+
+        for metric in metrics:
+            change_col = f"{metric}_Change"
+            delta_col = f"{metric}_Delta"
+
+            if change_col in display_df.columns:
+                display_df[change_col] = display_df.apply(
+                    lambda row, c=change_col, d=delta_col: cls._format_change_value(row, c, d),
+                    axis=1,
+                )
+
+            if delta_col in display_df.columns:
+                display_df.drop(columns=[delta_col], inplace=True)
+
+        return display_df
+
+    @staticmethod
+    def _format_change_value(row: pd.Series, change_column: str, delta_column: str) -> str:
+        value = row[change_column]
+        delta_value = row.get(delta_column)
+
+        if pd.isna(value):
+            return "-"
+
+        if value > 0:
+            arrow = "↑"
+        elif value < 0:
+            arrow = "↓"
+        else:
+            arrow = "→"
+
+        pct_text = f"{abs(value):.1f}%"
+        delta_text = ComparisonTable._format_delta_text(delta_value)
+
+        return f"{arrow} {pct_text}{delta_text}"
+
+    @staticmethod
+    def _format_delta_text(delta_value: Any) -> str:
+        if delta_value is None or pd.isna(delta_value) or delta_value == 0:
+            return ""
+
+        if float(delta_value).is_integer():
+            formatted_delta = f"{delta_value:+,.0f}"
+        else:
+            formatted_delta = f"{delta_value:+,.2f}"
+
+        return f" (Δ {formatted_delta})"
 
     @staticmethod
     def prepare_comparison_data(

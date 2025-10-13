@@ -9,6 +9,8 @@ batch processing with progress tracking and validation.
 import logging
 import sys
 import tempfile
+from collections.abc import Callable
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,7 @@ from src.core.audio_processor import AudioProcessor
 from src.core.csv_processor import CSVProcessor
 from src.core.storage_manager import StorageManager
 from src.ml.whisper_stt import WhisperSTT
+from src.utils.validators import validate_phone
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -371,102 +374,117 @@ class UploadPage:
         st.header("Import History")
         st.markdown("View and manage previously imported data")
 
-        # Load import history
         history_df = self.storage_manager.get_import_history()
 
-        if not history_df.empty:
+        if history_df.empty:
+            st.info("No import history available yet. Start by uploading some data!")
+            return
 
-            # Format columns
-            if "timestamp" in history_df.columns:
-                history_df["timestamp"] = pd.to_datetime(history_df["timestamp"]).dt.strftime(
-                    "%Y-%m-%d %H:%M"
-                )
+        formatted_history = self._format_import_history(history_df)
+        self._render_import_history_table(formatted_history)
+        self._render_import_summary(formatted_history)
+        self._render_import_history_actions(formatted_history)
 
-            if "file_size" in history_df.columns:
+    def _format_import_history(self, history_df: pd.DataFrame) -> pd.DataFrame:
+        """Return a sanitized copy of the import history for presentation."""
+        formatted = history_df.copy()
 
-                def _format_size(value: float) -> str:
-                    if value > 1024 * 1024:
-                        return f"{value / 1024 / 1024:.1f} MB"
-                    return f"{value / 1024:.1f} KB"
-
-                history_df["file_size"] = history_df["file_size"].apply(_format_size)
-
-            # Display table
-            st.dataframe(
-                history_df,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "timestamp": st.column_config.TextColumn("Import Date"),
-                    "filename": st.column_config.TextColumn("File Name"),
-                    "file_type": st.column_config.TextColumn("Type"),
-                    "records_imported": st.column_config.NumberColumn("Records"),
-                    "file_size": st.column_config.TextColumn("Size"),
-                    "status": st.column_config.TextColumn("Status"),
-                },
+        if "timestamp" in formatted.columns:
+            formatted["timestamp"] = pd.to_datetime(formatted["timestamp"]).dt.strftime(
+                "%Y-%m-%d %H:%M"
             )
 
-            # Summary statistics
-            st.subheader("Import Summary")
+        if "file_size" in formatted.columns:
+            formatted["file_size"] = formatted["file_size"].apply(self._format_file_size)
 
-            col1, col2, col3, col4 = st.columns(4)
+        return formatted
 
-            with col1:
-                st.metric("Total Imports", len(history_df))
+    @staticmethod
+    def _format_file_size(value: float) -> str:
+        """Render file size values with human friendly units."""
+        if value > 1024 * 1024:
+            return f"{value / 1024 / 1024:.1f} MB"
+        return f"{value / 1024:.1f} KB"
 
-            with col2:
-                total_records_series = history_df.get("records_imported", pd.Series(dtype=float))
-                total_records = total_records_series.fillna(0).sum()
-                st.metric("Total Records", f"{int(total_records):,}")
+    def _render_import_history_table(self, history_df: pd.DataFrame) -> None:
+        """Render the import history dataframe with column configuration."""
+        st.dataframe(
+            history_df,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "timestamp": st.column_config.TextColumn("Import Date"),
+                "filename": st.column_config.TextColumn("File Name"),
+                "file_type": st.column_config.TextColumn("Type"),
+                "records_imported": st.column_config.NumberColumn("Records"),
+                "file_size": st.column_config.TextColumn("Size"),
+                "status": st.column_config.TextColumn("Status"),
+            },
+        )
 
-            with col3:
-                if "status" in history_df.columns:
-                    successful = int((history_df["status"] == "success").sum())
-                else:
-                    successful = 0
-                st.metric("Successful", successful)
+    def _render_import_summary(self, history_df: pd.DataFrame) -> None:
+        """Display summary metrics for the import history."""
+        st.subheader("Import Summary")
 
-            with col4:
-                if "status" in history_df.columns:
-                    failed = int((history_df["status"] == "failed").sum())
-                else:
-                    failed = 0
-                st.metric("Failed", failed)
+        col1, col2, col3, col4 = st.columns(4)
 
-            # Management options
-            st.divider()
+        with col1:
+            st.metric("Total Imports", len(history_df))
 
-            col1, col2 = st.columns(2)
+        with col2:
+            total_records_series = history_df.get("records_imported", pd.Series(dtype=float))
+            total_records = total_records_series.fillna(0).sum()
+            st.metric("Total Records", f"{int(total_records):,}")
 
-            with col1:
-                if st.button("Clear Import History", type="secondary", key="clear_history_btn"):
-                    st.session_state.show_clear_history_confirm = True
+        status_series = history_df.get("status", pd.Series(dtype=str))
+        successful = int((status_series == "success").sum())
+        failed = int((status_series == "failed").sum())
 
-            if st.session_state.get("show_clear_history_confirm"):
-                st.warning("Are you sure you want to clear the import history?")
-                confirm_col, cancel_col = st.columns(2)
-                with confirm_col:
-                    if st.button("Yes, clear", type="primary", key="confirm_clear_history_btn"):
-                        self.storage_manager.clear_import_history()
-                        st.session_state.show_clear_history_confirm = False
-                        st.success("Import history cleared")
-                        st.rerun()
-                with cancel_col:
-                    if st.button("Cancel", key="cancel_clear_history_btn"):
-                        st.session_state.show_clear_history_confirm = False
-                        st.info("Import history not cleared")
+        with col3:
+            st.metric("Successful", successful)
 
-            with col2:
-                if st.button("Export History", type="secondary"):
-                    csv = history_df.to_csv(index=False)
-                    st.download_button(
-                        label="Download CSV",
-                        data=csv,
-                        file_name=f"import_history_{datetime.now():%Y%m%d_%H%M%S}.csv",
-                        mime="text/csv",
-                    )
-        else:
-            st.info("No import history available yet. Start by uploading some data!")
+        with col4:
+            st.metric("Failed", failed)
+
+    def _render_import_history_actions(self, history_df: pd.DataFrame) -> None:
+        """Render management actions for the import history screen."""
+        st.divider()
+
+        clear_col, export_col = st.columns(2)
+
+        with clear_col:
+            if st.button("Clear Import History", type="secondary", key="clear_history_btn"):
+                st.session_state.show_clear_history_confirm = True
+
+        if st.session_state.get("show_clear_history_confirm"):
+            st.warning("Are you sure you want to clear the import history?")
+            confirm_col, cancel_col = st.columns(2)
+
+            with confirm_col:
+                if st.button("Yes, clear", type="primary", key="confirm_clear_history_btn"):
+                    self.storage_manager.clear_import_history()
+                    st.session_state.show_clear_history_confirm = False
+                    st.success("Import history cleared")
+                    st.rerun()
+
+            with cancel_col:
+                if st.button("Cancel", key="cancel_clear_history_btn"):
+                    st.session_state.show_clear_history_confirm = False
+                    st.info("Import history not cleared")
+
+        with export_col:
+            self._render_export_history_button(history_df)
+
+    def _render_export_history_button(self, history_df: pd.DataFrame) -> None:
+        """Provide an export option for the history table."""
+        if st.button("Export History", type="secondary"):
+            csv = history_df.to_csv(index=False)
+            st.download_button(
+                label="Download CSV",
+                data=csv,
+                file_name=f"import_history_{datetime.now():%Y%m%d_%H%M%S}.csv",
+                mime="text/csv",
+            )
 
     def _render_manual_mapping(self, headers: list[str], current_mapping: dict[str, str]) -> None:
         """
@@ -478,62 +496,82 @@ class UploadPage:
         """
         st.write("Manually adjust field mappings:")
 
-        schema_fields = self.csv_processor.get_mappable_fields()
-        if schema_fields:
-            standard_fields = schema_fields
-        else:
-            fallback_fields = [
-                "call_id",
-                "phone_number",
-                "call_type",
-                "outcome",
-                "duration",
-                "timestamp",
-                "agent_id",
-                "campaign",
-                "notes",
-                "revenue",
-            ]
-            standard_fields = [
-                {"name": field, "label": field.replace("_", " ").title()}
-                for field in fallback_fields
-            ]
-
-        # Create mapping interface
-        new_mapping = {}
+        standard_fields = self._get_standard_fields()
+        new_mapping: dict[str, str] = {}
 
         for field in standard_fields:
-            if isinstance(field, dict):
-                field_name = field.get("name")
-                field_label = field.get("label", field_name)
-            else:
-                field_name = field
-                field_label = field
-
+            field_name, field_label = self._normalize_field_definition(field)
             if not field_name:
                 continue
 
-            current = current_mapping.get(field_name, "")
-            options = [""] + headers
-
-            # Ensure current value is in options
-            if current and current not in options:
-                options.append(current)
-
-            selected = st.selectbox(
-                f"{field_label}:",
-                options=options,
-                index=options.index(current) if current in options else 0,
-                key=f"map_{field_name}",
+            selected = self._render_mapping_selector(
+                field_name, field_label, headers, current_mapping
             )
-
             if selected:
                 new_mapping[field_name] = selected
 
-        # Update mapping
         if st.button("Apply Mapping"):
             self.csv_processor.field_mapping = new_mapping
             st.success("Field mapping updated")
+
+    def _get_standard_fields(self) -> list[Any]:
+        """Return schema-defined fields or a sensible fallback list."""
+        schema_fields = self.csv_processor.get_mappable_fields()
+        if schema_fields:
+            return schema_fields
+
+        fallback_fields = [
+            "call_id",
+            "phone_number",
+            "call_type",
+            "outcome",
+            "duration",
+            "timestamp",
+            "agent_id",
+            "campaign",
+            "notes",
+            "revenue",
+        ]
+        return [
+            {"name": field, "label": field.replace("_", " ").title()} for field in fallback_fields
+        ]
+
+    @staticmethod
+    def _normalize_field_definition(field: Any) -> tuple[str | None, str]:
+        """Return field name and label from schema or fallback definition."""
+        if isinstance(field, dict):
+            field_name = field.get("name")
+            field_label = field.get("label", field_name or "")
+        else:
+            field_name = field
+            field_label = str(field)
+
+        return field_name, field_label
+
+    def _render_mapping_selector(
+        self,
+        field_name: str,
+        field_label: str,
+        headers: list[str],
+        current_mapping: dict[str, str],
+    ) -> str:
+        """Render a select box for a single mapping entry."""
+        current_value = current_mapping.get(field_name, "")
+        options = self._build_mapping_options(headers, current_value)
+        return st.selectbox(
+            f"{field_label}:",
+            options=options,
+            index=options.index(current_value) if current_value in options else 0,
+            key=f"map_{field_name}",
+        )
+
+    @staticmethod
+    def _build_mapping_options(headers: list[str], current_value: str) -> list[str]:
+        """Create selectbox options ensuring the existing value is available."""
+        options = [""] + headers
+        if current_value and current_value not in options:
+            options.append(current_value)
+        return options
 
     def _process_csv_import(
         self, file_path: Path, skip_errors: bool, deduplicate: bool, validate_phones: bool
@@ -551,90 +589,161 @@ class UploadPage:
             progress_bar = st.progress(0)
             status_text = st.empty()
 
-            # Estimate total rows for progress feedback
-            try:
-                encoding = self.csv_processor.detect_encoding(file_path)
-                with open(file_path, encoding=encoding, errors="ignore") as fh:
-                    processed_target = sum(1 for _ in fh) - 1  # subtract header
-                if processed_target <= 0:
-                    processed_target = 1
-            except Exception:
-                processed_target = 1000
-
-            # Process CSV in batches
+            processed_target = self._estimate_csv_rows(file_path)
+            total_rows_seen = 0
             total_processed = 0
+            invalid_phone_count = 0
 
-            def process_batch(records):
-                nonlocal total_processed
-                # Persist records incrementally
-                try:
-                    added = self.storage_manager.append_records(records, deduplicate=deduplicate)
-                except AttributeError:
-                    # Fallback for legacy interfaces
-                    if hasattr(self.storage_manager, "load_all_records"):
-                        existing = self.storage_manager.load_all_records()
-                        combined = pd.concat([existing, records], ignore_index=True)
-                        self.storage_manager.save_dataframe(combined, "call_records")
-                        added = len(records)
-                    else:
-                        raise
+            def process_batch(records: pd.DataFrame) -> None:
+                nonlocal total_rows_seen, total_processed, invalid_phone_count
+                total_rows_seen += len(records)
+
+                filtered_records, dropped = self._filter_invalid_phone_numbers(
+                    records, validate_phones, skip_errors
+                )
+                invalid_phone_count += dropped
+
+                added = self._append_records(filtered_records, deduplicate)
                 total_processed += added
 
-                # Update progress
-                progress_bar.progress(min(total_processed / max(processed_target, 1), 1.0))
-                status_text.text(f"Processed {total_processed} records...")
+                self._update_import_progress(
+                    progress_bar, status_text, total_rows_seen, processed_target, total_processed
+                )
 
-            # Process file
             status_text.text("Processing CSV file...")
-            processed, errors = self.csv_processor.process_csv_batch(
+            _, csv_errors = self.csv_processor.process_csv_batch(
                 file_path, batch_callback=process_batch
             )
 
-            # Complete progress
+            total_errors = csv_errors + invalid_phone_count
+
             progress_bar.progress(1.0)
-            status_text.text(f"Import complete: {processed} records imported")
+            status_text.text(f"Import complete: {total_processed} records imported")
 
-            # Show results
-            if errors > 0:
-                st.warning(f"Import completed with {errors} errors")
+            self._present_import_results(total_processed, total_errors, skip_errors)
+            self._add_import_history_record(file_path, total_processed, total_errors)
+            self._refresh_cached_data()
 
-                # Export error report
-                error_report_path = Path(tempfile.gettempdir()) / "import_errors.csv"
-                self.csv_processor.export_errors_report(error_report_path)
+        except ValueError as exc:
+            logger.error(f"CSV import validation error: {exc}")
+            st.error(f"Import stopped: {exc}")
+        except Exception as exc:
+            logger.error(f"Error importing CSV: {exc}")
+            st.error(f"Import failed: {exc}")
 
-                with open(error_report_path, "rb") as f:
-                    st.download_button(
-                        label="Download Error Report",
-                        data=f.read(),
-                        file_name="import_errors.csv",
-                        mime="text/csv",
-                    )
-            else:
-                st.success(f"Successfully imported {processed} records")
+    def _estimate_csv_rows(self, file_path: Path) -> int:
+        """Estimate the number of rows in a CSV for progress tracking."""
+        try:
+            encoding = self.csv_processor.detect_encoding(file_path)
+            with open(file_path, encoding=encoding, errors="ignore") as fh:
+                row_count = max(sum(1 for _ in fh) - 1, 1)
+            return row_count
+        except Exception:
+            return 1000
 
-            # Update import history
-            self.storage_manager.add_import_record(
-                {
-                    "timestamp": datetime.now(),
-                    "filename": file_path.name,
-                    "file_type": "CSV",
-                    "records_imported": processed,
-                    "errors": errors,
-                    "status": "success" if errors == 0 else "partial",
-                }
+    def _filter_invalid_phone_numbers(
+        self, records: pd.DataFrame, validate_phones: bool, skip_errors: bool
+    ) -> tuple[pd.DataFrame, int]:
+        """Optionally remove records with invalid phone numbers."""
+        if not validate_phones or "phone_number" not in records.columns:
+            return records, 0
+
+        phone_series = records["phone_number"].astype(str)
+        valid_mask = phone_series.apply(validate_phone)
+        invalid_count = int((~valid_mask).sum())
+
+        if invalid_count:
+            self.csv_processor.errors_log.append(
+                {"error": "invalid_phone_number", "count": invalid_count}
             )
+            if not skip_errors:
+                raise ValueError(
+                    "Invalid phone numbers detected. Enable 'Skip invalid rows' to continue."
+                )
 
-            # Update session data for immediate use in the UI
-            try:
-                loaded_df = self.storage_manager.load_all_records()
-                if loaded_df is not None:
-                    st.session_state.data = loaded_df
-            except Exception as load_error:
-                logger.warning(f"Unable to refresh session data after import: {load_error}")
+        return records.loc[valid_mask].copy(), invalid_count
 
-        except Exception as e:
-            logger.error(f"Error importing CSV: {e}")
-            st.error(f"Import failed: {str(e)}")
+    def _append_records(self, records: pd.DataFrame, deduplicate: bool) -> int:
+        """Persist processed records handling legacy storage backends."""
+        if records.empty:
+            return 0
+
+        try:
+            return self.storage_manager.append_records(records, deduplicate=deduplicate)
+        except AttributeError:
+            if hasattr(self.storage_manager, "load_all_records"):
+                existing = self.storage_manager.load_all_records()
+                combined = pd.concat([existing, records], ignore_index=True)
+                self.storage_manager.save_dataframe(combined, "call_records")
+                return len(records)
+            raise
+
+    @staticmethod
+    def _update_import_progress(
+        progress_bar: Any,
+        status_text: Any,
+        rows_seen: int,
+        target_rows: int,
+        total_processed: int,
+    ) -> None:
+        """Update the import progress indicators."""
+        progress_ratio = min(rows_seen / max(target_rows, 1), 1.0)
+        progress_bar.progress(progress_ratio)
+        status_text.text(f"Processed {total_processed} records...")
+
+    def _present_import_results(self, processed: int, errors: int, skip_errors: bool) -> None:
+        """Show import completion messages and error report if needed."""
+        if errors > 0:
+            message = f"Import completed with {errors} issues"
+            if skip_errors:
+                st.warning(message)
+            else:
+                st.error(message)
+            self._offer_error_report()
+        else:
+            st.success(f"Successfully imported {processed} records")
+
+    def _offer_error_report(self) -> None:
+        """Provide download link for error report when available."""
+        if not self.csv_processor.errors_log:
+            return
+
+        error_report_path = Path(tempfile.gettempdir()) / "import_errors.csv"
+        self.csv_processor.export_errors_report(error_report_path)
+
+        try:
+            with open(error_report_path, "rb") as fh:
+                st.download_button(
+                    label="Download Error Report",
+                    data=fh.read(),
+                    file_name="import_errors.csv",
+                    mime="text/csv",
+                )
+        except OSError as exc:
+            logger.warning(f"Unable to provide error report: {exc}")
+
+    def _add_import_history_record(self, file_path: Path, processed: int, errors: int) -> None:
+        """Record the import outcome for future reference."""
+        status = "success" if errors == 0 else "partial"
+        self.storage_manager.add_import_record(
+            {
+                "timestamp": datetime.now(),
+                "filename": file_path.name,
+                "file_type": "CSV",
+                "records_imported": processed,
+                "errors": errors,
+                "status": status,
+            }
+        )
+
+    def _refresh_cached_data(self) -> None:
+        """Refresh session data after an import completes."""
+        try:
+            loaded_df = self.storage_manager.load_all_records()
+            if loaded_df is not None:
+                st.session_state.data = loaded_df
+        except Exception as load_error:
+            logger.warning(f"Unable to refresh session data after import: {load_error}")
 
     def _batch_process_csv_file(
         self,
@@ -643,51 +752,19 @@ class UploadPage:
     ) -> tuple[int, int]:
         """Process a CSV file during batch processing without UI widgets."""
         total_processed = 0
-
-        try:
-            headers = pd.read_csv(file_path, nrows=0).columns.tolist()
-            existing_mapping = dict(self.csv_processor.field_mapping)
-            mapping = self.csv_processor.auto_map_fields(headers)
-            if not mapping and existing_mapping:
-                self.csv_processor.field_mapping = existing_mapping
-        except Exception as header_error:
-            logger.warning(f"Unable to auto-map fields for {file_path.name}: {header_error}")
+        restore_mapping = self._prepare_batch_mapping(file_path)
 
         def process_batch(records: pd.DataFrame) -> None:
             nonlocal total_processed
-            try:
-                added = self.storage_manager.append_records(records, deduplicate=deduplicate)
-            except AttributeError:
-                if hasattr(self.storage_manager, "load_all_records"):
-                    existing = self.storage_manager.load_all_records()
-                    combined = pd.concat([existing, records], ignore_index=True)
-                    self.storage_manager.save_dataframe(combined, "call_records")
-                    added = len(records)
-                else:
-                    raise
-            total_processed += added
+            total_processed += self._append_records(records, deduplicate)
 
         processed, errors = self.csv_processor.process_csv_batch(
             file_path, batch_callback=process_batch
         )
 
-        self.storage_manager.add_import_record(
-            {
-                "timestamp": datetime.now(),
-                "filename": file_path.name,
-                "file_type": "CSV",
-                "records_imported": processed,
-                "errors": errors,
-                "status": "success" if errors == 0 else "partial",
-            }
-        )
-
-        try:
-            loaded_df = self.storage_manager.load_all_records()
-            if loaded_df is not None:
-                st.session_state.data = loaded_df
-        except Exception as load_error:
-            logger.warning(f"Unable to refresh session data after batch import: {load_error}")
+        self._add_import_history_record(file_path, processed, errors)
+        self._refresh_cached_data()
+        restore_mapping()
 
         return processed, errors
 
@@ -718,75 +795,135 @@ class UploadPage:
 
         processed_records = []
         metadata_lookup = self._load_audio_metadata()
+        total_files = len(files)
 
-        for idx, file in enumerate(files):
-            try:
-                status_text.text(f"Processing {file.name}...")
-
-                # Save audio file temporarily
-                temp_audio = Path(tempfile.gettempdir()) / file.name
-                with open(temp_audio, "wb") as f:
-                    f.write(file.getbuffer())
-
-                # Process audio
-                processed_path = self.audio_processor.process_audio(temp_audio)
-
-                # Transcribe
-                result = self.stt_engine.transcribe(
-                    processed_path, language=None if language == "auto" else language
-                )
-
-                record_metadata = metadata_lookup.get(file.name.lower(), {})
-
-                metadata_duration_seconds = record_metadata.get("duration_seconds")
-                if metadata_duration_seconds in (None, "", 0, 0.0):
-                    metadata_duration_seconds = record_metadata.get("duration")
-                if metadata_duration_seconds in (None, "", 0, 0.0):
-                    metadata_duration_seconds = result.duration_seconds
-
-                metadata_duration_minutes = record_metadata.get("duration_minutes")
-                if metadata_duration_minutes in (None, "", 0, 0.0):
-                    metadata_duration_minutes = (
-                        metadata_duration_seconds / 60 if metadata_duration_seconds else 0
+        with self._temporary_vad_setting(enable_vad):
+            for idx, file in enumerate(files):
+                try:
+                    status_text.text(f"Processing {file.name}...")
+                    record = self._process_single_audio_file(
+                        file=file,
+                        index=idx,
+                        language=language,
+                        enable_timestamps=enable_timestamps,
+                        metadata=metadata,
+                        metadata_lookup=metadata_lookup,
                     )
+                    if record:
+                        processed_records.append(record)
+                except Exception as exc:
+                    logger.error(f"Error processing {file.name}: {exc}")
+                    st.error(f"Failed to process {file.name}: {exc}")
+                finally:
+                    progress_bar.progress((idx + 1) / max(total_files, 1))
 
-                record = {
-                    "call_id": record_metadata.get(
-                        "call_id", f"audio_{datetime.now():%Y%m%d_%H%M%S}_{idx}"
-                    ),
-                    "phone_number": record_metadata.get("phone_number", "unknown"),
-                    "timestamp": record_metadata.get("timestamp", datetime.now()),
-                    "duration": metadata_duration_seconds,
-                    "duration_seconds": metadata_duration_seconds,
-                    "duration_minutes": metadata_duration_minutes,
-                    "transcript": result.transcript,
-                    **metadata,
-                    **{
-                        k: v
-                        for k, v in record_metadata.items()
-                        if k not in {"audio_file", "transcript_file", "transcript"}
-                    },
-                }
-
-                processed_records.append(record)
-
-                # Update progress
-                progress_bar.progress((idx + 1) / len(files))
-
-                # Clean up
-                temp_audio.unlink()
-
-            except Exception as e:
-                logger.error(f"Error processing {file.name}: {e}")
-                st.error(f"Failed to process {file.name}: {str(e)}")
-
-        # Store records
         if processed_records:
             self.storage_manager.store_call_records(processed_records)
             status_text.text(f"Successfully processed {len(processed_records)} audio files")
             st.success(f"Imported {len(processed_records)} transcribed calls")
 
         progress_bar.progress(1.0)
+
+    def _process_single_audio_file(
+        self,
+        file: Any,
+        index: int,
+        language: str,
+        enable_timestamps: bool,
+        metadata: dict[str, Any],
+        metadata_lookup: dict[str, dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Process and transcribe a single uploaded audio file."""
+        temp_audio = self._save_uploaded_file(file)
+
+        try:
+            processed_path = self.audio_processor.process_audio(temp_audio)
+            transcription = self.stt_engine.transcribe(
+                processed_path, language=None if language == "auto" else language
+            )
+            record_metadata = metadata_lookup.get(file.name.lower(), {})
+            return self._build_audio_record(
+                index=index,
+                transcription=transcription,
+                record_metadata=record_metadata,
+                enable_timestamps=enable_timestamps,
+                base_metadata=metadata,
+            )
+        finally:
+            if temp_audio.exists():
+                temp_audio.unlink()
+
+    def _save_uploaded_file(self, file: Any) -> Path:
+        """Persist an uploaded file to a temporary location."""
+        temp_audio = Path(tempfile.gettempdir()) / file.name
+        with open(temp_audio, "wb") as fh:
+            fh.write(file.getbuffer())
+        return temp_audio
+
+    def _build_audio_record(
+        self,
+        index: int,
+        transcription: Any,
+        record_metadata: dict[str, Any],
+        enable_timestamps: bool,
+        base_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build the stored record for a processed audio file."""
+        duration_seconds, duration_minutes = self._resolve_durations(transcription, record_metadata)
+
+        record = {
+            "call_id": record_metadata.get(
+                "call_id", f"audio_{datetime.now():%Y%m%d_%H%M%S}_{index}"
+            ),
+            "phone_number": record_metadata.get("phone_number", "unknown"),
+            "timestamp": record_metadata.get("timestamp", datetime.now()),
+            "duration": duration_seconds,
+            "duration_seconds": duration_seconds,
+            "duration_minutes": duration_minutes,
+            "transcript": transcription.transcript,
+            **base_metadata,
+            **{
+                k: v
+                for k, v in record_metadata.items()
+                if k not in {"audio_file", "transcript_file", "transcript"}
+            },
+        }
+
+        if enable_timestamps:
+            record["segments"] = transcription.segments
+
+        return record
+
+    @staticmethod
+    def _resolve_durations(
+        transcription: Any, record_metadata: dict[str, Any]
+    ) -> tuple[float, float]:
+        """Resolve duration values prioritizing metadata overrides."""
+        duration_seconds = record_metadata.get("duration_seconds") or record_metadata.get(
+            "duration"
+        )
+        if not duration_seconds:
+            duration_seconds = getattr(transcription, "duration_seconds", 0.0)
+
+        duration_minutes = record_metadata.get("duration_minutes")
+        if not duration_minutes and duration_seconds:
+            duration_minutes = duration_seconds / 60
+
+        return duration_seconds or 0.0, duration_minutes or 0.0
+
+    @contextmanager
+    def _temporary_vad_setting(self, enable_vad: bool):
+        """Temporarily override the VAD setting on the STT engine."""
+        if not hasattr(self.stt_engine, "vad_filter"):
+            yield
+            return
+
+        original_vad = self.stt_engine.vad_filter
+        self.stt_engine.vad_filter = enable_vad
+        try:
+            yield
+        finally:
+            self.stt_engine.vad_filter = original_vad
 
     def _start_batch_processing(
         self,
@@ -808,17 +945,7 @@ class UploadPage:
         """
         st.info(f"Starting batch processing from {directory}")
 
-        csv_files: list[Path] = []
-        audio_files: list[Path] = []
-
-        if process_csv:
-            csv_files = sorted(directory.glob("**/*.csv"))
-        if process_audio:
-            audio_patterns = ["*.wav", "*.mp3", "*.m4a", "*.ogg", "*.flac"]
-            for pattern in audio_patterns:
-                audio_files.extend(directory.glob(f"**/{pattern}"))
-            audio_files.sort()
-
+        csv_files, audio_files = self._collect_batch_files(directory, process_csv, process_audio)
         total_files = len(csv_files) + len(audio_files)
 
         if total_files == 0:
@@ -829,33 +956,13 @@ class UploadPage:
         status_text = st.empty()
 
         completed = 0
-        csv_results: list[str] = []
-        csv_errors: list[str] = []
+        csv_results, csv_errors, completed = self._process_csv_batches(
+            csv_files, batch_size, total_files, progress_bar, status_text, completed
+        )
 
-        for csv_path in csv_files:
-            completed += 1
-            status_text.text(f"Processing CSV file {csv_path.name} ({completed}/{total_files})")
-            try:
-                processed, errors = self._batch_process_csv_file(csv_path, deduplicate=True)
-                message = f"{csv_path.name}: {processed} records"
-                if errors:
-                    message += f" ({errors} errors)"
-                csv_results.append(message)
-            except Exception as exc:
-                logger.error(f"Batch CSV processing failed for {csv_path}: {exc}")
-                csv_errors.append(f"{csv_path.name}: {exc}")
-            progress_bar.progress(min(completed / total_files, 1.0))
-
-        audio_errors: list[str] = []
-
-        if audio_files:
-            status_text.text("Audio batch processing is not yet implemented in batch mode.")
-            audio_errors.append(
-                "Audio batch processing is not supported in batch mode. "
-                "Please process audio files individually."
-            )
-            completed += len(audio_files)
-            progress_bar.progress(min(completed / total_files, 1.0))
+        audio_errors = self._handle_audio_batch_placeholder(
+            audio_files, parallel, completed, total_files, progress_bar, status_text
+        )
 
         status_text.text("Batch processing complete")
 
@@ -867,6 +974,89 @@ class UploadPage:
             st.warning("\n".join(audio_errors))
 
         progress_bar.progress(1.0)
+
+    def _collect_batch_files(
+        self, directory: Path, process_csv: bool, process_audio: bool
+    ) -> tuple[list[Path], list[Path]]:
+        """Collect CSV and audio files based on the user's selections."""
+        csv_files: list[Path] = []
+        audio_files: list[Path] = []
+
+        if process_csv:
+            csv_files = sorted(directory.glob("**/*.csv"))
+
+        if process_audio:
+            audio_patterns = ["*.wav", "*.mp3", "*.m4a", "*.ogg", "*.flac"]
+            for pattern in audio_patterns:
+                audio_files.extend(directory.glob(f"**/{pattern}"))
+            audio_files.sort()
+
+        return csv_files, audio_files
+
+    def _process_csv_batches(
+        self,
+        csv_files: list[Path],
+        batch_size: int,
+        total_files: int,
+        progress_bar: Any,
+        status_text: Any,
+        completed: int,
+    ) -> tuple[list[str], list[str], int]:
+        """Process CSV files in configured batch sizes and update progress."""
+        results: list[str] = []
+        errors: list[str] = []
+
+        for batch_index, batch in enumerate(self._create_batches(csv_files, batch_size), start=1):
+            for csv_path in batch:
+                completed += 1
+                status_text.text(
+                    f"Processing CSV file {csv_path.name} ({completed}/{total_files}) "
+                    f"[Batch {batch_index}]"
+                )
+                try:
+                    processed, file_errors = self._batch_process_csv_file(
+                        csv_path, deduplicate=True
+                    )
+                    message = f"{csv_path.name}: {processed} records"
+                    if file_errors:
+                        message += f" ({file_errors} errors)"
+                    results.append(message)
+                except Exception as exc:
+                    logger.error(f"Batch CSV processing failed for {csv_path}: {exc}")
+                    errors.append(f"{csv_path.name}: {exc}")
+                progress_bar.progress(min(completed / max(total_files, 1), 1.0))
+
+        return results, errors, completed
+
+    @staticmethod
+    def _create_batches(items: list[Path], batch_size: int) -> list[list[Path]]:
+        """Split a list of paths into evenly sized batches."""
+        if batch_size <= 0:
+            return [items]
+        return [items[i : i + batch_size] for i in range(0, len(items), batch_size)]
+
+    def _handle_audio_batch_placeholder(
+        self,
+        audio_files: list[Path],
+        parallel: bool,
+        completed: int,
+        total_files: int,
+        progress_bar: Any,
+        status_text: Any,
+    ) -> list[str]:
+        """Communicate current limitations of audio batch processing."""
+        if not audio_files:
+            return []
+
+        if parallel:
+            st.info("Parallel processing is not yet available; processing sequentially.")
+
+        status_text.text("Audio batch processing is not yet implemented in batch mode.")
+        progress_bar.progress(min((completed + len(audio_files)) / max(total_files, 1), 1.0))
+        return [
+            "Audio batch processing is not supported in batch mode. "
+            "Please process audio files individually."
+        ]
 
     def _load_audio_metadata(self) -> dict[str, dict[str, Any]]:
         """Load metadata for sample audio files if available."""
@@ -934,7 +1124,7 @@ class UploadPage:
             zip_file: Uploaded ZIP file
         """
         # Extract and process files from ZIP
-        st.info("Processing ZIP file...")
+        st.info(f"Processing ZIP file: {getattr(zip_file, 'name', 'uploaded.zip')}")
         # Implementation here
         st.success("ZIP file processed")
 
@@ -949,3 +1139,20 @@ def render_upload_page(storage_manager: StorageManager, config: dict[str, Any]) 
     """
     upload_page = UploadPage(storage_manager, config)
     upload_page.render()
+
+    def _prepare_batch_mapping(self, file_path: Path) -> Callable[[], None]:
+        """Prepare CSV processor mappings for batch processing."""
+        previous_mapping = dict(getattr(self.csv_processor, "field_mapping", {}))
+
+        try:
+            headers = pd.read_csv(file_path, nrows=0).columns.tolist()
+            mapping = self.csv_processor.auto_map_fields(headers)
+            if not mapping and previous_mapping:
+                self.csv_processor.field_mapping = previous_mapping
+        except Exception as header_error:
+            logger.warning(f"Unable to auto-map fields for {file_path.name}: {header_error}")
+
+        def restore() -> None:
+            self.csv_processor.field_mapping = previous_mapping
+
+        return restore

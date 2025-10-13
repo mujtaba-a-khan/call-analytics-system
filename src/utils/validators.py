@@ -172,7 +172,10 @@ def validate_url(url: str) -> bool:
     Returns:
         True if valid URL
     """
-    pattern = r"^https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&/=]*)$"
+    pattern = (
+        r"^https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}"
+        r"\.[a-zA-Z0-9()]{1,6}\b[-a-zA-Z0-9()@:%_\+.~#?&/=]*$"
+    )
     return bool(re.match(pattern, str(url)))
 
 
@@ -331,47 +334,59 @@ def validate_config(
     """
     result: ConfigValidationResult = {"valid": True, "errors": [], "warnings": []}
 
-    def validate_value(value: Any, expected_type: Any, path: str = "") -> None:
-        """Recursively validate configuration values"""
-        if expected_type == "string":
-            if not isinstance(value, str):
-                result["errors"].append(f"{path} must be a string")
-                result["valid"] = False
+    type_checks: dict[str, tuple[tuple[type, ...], str]] = {
+        "string": ((str,), "a string"),
+        "int": ((int,), "an integer"),
+        "float": ((int, float), "a number"),
+        "bool": ((bool,), "a boolean"),
+        "list": ((list,), "a list"),
+    }
 
-        elif expected_type == "int":
-            if not isinstance(value, int):
-                result["errors"].append(f"{path} must be an integer")
-                result["valid"] = False
+    def mark_error(message: str) -> None:
+        result["errors"].append(message)
+        result["valid"] = False
 
-        elif expected_type == "float":
-            if not isinstance(value, (int, float)):
-                result["errors"].append(f"{path} must be a number")
-                result["valid"] = False
+    def normalized_path(path: str) -> str:
+        return path or "value"
 
-        elif expected_type == "bool":
-            if not isinstance(value, bool):
-                result["errors"].append(f"{path} must be a boolean")
-                result["valid"] = False
+    def handle_required(field_schema: Any) -> bool:
+        return isinstance(field_schema, dict) and field_schema.get("required", False)
 
-        elif expected_type == "list":
-            if not isinstance(value, list):
-                result["errors"].append(f"{path} must be a list")
-                result["valid"] = False
+    def validate_value(value: Any, expected_schema: Any, path: str = "") -> None:
+        """Recursively validate configuration values."""
+        if isinstance(expected_schema, dict) and "type" in expected_schema:
+            validate_value(value, expected_schema["type"], path)
+            nested = expected_schema.get("schema") or expected_schema.get("properties")
+            if nested and isinstance(value, dict):
+                validate_value(value, nested, path)
+            return
 
-        elif isinstance(expected_type, dict):
+        type_rule = type_checks.get(expected_schema)
+        if type_rule:
+            expected_types, description = type_rule
+            if not isinstance(value, expected_types):
+                mark_error(f"{normalized_path(path)} must be {description}")
+            return
+
+        if isinstance(expected_schema, dict):
             if not isinstance(value, dict):
-                result["errors"].append(f"{path} must be a dictionary")
-                result["valid"] = False
-            else:
-                for key, subschema in expected_type.items():
-                    if key in value:
-                        validate_value(value[key], subschema, f"{path}.{key}" if path else key)
-                    elif subschema.get("required", False):
-                        result["errors"].append(f"{path}.{key} is required")
-                        result["valid"] = False
+                mark_error(f"{normalized_path(path)} must be a dictionary")
+                return
+
+            for key, subschema in expected_schema.items():
+                if key == "required":
+                    continue
+
+                field_path = f"{path}.{key}" if path else key
+                if key in value:
+                    validate_value(value[key], subschema, field_path)
+                elif handle_required(subschema):
+                    mark_error(f"{field_path} is required")
+            return
+
+        mark_error(f"{normalized_path(path)} has unsupported schema definition")
 
     validate_value(config, schema)
-
     return result
 
 

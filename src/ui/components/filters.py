@@ -91,57 +91,70 @@ class FilterState:
             Filtered DataFrame
         """
         filtered_df = df.copy()
-
-        # Apply date range filter
-        if "timestamp" in filtered_df.columns:
-            filtered_df["timestamp"] = pd.to_datetime(filtered_df["timestamp"])
-            start_datetime = pd.Timestamp(self.date_range[0])
-            end_datetime = pd.Timestamp(self.date_range[1]) + pd.Timedelta(days=1)
-            filtered_df = filtered_df[
-                (filtered_df["timestamp"] >= start_datetime)
-                & (filtered_df["timestamp"] < end_datetime)
-            ]
-
-        # Apply agent filter
-        if self.selected_agents and "agent_id" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["agent_id"].isin(self.selected_agents)]
-
-        # Apply campaign filter
-        if self.selected_campaigns and "campaign" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["campaign"].isin(self.selected_campaigns)]
-
-        # Apply outcome filter
-        if self.selected_outcomes and "outcome" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["outcome"].isin(self.selected_outcomes)]
-
-        # Apply type filter
-        if self.selected_types and "call_type" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["call_type"].isin(self.selected_types)]
-
-        # Apply duration range filter
-        if "duration" in filtered_df.columns:
-            filtered_df = filtered_df[
-                (filtered_df["duration"] >= self.duration_range[0])
-                & (filtered_df["duration"] <= self.duration_range[1])
-            ]
-
-        # Apply revenue range filter
-        if "revenue" in filtered_df.columns:
-            filtered_df = filtered_df[
-                (filtered_df["revenue"] >= self.revenue_range[0])
-                & (filtered_df["revenue"] <= self.revenue_range[1])
-            ]
-
-        # Apply search query to notes/transcript
-        if self.search_query:
-            search_cols = ["notes", "transcript"]
-            mask = pd.Series([False] * len(filtered_df))
-            for col in search_cols:
-                if col in filtered_df.columns:
-                    mask |= filtered_df[col].str.contains(self.search_query, case=False, na=False)
-            filtered_df = filtered_df[mask]
-
+        filtered_df = self._apply_date_filter(filtered_df)
+        filtered_df = self._filter_by_selection(filtered_df, "agent_id", self.selected_agents)
+        filtered_df = self._filter_by_selection(filtered_df, "campaign", self.selected_campaigns)
+        filtered_df = self._filter_by_selection(filtered_df, "outcome", self.selected_outcomes)
+        filtered_df = self._filter_by_selection(filtered_df, "call_type", self.selected_types)
+        filtered_df = self._apply_range_filter(
+            filtered_df, "duration", self.duration_range, inclusive_upper=True
+        )
+        filtered_df = self._apply_range_filter(
+            filtered_df, "revenue", self.revenue_range, inclusive_upper=True
+        )
+        filtered_df = self._apply_search_filter(filtered_df)
         return filtered_df
+
+    def _apply_date_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        if "timestamp" not in df.columns:
+            return df
+
+        filtered = df.copy()
+        filtered["timestamp"] = pd.to_datetime(filtered["timestamp"])
+        start_datetime = pd.Timestamp(self.date_range[0])
+        end_datetime = pd.Timestamp(self.date_range[1]) + pd.Timedelta(days=1)
+        window_mask = (filtered["timestamp"] >= start_datetime) & (
+            filtered["timestamp"] < end_datetime
+        )
+        return filtered[window_mask]
+
+    @staticmethod
+    def _filter_by_selection(
+        df: pd.DataFrame, column: str, selections: list[str] | None
+    ) -> pd.DataFrame:
+        if not selections or column not in df.columns:
+            return df
+        return df[df[column].isin(selections)]
+
+    @staticmethod
+    def _apply_range_filter(
+        df: pd.DataFrame,
+        column: str,
+        value_range: tuple[float, float],
+        inclusive_upper: bool = False,
+    ) -> pd.DataFrame:
+        if column not in df.columns:
+            return df
+
+        lower, upper = value_range
+        if inclusive_upper:
+            mask = (df[column] >= lower) & (df[column] <= upper)
+        else:
+            mask = (df[column] >= lower) & (df[column] < upper)
+        return df[mask]
+
+    def _apply_search_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        if not self.search_query:
+            return df
+
+        search_cols = [col for col in ("notes", "transcript") if col in df.columns]
+        if not search_cols:
+            return df
+
+        mask = pd.Series(False, index=df.index)
+        for col in search_cols:
+            mask |= df[col].str.contains(self.search_query, case=False, na=False)
+        return df[mask]
 
 
 class DateRangeFilter:
@@ -184,49 +197,62 @@ class DateRangeFilter:
         selection: Any,
         current_range: tuple[date, date] | None = None,
     ) -> tuple[date, date] | None:
-        if selection is None:
-            return None
-
-        if isinstance(selection, (tuple, list)):
-            cleaned = tuple(d for d in selection if d is not None)
-        else:
-            cleaned = (selection,) if selection else ()
-
+        cleaned = DateRangeFilter._clean_selection(selection)
         if not cleaned:
             return None
 
-        if len(cleaned) == 1:
-            selected = cleaned[0]
+        if len(cleaned) >= 2:
+            return DateRangeFilter._ordered_range(cleaned[0], cleaned[1])
 
-            base_start, base_end = None, None
-            if isinstance(current_range, tuple) and len(current_range) == 2:
-                base_start, base_end = current_range
+        base_start, base_end = DateRangeFilter._extract_bounds(current_range)
+        start_date, end_date = DateRangeFilter._resolve_single_selection(
+            cleaned[0], base_start, base_end
+        )
+        return DateRangeFilter._ordered_range(start_date, end_date)
 
-            if base_start is None and base_end is None:
-                start_date = end_date = selected
-            elif base_start is not None and base_end is not None and base_start == base_end:
-                if selected >= base_start:
-                    start_date, end_date = base_start, selected
-                else:
-                    start_date, end_date = selected, base_start
-            else:
-                # Determine which boundary the user is adjusting based on proximity
-                if base_start is None:
-                    base_start = selected
-                if base_end is None:
-                    base_end = selected
+    @staticmethod
+    def _clean_selection(selection: Any) -> tuple[date, ...]:
+        if selection is None:
+            return ()
 
-                adjust_start = abs((selected - base_start).days) <= abs((selected - base_end).days)
-                if adjust_start:
-                    start_date, end_date = selected, base_end
-                else:
-                    start_date, end_date = base_start, selected
+        if isinstance(selection, (tuple, list)):
+            return tuple(d for d in selection if d is not None)
+
+        return (selection,) if selection else ()
+
+    @staticmethod
+    def _extract_bounds(current_range: tuple[date, date] | None) -> tuple[date | None, date | None]:
+        if isinstance(current_range, tuple) and len(current_range) == 2:
+            return current_range
+        return None, None
+
+    @staticmethod
+    def _resolve_single_selection(
+        selected: date, base_start: date | None, base_end: date | None
+    ) -> tuple[date, date]:
+        if base_start is None and base_end is None:
+            return selected, selected
+
+        if base_start is not None and base_end is not None and base_start == base_end:
+            if selected >= base_start:
+                return base_start, selected
+            return selected, base_start
+
+        start = base_start if base_start is not None else selected
+        end = base_end if base_end is not None else selected
+
+        adjust_start = abs((selected - start).days) <= abs((selected - end).days)
+        if adjust_start:
+            start = selected
         else:
-            start_date, end_date = cleaned[:2]
+            end = selected
 
+        return start, end
+
+    @staticmethod
+    def _ordered_range(start_date: date, end_date: date) -> tuple[date, date]:
         if start_date > end_date:
-            start_date, end_date = end_date, start_date
-
+            return end_date, start_date
         return start_date, end_date
 
     @classmethod

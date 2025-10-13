@@ -79,41 +79,53 @@ class MetricValue:
         Returns:
             Formatted delta string or None
         """
-        if self.delta is None:
+        delta_value = self._coerce_delta(self.delta)
+        if delta_value is None:
             return None
 
-        delta_value = self.delta
-        if isinstance(delta_value, np.generic):
-            delta_value = delta_value.item()
-
         if isinstance(delta_value, numbers.Real):
-            delta_float = float(delta_value)
-            magnitude = abs(delta_float)
-
-            if magnitude < 1e-9:
-                if self.format_type == "percent":
-                    return "0.0%"
-                if self.format_type == "currency":
-                    return "$0.00"
-                if self.format_type == "duration":
-                    return "0.0 min"
-                return "0"
-
-            sign = "-" if delta_float < 0 else "+"
-
-            if self.format_type == "percent":
-                return f"{sign}{magnitude:.1f}%"
-            if self.format_type == "currency":
-                return f"{sign}${magnitude:,.2f}"
-            if self.format_type == "duration":
-                return f"{sign}{magnitude:.1f} min"
-
-            if isinstance(delta_value, numbers.Integral) and magnitude.is_integer():
-                return f"{sign}{int(magnitude):,}"
-
-            return f"{sign}{magnitude:,.1f}"
+            numeric_delta = float(delta_value)
+            is_integral = isinstance(delta_value, numbers.Integral)
+            return self._format_numeric_delta(numeric_delta, is_integral)
 
         return str(delta_value)
+
+    @staticmethod
+    def _coerce_delta(delta: int | float | None | np.generic) -> int | float | None:
+        if delta is None:
+            return None
+        if isinstance(delta, np.generic):
+            return delta.item()
+        return delta
+
+    def _format_numeric_delta(self, delta: float, is_integral: bool) -> str:
+        magnitude = abs(delta)
+        if magnitude < 1e-9:
+            return self._zero_delta_format()
+
+        sign = "-" if delta < 0 else "+"
+        formatted_magnitude = self._format_delta_magnitude(magnitude, is_integral)
+        return f"{sign}{formatted_magnitude}"
+
+    def _format_delta_magnitude(self, magnitude: float, is_integral: bool) -> str:
+        if self.format_type == "percent":
+            return f"{magnitude:.1f}%"
+        if self.format_type == "currency":
+            return f"${magnitude:,.2f}"
+        if self.format_type == "duration":
+            return f"{magnitude:.1f} min"
+        if is_integral and float(magnitude).is_integer():
+            return f"{int(magnitude):,}"
+        return f"{magnitude:,.1f}"
+
+    def _zero_delta_format(self) -> str:
+        if self.format_type == "percent":
+            return "0.0%"
+        if self.format_type == "currency":
+            return "$0.00"
+        if self.format_type == "duration":
+            return "0.0 min"
+        return "0"
 
 
 class MetricCard:
@@ -352,7 +364,7 @@ class SummaryStats:
             fig.add_trace(
                 go.Histogram(x=data, nbinsx=30, name="Distribution", marker_color="lightblue")
             )
-            fig.update_layout(height=200, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+            fig.update_layout(height=200, margin={"l": 0, "r": 0, "t": 0, "b": 0}, showlegend=False)
             container.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
 
@@ -570,7 +582,7 @@ class PerformanceIndicator:
             )
         )
 
-        fig.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0))
+        fig.update_layout(height=250, margin={"l": 0, "r": 0, "t": 30, "b": 0})
         container.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
     @classmethod

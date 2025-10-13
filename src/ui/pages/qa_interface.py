@@ -8,6 +8,7 @@ local LLMs for intelligent responses about call data and analytics.
 
 import logging
 import sys
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,6 +26,17 @@ from src.ui.components import ChartTheme, MetricsGrid, MetricValue
 
 # Configure module logger
 logger = logging.getLogger(__name__)
+
+TOTAL_CALLS_LABEL = "Total Calls"
+CONNECTION_RATE_LABEL = "Connection Rate"
+TOTAL_REVENUE_LABEL = "Total Revenue"
+
+METRIC_ALIASES = {
+    "average_duration": {"duration", "average_duration", "avg_duration"},
+    "total_calls": {"total_calls", "count", "volume"},
+    "connection_rate": {"connection_rate", "success_rate"},
+    "total_revenue": {"revenue", "total_revenue"},
+}
 
 
 class QAInterface:
@@ -221,7 +233,7 @@ class QAInterface:
                 total_calls = self.storage_manager.get_record_count()
                 date_range = self.storage_manager.get_date_range()
 
-                st.metric("Total Calls", f"{total_calls:,}")
+                st.metric(TOTAL_CALLS_LABEL, f"{total_calls:,}")
 
                 if date_range:
                     st.caption("**Date Range:**")
@@ -401,85 +413,16 @@ class QAInterface:
         Returns:
             Updated response dictionary
         """
-        # Extract time range from intent
-        time_range = intent.get("time_range")
-        metric_type = intent.get("metric", "general")
-
-        # Load appropriate data
-        if isinstance(time_range, (list, tuple)) and len(time_range) == 2:
-            start, end = time_range
-            if isinstance(start, str):
-                start = pd.to_datetime(start)
-            if isinstance(end, str):
-                end = pd.to_datetime(end)
-
-            if isinstance(start, pd.Timestamp):
-                start = start.to_pydatetime()
-            if isinstance(end, pd.Timestamp):
-                end = end.to_pydatetime()
-
-            if isinstance(start, datetime):
-                start = start.date()
-            if isinstance(end, datetime):
-                end = end.date()
-
-            data = self.storage_manager.load_call_records(start, end)
-        else:
-            data = self._load_data_for_timerange(time_range or "all")
+        metric_type = self._normalize_metric_type(intent.get("metric"))
+        data = self._load_data_for_metric(intent.get("time_range"))
 
         if data.empty:
             response["content"] = "No data available for the specified time range."
             return response
 
-        # Calculate requested metrics
-        metrics = {}
+        metrics, message = self._build_metrics_response(metric_type, data)
+        response["content"] = message
 
-        if metric_type in ["duration", "average_duration", "avg_duration"]:
-            avg_duration = data["duration"].mean() / 60 if "duration" in data.columns else 0
-            metrics["Average Duration"] = f"{avg_duration:.1f} minutes"
-            response["content"] = f"The average call duration is **{avg_duration:.1f} minutes**."
-
-        elif metric_type in ["total_calls", "count", "volume"]:
-            total = len(data)
-            metrics["Total Calls"] = total
-            response["content"] = f"There were **{total:,} calls** in the specified period."
-
-        elif metric_type in ["connection_rate", "success_rate"]:
-            if "outcome" in data.columns:
-                rate = (data["outcome"] == "connected").mean() * 100
-                metrics["Connection Rate"] = f"{rate:.1f}%"
-                response["content"] = f"The connection rate is **{rate:.1f}%**."
-
-        elif metric_type in ["revenue", "total_revenue"]:
-            if "revenue" in data.columns:
-                total_revenue = data["revenue"].sum()
-                metrics["Total Revenue"] = f"${total_revenue:,.2f}"
-                response["content"] = f"The total revenue is **${total_revenue:,.2f}**."
-
-        else:
-            # General metrics summary
-            metrics = {"Total Calls": len(data)}
-
-            if "duration" in data.columns:
-                avg_minutes = data["duration"].mean() / 60
-                metrics["Avg Duration"] = f"{avg_minutes:.1f} min"
-            else:
-                metrics["Avg Duration"] = "N/A"
-
-            if "outcome" in data.columns:
-                connection_rate = (data["outcome"] == "connected").mean() * 100
-                metrics["Connection Rate"] = f"{connection_rate:.1f}%"
-            else:
-                metrics["Connection Rate"] = "N/A"
-
-            if "revenue" in data.columns:
-                metrics["Total Revenue"] = f"${data['revenue'].sum():,.2f}"
-            else:
-                metrics["Total Revenue"] = "N/A"
-
-            response["content"] = "Here's a summary of the metrics:"
-
-        # Add metrics to response data
         if metrics:
             response["data"] = {"metrics": metrics}
 
@@ -487,6 +430,119 @@ class QAInterface:
         response["sources"] = [f"Analyzed {len(data)} call records"]
 
         return response
+
+    def _normalize_metric_type(self, metric: Any) -> str:
+        """Map metric aliases to a canonical metric key."""
+        if not isinstance(metric, str):
+            return "general"
+
+        normalized = metric.lower()
+        for canonical, aliases in METRIC_ALIASES.items():
+            if normalized == canonical or normalized in aliases:
+                return canonical
+        return "general"
+
+    def _load_data_for_metric(self, time_range: Any) -> pd.DataFrame:
+        """Load data for a requested metric time range."""
+        if isinstance(time_range, (list, tuple)) and len(time_range) == 2:
+            start, end = (self._coerce_to_date(value) for value in time_range)
+            if isinstance(start, datetime) or isinstance(end, datetime):
+                start = start.date() if isinstance(start, datetime) else start
+                end = end.date() if isinstance(end, datetime) else end
+            if start and end:
+                return self.storage_manager.load_call_records(start, end)
+
+        range_label = time_range or "all"
+        return self._load_data_for_timerange(range_label)
+
+    @staticmethod
+    def _coerce_to_date(value: Any) -> Any:
+        """Convert supported time range values to datetime/date objects."""
+        if isinstance(value, str):
+            converted = pd.to_datetime(value, errors="coerce")
+            if isinstance(converted, pd.Timestamp):
+                return converted.to_pydatetime()
+            return value
+        if isinstance(value, pd.Timestamp):
+            return value.to_pydatetime()
+        return value
+
+    def _build_metrics_response(
+        self, metric_type: str, data: pd.DataFrame
+    ) -> tuple[dict[str, Any], str]:
+        """Compute metric values and associated response copy."""
+        builder = self._metric_builders().get(metric_type, self._build_general_metrics)
+        return builder(data)
+
+    def _metric_builders(self) -> dict[str, Callable[[pd.DataFrame], tuple[dict[str, Any], str]]]:
+        """Return mapping of metric keys to handler functions."""
+        return {
+            "average_duration": self._build_average_duration_metric,
+            "total_calls": self._build_total_calls_metric,
+            "connection_rate": self._build_connection_rate_metric,
+            "total_revenue": self._build_total_revenue_metric,
+            "general": self._build_general_metrics,
+        }
+
+    def _build_average_duration_metric(self, data: pd.DataFrame) -> tuple[dict[str, Any], str]:
+        """Compute average duration metric if possible."""
+        if "duration" not in data.columns:
+            return self._build_general_metrics(data)
+
+        avg_duration = data["duration"].mean() / 60
+        metrics = {"Average Duration": f"{avg_duration:.1f} minutes"}
+        message = f"The average call duration is **{avg_duration:.1f} minutes**."
+        return metrics, message
+
+    def _build_total_calls_metric(self, data: pd.DataFrame) -> tuple[dict[str, Any], str]:
+        """Compute total calls metric."""
+        total = len(data)
+        metrics = {TOTAL_CALLS_LABEL: total}
+        message = f"There were **{total:,} calls** in the specified period."
+        return metrics, message
+
+    def _build_connection_rate_metric(self, data: pd.DataFrame) -> tuple[dict[str, Any], str]:
+        """Compute connection rate metric or fall back to summary."""
+        if "outcome" not in data.columns:
+            return self._build_general_metrics(data)
+
+        rate = (data["outcome"] == "connected").mean() * 100
+        metrics = {CONNECTION_RATE_LABEL: f"{rate:.1f}%"}
+        message = f"The connection rate is **{rate:.1f}%**."
+        return metrics, message
+
+    def _build_total_revenue_metric(self, data: pd.DataFrame) -> tuple[dict[str, Any], str]:
+        """Compute total revenue metric or fall back to summary."""
+        if "revenue" not in data.columns:
+            return self._build_general_metrics(data)
+
+        total_revenue = data["revenue"].sum()
+        metrics = {TOTAL_REVENUE_LABEL: f"${total_revenue:,.2f}"}
+        message = f"The total revenue is **${total_revenue:,.2f}**."
+        return metrics, message
+
+    def _build_general_metrics(self, data: pd.DataFrame) -> tuple[dict[str, Any], str]:
+        """Provide a general metrics overview."""
+        metrics: dict[str, Any] = {TOTAL_CALLS_LABEL: len(data)}
+
+        if "duration" in data.columns:
+            avg_minutes = data["duration"].mean() / 60
+            metrics["Avg Duration"] = f"{avg_minutes:.1f} min"
+        else:
+            metrics["Avg Duration"] = "N/A"
+
+        if "outcome" in data.columns:
+            connection_rate = (data["outcome"] == "connected").mean() * 100
+            metrics[CONNECTION_RATE_LABEL] = f"{connection_rate:.1f}%"
+        else:
+            metrics[CONNECTION_RATE_LABEL] = "N/A"
+
+        if "revenue" in data.columns:
+            metrics[TOTAL_REVENUE_LABEL] = f"${data['revenue'].sum():,.2f}"
+        else:
+            metrics[TOTAL_REVENUE_LABEL] = "N/A"
+
+        return metrics, "Here's a summary of the metrics:"
 
     def _handle_search_query(
         self,
