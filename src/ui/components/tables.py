@@ -83,7 +83,7 @@ class DataTable:
 
         st.dataframe(
             pagination.page_data,
-            use_container_width=True,
+            width="stretch",
             hide_index=not show_index,
             column_config=column_config,
             height=height,
@@ -394,14 +394,14 @@ class CallRecordsTable:
 
             st.dataframe(
                 display_data,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config=column_config,
                 key="recent_calls_table",
             )
         else:
             st.dataframe(
-                display_data, use_container_width=True, hide_index=True, column_config=column_config
+                display_data, width="stretch", hide_index=True, column_config=column_config
             )
 
         return selected_record
@@ -482,7 +482,7 @@ class AgentPerformanceTable:
                 )
 
         # Display table
-        st.dataframe(agent_stats, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(agent_stats, width="stretch", hide_index=True, height=400)
 
         # Add summary statistics
         with container.expander("Summary Statistics"):
@@ -621,7 +621,7 @@ class ComparisonTable:
 
         container.dataframe(
             display_df,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 col: st.column_config.TextColumn(col.replace("_", " "), help=f"Comparison of {col}")

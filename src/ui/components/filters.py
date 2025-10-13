@@ -341,13 +341,13 @@ class MultiSelectFilter:
         col1, col2, col3 = container.columns([2, 1, 1])
 
         with col2:
-            if st.button("Select All", key=f"{key}_all", use_container_width=True):
+            if st.button("Select All", key=f"{key}_all", width="stretch"):
                 st.session_state[f"{key}_selected"] = (
                     options[:max_selections] if max_selections else options
                 )
 
         with col3:
-            if st.button("Clear", key=f"{key}_clear", use_container_width=True):
+            if st.button("Clear", key=f"{key}_clear", width="stretch"):
                 st.session_state[f"{key}_selected"] = []
 
         # Get current selection from session state

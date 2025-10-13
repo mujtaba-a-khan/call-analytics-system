@@ -134,7 +134,7 @@ class UploadPage:
             try:
                 # Get preview
                 preview_df = self.csv_processor.get_csv_preview(temp_path, num_rows=5)
-                st.dataframe(preview_df, use_container_width=True)
+                st.dataframe(preview_df, width="stretch")
 
                 # Show detected fields
                 st.subheader("Field Mapping")
@@ -190,7 +190,7 @@ class UploadPage:
                     )
 
                 # Import button
-                if st.button("Import CSV", type="primary", use_container_width=True):
+                if st.button("Import CSV", type="primary", width="stretch"):
                     self._process_csv_import(temp_path, skip_errors, deduplicate, validate_phones)
 
             except Exception as e:
@@ -272,7 +272,7 @@ class UploadPage:
                 )
 
             # Process button
-            if st.button("Process Audio Files", type="primary", use_container_width=True):
+            if st.button("Process Audio Files", type="primary", width="stretch"):
                 self._process_audio_files(
                     uploaded_files,
                     language,
@@ -347,7 +347,7 @@ class UploadPage:
                     )
 
                 # Start batch processing
-                if st.button("Start Batch Processing", type="primary", use_container_width=True):
+                if st.button("Start Batch Processing", type="primary", width="stretch"):
                     self._start_batch_processing(
                         path, process_csv, process_audio, batch_size, parallel_processing
                     )
@@ -394,7 +394,7 @@ class UploadPage:
             # Display table
             st.dataframe(
                 history_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "timestamp": st.column_config.TextColumn("Import Date"),
