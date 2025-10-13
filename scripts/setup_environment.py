@@ -191,6 +191,57 @@ class EnvironmentSetup:
 
         return True, result.stdout.strip()
 
+    @staticmethod
+    def _in_virtualenv() -> bool:
+        """Determine whether the script is running inside a virtual environment."""
+        return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+    @classmethod
+    def _should_ignore_pip_upgrade_failure(cls, output: str) -> tuple[bool, str]:
+        """
+        Decide whether a pip upgrade failure is non-fatal and can be ignored.
+
+        Args:
+            output: stderr/stdout captured from the pip command
+
+        Returns:
+            Tuple of (should_ignore, advisory_message)
+        """
+        lowered = output.lower()
+        if (
+            "externally-managed-environment" in lowered
+            or "externally managed environment" in lowered
+        ):
+            message = (
+                "System Python is marked as externally managed; skipping pip upgrade. "
+                "Activate a virtual environment or rerun pip with "
+                "'--break-system-packages' if you intentionally need a global upgrade."
+            )
+            return True, message
+
+        if "permission denied" in lowered or "not writable" in lowered or "denied" in lowered:
+            message = (
+                "Insufficient permissions to upgrade pip. Run inside a virtual environment "
+                "or use pip's '--user'/'--break-system-packages' flags if a global upgrade "
+                "is required. "
+                "Continuing without upgrading pip."
+            )
+            return True, message
+
+        if cls._in_virtualenv() and (
+            "cannot uninstall 'pip'" in lowered
+            or "requires pip" in lowered
+            or "is not installed in editable mode" in lowered
+        ):
+            message = (
+                "Encountered a pip self-upgrade issue inside the active virtual"
+                " environment. The bundled pip version is usually sufficient; "
+                "continuing without forcing an upgrade."
+            )
+            return True, message
+
+        return False, ""
+
     def _ensure_homebrew(self) -> bool:
         """Install Homebrew if it is not already available."""
         self._extend_path_for_homebrew()
@@ -434,8 +485,12 @@ class EnvironmentSetup:
         ]
         success, output = self._run_command(upgrade_cmd, cwd=self.base_dir)
         if not success:
-            self.logger.error("Failed to upgrade pip tooling: %s", output)
-            return False
+            ignore_failure, advisory = self._should_ignore_pip_upgrade_failure(output)
+            if ignore_failure:
+                self.logger.warning(advisory)
+            else:
+                self.logger.error("Failed to upgrade pip tooling: %s", output)
+                return False
 
         install_cmd: list[str] = [sys.executable, "-m", "pip", "install"]
         if upgrade:
@@ -1005,7 +1060,7 @@ SECRET_KEY=your_secret_key_here
         )
 
         # Check Python packages via module availability
-        core_modules = ["pandas", "plotly", "streamlit"]
+        core_modules = ["chromadb", "pandas", "plotly", "streamlit"]
         status["core_packages"] = all(
             importlib.util.find_spec(module) is not None for module in core_modules
         )

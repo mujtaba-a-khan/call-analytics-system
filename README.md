@@ -44,19 +44,30 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
    git clone https://github.com/mujtaba-a-khan/call-analytics-system.git
    cd call-analytics-system
    ```
-2. **Install FFmpeg**
+2. **Install system tooling**
    ```bash
-   # macOS
-   brew install ffmpeg
+   # macOS (Homebrew)
+   brew install python@3.11 ffmpeg maven ant zip gcc
 
    # Ubuntu/Debian
-   sudo apt-get install ffmpeg
+   sudo apt-get update
+   sudo apt-get install -y python3.11 python3.11-venv python3.11-dev ffmpeg build-essential zip maven ant
 
    # Windows: download from https://ffmpeg.org/download.html
+   # - Python 3.11: https://www.python.org/downloads/
+   # - Maven: https://maven.apache.org/install.html
+   # - Ant: https://ant.apache.org/bindownload.cgi
+   ```
+   Confirm your installations:
+   ```bash
+   python3.11 --version
+   ffmpeg -version
+   ant -version
+   mvn -version
    ```
 3. **Create virtual environment**
    ```bash
-   python3.11 -m venv venv
+   python3.11 -m venv .venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 4. **Install dependencies**
@@ -67,17 +78,47 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
    # For documentation
    pip install -e ".[docs]"
    ```
-5. **Run Scripts to Setup Enviroment**
+5. **Run scripts to bootstrap assets**
    ```bash
-   python scripts/setup_enviroment.py
-
+   python scripts/setup_environment.py
    python scripts/download_models.py
    ```
 6. **Run the application**
    ```bash
-   streamlit run src/ui/app.py
+   call-analytics-ui
    ```
 App opens at `http://localhost:8501`.
+
+[↑ Back to top](#readme)
+</details>
+
+<details>
+  <summary><strong>🛠️ Build & CI Tooling</strong></summary>
+
+<a id="build-ci"></a>
+
+Run these commands from the repository root once the virtual environment is activated. The Ant tasks expect `python3.11`, `python3.11-venv`, `python3.11-dev`, `build-essential`, `zip`, and FFmpeg to be available on the host (see Quick Start).
+
+### Apache Ant (`build.xml`)
+```bash
+ant -noinput -buildfile build.xml clean   # wipe build outputs
+ant -noinput -buildfile build.xml setup   # create .venv & install project deps
+ant -noinput -buildfile build.xml lint    # ruff, black --check, mypy
+ant -noinput -buildfile build.xml test    # pytest with junit report
+ant -noinput -buildfile build.xml docs    # sphinx html docs in docs/_build/html
+ant -noinput -buildfile build.xml wheel   # build Python wheel into dist/
+ant -noinput -buildfile build.xml ci      # run the full clean→wheel pipeline
+```
+
+Outputs land in `dist/`, `docs/_build`, and `test-reports/`.
+
+### Apache Maven (`pom.xml`)
+```bash
+mvn -B -V verify    # runs the Ant ci target via maven-antrun-plugin
+mvn -B package      # zips release assets to artifacts/call-analytics-1.0.0.zip
+```
+
+Maven requires Ant to be on the PATH because the `verify` phase delegates to `build.xml`. The generated ZIP bundles source, configs, and documentation for deployment.
 
 [↑ Back to top](#readme)
 </details>
@@ -93,78 +134,77 @@ call-analytics-system/
 ├── pyproject.toml                 # Project configuration and dependencies
 ├── README.md                      # Project documentation
 ├── .gitignore                     # Git ignore file
-├── requirements.txt               # Alternative dependency list
+├── Jenkinsfile                    # Jenkins CI pipeline definition
+├── build.xml                      # Ant build configuration for Jenkins agents
+├── pom.xml                        # Maven build configuration for Jenkins agents
 │
-├── config/                        # Configuration files
+├── config/                        # Configuration files for the analytics engine
 │   ├── app.toml                   # Main application settings
+│   ├── fields.toml                # Column mapping for ingestion
 │   ├── models.toml                # LLM and STT model configurations
-│   ├── vectorstore.toml           # Vector database settings
-│   └── rules.toml                 # Call labeling rules
+│   ├── rules.toml                 # Call labeling rules
+│   └── vectorstore.toml           # Vector database settings
 │
-├── src/                           # Source code
-│   ├── __init__.py
+├── docs/                          # Sphinx documentation sources
+│   └── ...                        # See docs/index.md for table of contents
+│
+├── scripts/                       # Utility scripts for local workflows
+│   ├── setup_environment.py       # Bootstrap virtual environments and deps
+│   ├── download_models.py         # Fetch Whisper/LLM assets
+│   ├── rebuild_index.py           # Rebuild Chroma vector indexes
+│   └── launch_ui.py               # Convenience launcher for the Streamlit UI
+│
+├── src/                           # Application source code
+│   ├── cli.py                     # Command-line entry point
 │   ├── core/
-│   │   ├── __init__.py
 │   │   ├── audio_processor.py     # Audio file processing
 │   │   ├── csv_processor.py       # CSV file processing
 │   │   ├── data_schema.py         # Data models and schemas
 │   │   ├── labeling_engine.py     # Call labeling logic
 │   │   └── storage_manager.py     # Data persistence
 │   ├── analysis/
-│   │   ├── __init__.py
-│   │   ├── filters.py             # Data filtering logic
 │   │   ├── aggregations.py        # KPIs and metrics
-│   │   ├── semantic_search.py     # Semantic search implementation
-│   │   └── query_interpreter.py   # Natural language query processing
+│   │   ├── filters.py             # Data filtering logic
+│   │   ├── query_interpreter.py   # Natural language query processing
+│   │   └── semantic_search.py     # Semantic search implementation
 │   ├── ml/
-│   │   ├── __init__.py
-│   │   ├── whisper_stt.py         # Speech-to-text engine
+│   │   ├── embeddings.py          # Text embedding generation
 │   │   ├── llm_interface.py       # Local LLM integration
-│   │   └── embeddings.py          # Text embedding generation
+│   │   └── whisper_stt.py         # Speech-to-text engine
 │   ├── vectordb/
-│   │   ├── __init__.py
 │   │   ├── chroma_client.py       # ChromaDB interface
 │   │   ├── indexer.py             # Document indexing
 │   │   └── retriever.py           # Document retrieval
 │   ├── ui/
-│   │   ├── __init__.py
 │   │   ├── app.py                 # Main Streamlit application
 │   │   ├── pages/
-│   │   │   ├── __init__.py
-│   │   │   ├── dashboard.py       # Main dashboard
-│   │   │   ├── upload.py          # File upload interface
 │   │   │   ├── analysis.py        # Analysis view
-│   │   │   └── qa_interface.py    # Q&A interface
+│   │   │   ├── dashboard.py       # Main dashboard
+│   │   │   ├── qa_interface.py    # Q&A interface
+│   │   │   └── upload.py          # File upload interface
 │   │   └── components/
-│   │       ├── __init__.py
 │   │       ├── charts.py          # Chart components
 │   │       ├── filters.py         # Filter components
-│   │       ├── tables.py          # Table components
-│   │       └── metrics.py         # Metric display components
+│   │       ├── metrics.py         # Metric display components
+│   │       └── tables.py          # Table components
 │   └── utils/
-│       ├── __init__.py
-│       ├── text_processing.py     # Text utilities
 │       ├── file_handlers.py       # File I/O utilities
-│       ├── formatters.py          # Formatting Utilities
-│       ├── validators.py          # Data validation
-│       └── logger.py              # Logging configuration
+│       ├── formatters.py          # Formatting utilities
+│       ├── logger.py              # Logging configuration
+│       ├── text_processing.py     # Text utilities
+│       └── validators.py          # Data validation
 │
-├── data/                          # Data directory
-│   ├── uploads/                   # User uploaded files
-│   ├── processed/                 # Processed data
-│   ├── cache/                     # Cache directory
-│   └── vectorstore/               # Vector database storage
-├── models/                        # Model storage
-│   └── whisper/                   # Whisper models
-├── tests/                         # Test suite
-│   ├── __init__.py
-│   ├── test_core/
-│   ├── test_analysis/
-│   └── test_ml/
-└── scripts/
-    ├── setup_environment.py
-    ├── download_models.py
-    └── rebuild_index.py
+├── data/                          # Working datasets and cached artifacts
+│   ├── raw/                       # Uploaded raw sources
+│   ├── processed/                 # Normalized transcripts
+│   └── vectorstore/               # Persisted embeddings
+│
+├── models/                        # Model registry and downloaded weights
+├── logs/                          # Aggregated runtime logs
+├── test-reports/                  # Collected junit/coverage artifacts
+└── tests/                         # Automated test suite
+    ├── test_aggregations.py       # KPI aggregation coverage
+    └── test_text_processing.py    # Text utility coverage
 ```
 
 [↑ Back to top](#readme)
@@ -351,7 +391,7 @@ MIT License — see [LICENSE](LICENSE).
 
 <a id="contributing"></a>
 
-Contributions welcome! Please read `CONTRIBUTING.md`.
+Contributions welcome!
 
 [↑ Back to top](#readme)
 </details>

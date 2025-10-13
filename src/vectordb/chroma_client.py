@@ -6,7 +6,10 @@ and document retrieval. Handles embedding generation and similarity search.
 """
 
 import hashlib
+import inspect
 import logging
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +21,13 @@ try:
 except ImportError:
     CHROMA_AVAILABLE = False
     logging.warning("ChromaDB not installed. Vector search will be unavailable.")
+
+try:
+    from chromadb.api.configuration import CollectionConfiguration, HNSWConfiguration
+
+    CHROMA_CONFIG_AVAILABLE = True
+except ImportError:
+    CHROMA_CONFIG_AVAILABLE = False
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -151,28 +161,119 @@ class ChromaClient:
 
         logger.info(f"ChromaClient initialized with collection: {self.collection_name}")
 
+    @staticmethod
+    def _should_reset_persist_store(error: Exception) -> bool:
+        """Determine whether the persistent store needs to be reset for compatibility."""
+        if isinstance(error, KeyError) and error.args:
+            first_arg = error.args[0]
+            if isinstance(first_arg, str):
+                return first_arg == "_type"
+            return False
+
+        return "_type" in str(error)
+
+    def _reset_persist_store(self) -> None:
+        """
+        Backup the existing persistent store and recreate an empty directory.
+
+        This is used to migrate legacy ChromaDB formats that lack required metadata.
+        """
+        if not self.persist_dir.exists():
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        backup_dir = self.persist_dir.parent / f"{self.persist_dir.name}_legacy_{timestamp}"
+
+        try:
+            shutil.move(str(self.persist_dir), str(backup_dir))
+            logger.warning(
+                "Detected legacy Chroma collection metadata. "
+                "Moved previous store to %s for backup.",
+                backup_dir,
+            )
+        except Exception as move_error:
+            logger.error("Failed to backup legacy Chroma store: %s", move_error)
+            raise
+        finally:
+            self.persist_dir.mkdir(parents=True, exist_ok=True)
+
     def _initialize_client(self) -> None:
         """Initialize ChromaDB client and collection"""
-        try:
-            # Create persistent client
-            client = chromadb.PersistentClient(
-                path=str(self.persist_dir),
-                settings=Settings(anonymized_telemetry=False, allow_reset=True),
-            )
+        attempts = 2
+        for attempt in range(attempts):
+            try:
+                client = chromadb.PersistentClient(
+                    path=str(self.persist_dir),
+                    settings=Settings(anonymized_telemetry=False, allow_reset=True),
+                )
+                configuration = None
+                metadata: dict[str, Any] | None = None
 
-            # Get or create collection
-            collection = client.get_or_create_collection(
-                name=self.collection_name, metadata={"hnsw:space": self.distance_metric}
-            )
+                if CHROMA_CONFIG_AVAILABLE:
+                    try:
+                        configuration = CollectionConfiguration(
+                            hnsw_configuration=HNSWConfiguration(space=self.distance_metric)
+                        )
+                        logger.info(
+                            "Configuring ChromaDB collection with HNSW space=%s via "
+                            "CollectionConfiguration.",
+                            self.distance_metric,
+                        )
+                    except Exception as config_error:
+                        logger.warning(
+                            "Could not construct CollectionConfiguration: %s. Falling back "
+                            "to legacy metadata.",
+                            config_error,
+                        )
+                        metadata = {"hnsw:space": self.distance_metric}
+                else:
+                    logger.info(
+                        "Chroma configuration API unavailable; using legacy metadata for "
+                        "distance metric."
+                    )
+                    metadata = {"hnsw:space": self.distance_metric}
 
-            self.client = client
-            self.collection = collection
+                signature_params = inspect.signature(client.get_or_create_collection).parameters
+                kwargs: dict[str, Any] = {"name": self.collection_name}
 
-            logger.info(f"ChromaDB collection ready: {collection.count()} documents")
+                if configuration is not None and "configuration" in signature_params:
+                    kwargs["configuration"] = configuration
+                elif configuration is not None:
+                    logger.info(
+                        "Chroma client does not accept 'configuration'; relying on "
+                        "metadata-only setup."
+                    )
 
-        except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB: {e}")
-            raise RuntimeError(f"Could not initialize ChromaDB: {e}") from e
+                if metadata is not None and "metadata" in signature_params:
+                    kwargs["metadata"] = metadata
+                elif metadata is not None:
+                    logger.info(
+                        "Chroma client does not accept 'metadata'; ignoring provided metadata."
+                    )
+
+                collection = client.get_or_create_collection(**kwargs)
+
+                self.client = client
+                self.collection = collection
+                logger.info(f"ChromaDB collection ready: {collection.count()} documents")
+                return
+
+            except Exception as error:
+                if attempt == 0 and self._should_reset_persist_store(error):
+                    logger.warning(
+                        "ChromaDB initialization failed due to legacy metadata (_type missing). "
+                        "Backing up and recreating the persistent store."
+                    )
+                    try:
+                        self._reset_persist_store()
+                    except Exception as reset_error:
+                        raise RuntimeError(
+                            f"Could not reset legacy ChromaDB store: {reset_error}"
+                        ) from reset_error
+                    continue
+
+                logger.error(f"Failed to initialize ChromaDB: {error}")
+                raise RuntimeError(f"Could not initialize ChromaDB: {error}") from error
 
     def _get_client(self) -> Any:
         if self.client is None:

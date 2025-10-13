@@ -467,6 +467,7 @@ experiments/
 local_tests/
 personal_notes/
 TODO.local.md
+.devcontainer/
 
 ################################################################################
 # Keep These Files
@@ -503,12 +504,12 @@ TODO.local.md
 !docs/**/*.md
 !docs/**/*.rst
 
-# Keep GitHub templates
+# Keep GitHub automation config but ignore local issue templates
 !.github/
-!.github/ISSUE_TEMPLATE/
 !.github/PULL_REQUEST_TEMPLATE/
 !.github/workflows/
 !.github/workflows/*.yml
+.github/ISSUE_TEMPLATE/
 
 # Keep source code
 !src/
