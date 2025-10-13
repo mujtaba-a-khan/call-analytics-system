@@ -20,9 +20,9 @@ sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from src.analysis.aggregations import MetricsCalculator
 from src.core.storage_manager import StorageManager
 from src.ui.components import (
-    ChartTheme,
     AgentPerformanceTable,
     CallRecordsTable,
+    ChartTheme,
     DateRangeFilter,
     DistributionChart,
     FilterState,

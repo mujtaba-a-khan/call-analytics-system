@@ -154,9 +154,7 @@ class QAInterface:
                 )
 
             with col2:
-                submit_button = st.form_submit_button(
-                    "Send", type="primary", width="stretch"
-                )
+                submit_button = st.form_submit_button("Send", type="primary", width="stretch")
 
         # Process query
         if submit_button and user_query:

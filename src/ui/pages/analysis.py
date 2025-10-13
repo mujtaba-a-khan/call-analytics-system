@@ -27,8 +27,8 @@ from src.analysis.query_interpreter import QueryInterpreter
 from src.analysis.semantic_search import SemanticSearchEngine
 from src.core.storage_manager import StorageManager
 from src.ui.components import (
-    ChartTheme,
     AgentPerformanceTable,
+    ChartTheme,
     ComparisonTable,
     DateRangeFilter,
     DistributionChart,
