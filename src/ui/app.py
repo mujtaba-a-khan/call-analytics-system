@@ -490,7 +490,13 @@ class CallAnalyticsApp:
         from vectordb.chroma_client import ChromaClient
 
         vector_cfg = self.config.get("vectorstore", {})
-        st.session_state.vector_store = ChromaClient(vector_cfg)
+
+        try:
+            st.session_state.vector_store = ChromaClient(vector_cfg)
+        except RuntimeError as vector_error:
+            logger.warning("Vector store disabled: %s", vector_error)
+            st.session_state.vector_store = None
+            return
 
         try:
             self._populate_vector_store_if_needed(vector_cfg)
