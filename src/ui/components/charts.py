@@ -51,6 +51,8 @@ class ChartTheme:
         "#17becf",
     ]
 
+    _DEFAULT_PLOTLY_CONFIG = {"displayModeBar": False, "responsive": True}
+
     @classmethod
     def get_layout_template(cls) -> dict[str, Any]:
         """
@@ -69,6 +71,16 @@ class ChartTheme:
             "xaxis": {"gridcolor": cls.COLORS["grid"], "zerolinecolor": cls.COLORS["grid"]},
             "yaxis": {"gridcolor": cls.COLORS["grid"], "zerolinecolor": cls.COLORS["grid"]},
         }
+
+    @classmethod
+    def get_plotly_config(cls) -> dict[str, Any]:
+        """
+        Return default Plotly configuration for responsive charts.
+
+        Returns:
+            Dictionary with Plotly config options
+        """
+        return dict(cls._DEFAULT_PLOTLY_CONFIG)
 
 
 class TimeSeriesChart:
@@ -642,7 +654,7 @@ def render_chart_in_streamlit(chart_function: callable, container: Any, **kwargs
     """
     try:
         fig = chart_function(**kwargs)
-        container.plotly_chart(fig, use_container_width=True)
+        container.plotly_chart(fig, config=ChartTheme.get_plotly_config())
     except Exception as e:
         logger.error(f"Error rendering chart: {e}")
         container.error(f"Failed to render chart: {str(e)}")

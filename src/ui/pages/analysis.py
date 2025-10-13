@@ -27,6 +27,7 @@ from src.analysis.query_interpreter import QueryInterpreter
 from src.analysis.semantic_search import SemanticSearchEngine
 from src.core.storage_manager import StorageManager
 from src.ui.components import (
+    ChartTheme,
     AgentPerformanceTable,
     ComparisonTable,
     DateRangeFilter,
@@ -178,7 +179,7 @@ class AnalysisPage:
             filter_state = self._render_search_filters()
 
         # Execute search
-        if st.button("🔍 Search", type="primary", use_container_width=True):
+        if st.button("🔍 Search", type="primary", width="stretch"):
             if query:
                 self._execute_semantic_search(query, top_k, similarity_threshold, filter_state)
             else:
@@ -220,7 +221,7 @@ class AnalysisPage:
             st.session_state["custom_analysis_count"] = 0
             st.session_state["custom_analysis_show_clipboard"] = False
 
-        if st.button("Apply Filters", type="primary", use_container_width=True):
+        if st.button("Apply Filters", type="primary", width="stretch"):
             data = self._apply_custom_filters(filter_state)
             st.session_state["custom_analysis_data"] = data
             st.session_state["custom_analysis_count"] = len(data) if data is not None else 0
@@ -303,7 +304,7 @@ class AnalysisPage:
             )
 
         # Execute comparison
-        if st.button("Compare Periods", type="primary", use_container_width=True):
+        if st.button("Compare Periods", type="primary", width="stretch"):
             self._execute_period_comparison(
                 (period1_start, period1_end),
                 (period2_start, period2_end),
@@ -351,7 +352,7 @@ class AnalysisPage:
         )
 
         # Execute cohort analysis
-        if st.button("Generate Cohort Analysis", type="primary", use_container_width=True):
+        if st.button("Generate Cohort Analysis", type="primary", width="stretch"):
             self._execute_cohort_analysis(
                 cohort_type, cohort_period, metric, periods_to_analyze, start_date, end_date
             )
@@ -651,7 +652,7 @@ class AnalysisPage:
             fig = TimeSeriesChart.create_call_volume_chart(
                 data, aggregation="daily", title="Call Volume Trend"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         elif analysis_type == "Agent Analysis":
             # Agent performance analysis
@@ -660,7 +661,7 @@ class AnalysisPage:
         elif analysis_type == "Outcome Analysis":
             # Outcome distribution
             fig = DistributionChart.create_outcome_pie_chart(data)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         elif analysis_type == "Custom Aggregation":
             # Custom aggregation interface
@@ -694,7 +695,7 @@ class AnalysisPage:
         result = data.groupby(group_by)[agg_column].agg(agg_function).reset_index()
 
         # Display result
-        st.dataframe(result, use_container_width=True)
+        st.dataframe(result, width="stretch")
 
         # Visualization
         fig = px.bar(
@@ -703,7 +704,7 @@ class AnalysisPage:
             y=agg_column,
             title=f"{agg_function.title()} of {agg_column} by {group_by}",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
     def _render_export_options(self, data: pd.DataFrame) -> None:
         """
@@ -915,7 +916,7 @@ class AnalysisPage:
                     lambda a: a.update(text=a.text.split("=")[-1].replace("_", " ").title())
                 )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         except Exception as exc:
             logger.error(f"Error rendering comparison chart: {exc}")
@@ -1225,7 +1226,7 @@ class AnalysisPage:
         heatmap.update_layout(
             title=f"{metric} by Cohort Period", xaxis_title="Period", yaxis_title="Cohort"
         )
-        st.plotly_chart(heatmap, use_container_width=True)
+        st.plotly_chart(heatmap, config=ChartTheme.get_plotly_config())
 
 
 def render_analysis_page(storage_manager: StorageManager, vector_store=None) -> None:

@@ -16,6 +16,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from .charts import ChartTheme
+
 # Configure module logger
 logger = logging.getLogger(__name__)
 
@@ -351,7 +353,7 @@ class SummaryStats:
                 go.Histogram(x=data, nbinsx=30, name="Distribution", marker_color="lightblue")
             )
             fig.update_layout(height=200, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-            container.plotly_chart(fig, use_container_width=True)
+            container.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
 
 class KPIDashboard:
@@ -569,7 +571,7 @@ class PerformanceIndicator:
         )
 
         fig.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0))
-        container.plotly_chart(fig, use_container_width=True)
+        container.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
     @classmethod
     def render_progress_bar(

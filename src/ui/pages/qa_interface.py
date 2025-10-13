@@ -21,7 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from src.analysis.query_interpreter import QueryInterpreter
 from src.analysis.semantic_search import SemanticSearchEngine
 from src.core.storage_manager import StorageManager
-from src.ui.components import MetricsGrid, MetricValue
+from src.ui.components import ChartTheme, MetricsGrid, MetricValue
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -155,7 +155,7 @@ class QAInterface:
 
             with col2:
                 submit_button = st.form_submit_button(
-                    "Send", type="primary", use_container_width=True
+                    "Send", type="primary", width="stretch"
                 )
 
         # Process query
@@ -194,7 +194,7 @@ class QAInterface:
             data: Response data to render
         """
         if isinstance(data, pd.DataFrame):
-            st.dataframe(data, use_container_width=True)
+            st.dataframe(data, width="stretch")
         elif isinstance(data, dict):
             if "metrics" in data:
                 # Render metrics
@@ -205,7 +205,7 @@ class QAInterface:
                 MetricsGrid.render(metrics, st.container())
             elif "chart" in data:
                 # Render chart
-                st.plotly_chart(data["chart"], use_container_width=True)
+                st.plotly_chart(data["chart"], config=ChartTheme.get_plotly_config())
         elif isinstance(data, list):
             # Render list items
             for item in data:
@@ -270,7 +270,7 @@ class QAInterface:
         for idx, suggestion in enumerate(suggestions):
             col_idx = idx % 2
             with cols[col_idx]:
-                if st.button(suggestion, key=f"suggestion_{idx}", use_container_width=True):
+                if st.button(suggestion, key=f"suggestion_{idx}", width="stretch"):
                     self._process_query(suggestion)
 
     def _process_query(self, query: str) -> None:

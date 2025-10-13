@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from src.analysis.aggregations import MetricsCalculator
 from src.core.storage_manager import StorageManager
 from src.ui.components import (
+    ChartTheme,
     AgentPerformanceTable,
     CallRecordsTable,
     DateRangeFilter,
@@ -245,7 +246,7 @@ class DashboardPage:
                 fig = TimeSeriesChart.create_call_volume_chart(
                     data, aggregation=aggregation, group_by=None if group_by == "None" else group_by
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         with tab2:
             # Distribution charts
@@ -254,17 +255,17 @@ class DashboardPage:
             with col1:
                 if "duration" in data.columns:
                     fig = DistributionChart.create_duration_distribution(data)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
             with col2:
                 if "outcome" in data.columns:
                     fig = DistributionChart.create_outcome_pie_chart(data)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         with tab3:
             # Peak hours heatmap
             fig = TimeSeriesChart.create_peak_hours_heatmap(data)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         with tab4:
             # Trend analysis
@@ -273,7 +274,7 @@ class DashboardPage:
             )
 
             fig = TrendChart.create_moving_average_chart(data, window_sizes=window_sizes)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
     def _render_performance_section(self, data: pd.DataFrame) -> None:
         """
@@ -290,7 +291,7 @@ class DashboardPage:
             st.subheader("Top Agents")
             if "agent_id" in data.columns:
                 fig = PerformanceChart.create_agent_performance_bar(data, metric="calls", top_n=5)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         with col2:
             st.subheader("Campaign Performance")
@@ -298,7 +299,7 @@ class DashboardPage:
                 fig = PerformanceChart.create_campaign_comparison(
                     data, metrics=["calls", "connection_rate"]
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, config=ChartTheme.get_plotly_config())
 
         # Agent performance table
         with st.expander("Detailed Agent Performance", expanded=False):
