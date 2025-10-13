@@ -11,6 +11,7 @@ import sys
 import time
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -314,11 +315,7 @@ class DashboardPage:
         """
         st.header("📞 Recent Calls")
 
-        # Get most recent calls
-        if "timestamp" in data.columns:
-            recent_calls = data.nlargest(10, "timestamp")
-        else:
-            recent_calls = data.head(10)
+        recent_calls = self._get_recent_calls(data)
 
         # Display calls table
         selected_call = CallRecordsTable.render(
@@ -327,22 +324,40 @@ class DashboardPage:
 
         # Show call details if selected
         if selected_call:
-            with st.expander("Call Details", expanded=True):
-                col1, col2 = st.columns(2)
+            self._render_selected_call_details(selected_call)
 
-                with col1:
-                    for key in ["call_id", "phone_number", "timestamp", "duration"]:
-                        if key in selected_call:
-                            st.write(f"**{key.replace('_', ' ').title()}:** {selected_call[key]}")
+    @staticmethod
+    def _get_recent_calls(data: pd.DataFrame) -> pd.DataFrame:
+        """Return the most recent calls with timestamp preference."""
+        if "timestamp" in data.columns:
+            return data.nlargest(10, "timestamp")
+        return data.head(10)
 
-                with col2:
-                    for key in ["outcome", "agent_id", "campaign", "revenue"]:
-                        if key in selected_call:
-                            st.write(f"**{key.replace('_', ' ').title()}:** {selected_call[key]}")
+    def _render_selected_call_details(self, selected_call: dict[str, Any]) -> None:
+        """Display detailed information for the selected call."""
+        with st.expander("Call Details", expanded=True):
+            col1, col2 = st.columns(2)
 
-                if "notes" in selected_call and selected_call["notes"]:
-                    st.write("**Notes:**")
-                    st.write(selected_call["notes"])
+            self._render_call_metadata_column(
+                col1, selected_call, ["call_id", "phone_number", "timestamp", "duration"]
+            )
+            self._render_call_metadata_column(
+                col2, selected_call, ["outcome", "agent_id", "campaign", "revenue"]
+            )
+
+            if selected_call.get("notes"):
+                st.write("**Notes:**")
+                st.write(selected_call["notes"])
+
+    @staticmethod
+    def _render_call_metadata_column(
+        column: Any, selected_call: dict[str, Any], keys: list[str]
+    ) -> None:
+        """Render a column of metadata entries for the selected call."""
+        with column:
+            for key in keys:
+                if key in selected_call:
+                    st.write(f"**{key.replace('_', ' ').title()}:** {selected_call[key]}")
 
     def _render_empty_state(self) -> None:
         """
