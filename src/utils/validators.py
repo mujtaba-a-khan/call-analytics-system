@@ -354,34 +354,45 @@ def validate_config(
 
     def validate_value(value: Any, expected_schema: Any, path: str = "") -> None:
         """Recursively validate configuration values."""
-        if isinstance(expected_schema, dict) and "type" in expected_schema:
-            validate_value(value, expected_schema["type"], path)
-            nested = expected_schema.get("schema") or expected_schema.get("properties")
-            if nested and isinstance(value, dict):
-                validate_value(value, nested, path)
+        if isinstance(expected_schema, dict):
+            validate_dict_schema(value, expected_schema, path)
             return
 
+        validate_simple_type(value, expected_schema, path)
+
+    def validate_dict_schema(value: Any, schema_dict: dict[str, Any], path: str) -> None:
+        schema_type = schema_dict.get("type")
+        if schema_type is not None:
+            validate_value(value, schema_type, path)
+            nested_schema = schema_dict.get("schema") or schema_dict.get("properties")
+            if nested_schema and isinstance(value, dict):
+                validate_value(value, nested_schema, path)
+            return
+
+        if not isinstance(value, dict):
+            mark_error(f"{normalized_path(path)} must be a dictionary")
+            return
+
+        for key, subschema in schema_dict.items():
+            if key == "required":
+                continue
+            validate_dict_field(value, key, subschema, path)
+
+    def validate_dict_field(container: dict[str, Any], key: str, subschema: Any, path: str) -> None:
+        field_path = f"{path}.{key}" if path else key
+        if key in container:
+            validate_value(container[key], subschema, field_path)
+            return
+
+        if handle_required(subschema):
+            mark_error(f"{field_path} is required")
+
+    def validate_simple_type(value: Any, expected_schema: Any, path: str) -> None:
         type_rule = type_checks.get(expected_schema)
         if type_rule:
             expected_types, description = type_rule
             if not isinstance(value, expected_types):
                 mark_error(f"{normalized_path(path)} must be {description}")
-            return
-
-        if isinstance(expected_schema, dict):
-            if not isinstance(value, dict):
-                mark_error(f"{normalized_path(path)} must be a dictionary")
-                return
-
-            for key, subschema in expected_schema.items():
-                if key == "required":
-                    continue
-
-                field_path = f"{path}.{key}" if path else key
-                if key in value:
-                    validate_value(value[key], subschema, field_path)
-                elif handle_required(subschema):
-                    mark_error(f"{field_path} is required")
             return
 
         mark_error(f"{normalized_path(path)} has unsupported schema definition")

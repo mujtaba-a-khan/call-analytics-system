@@ -9,7 +9,6 @@ batch processing with progress tracking and validation.
 import logging
 import sys
 import tempfile
-from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -1063,58 +1062,86 @@ class UploadPage:
         paths_config = self.config.get("paths", {}) if isinstance(self.config, dict) else {}
         data_root = paths_config.get("data", "data")
         metadata_file = Path(data_root) / "raw" / "sample_audio" / "sample_audio_metadata.csv"
-        lookup: dict[str, dict[str, Any]] = {}
 
         if not metadata_file.exists():
-            return lookup
+            return {}
 
         try:
-            import csv
-            from datetime import datetime
-
-            with metadata_file.open("r", encoding="utf-8") as fh:
-                reader = csv.DictReader(fh)
-                for row in reader:
-                    audio_name = row.get("audio_file")
-                    if not audio_name:
-                        continue
-
-                    # Coerce timestamp and numeric fields if present
-                    timestamp_str = row.get("timestamp")
-                    if timestamp_str:
-                        try:
-                            row["timestamp"] = datetime.fromisoformat(timestamp_str)
-                        except ValueError:
-                            row["timestamp"] = timestamp_str
-
-                    for field in [
-                        "duration",
-                        "duration_seconds",
-                        "duration_minutes",
-                        "handle_time_seconds",
-                        "after_call_work_seconds",
-                        "revenue",
-                    ]:
-                        value = row.get(field)
-                        if value is None or value == "":
-                            continue
-                        try:
-                            numeric = float(value)
-                            row[field] = int(numeric) if numeric.is_integer() else numeric
-                        except ValueError:
-                            row[field] = value
-
-                    lookup[audio_name.lower()] = row
-
-            if lookup:
-                logger.info("Loaded metadata for %d audio files", len(lookup))
-            else:
-                logger.info("Audio metadata file found but no entries parsed")
-
+            lookup = self._parse_metadata_file(metadata_file)
         except Exception as exc:
             logger.warning(f"Unable to load audio metadata: {exc}")
+            return {}
+
+        if lookup:
+            logger.info("Loaded metadata for %d audio files", len(lookup))
+        else:
+            logger.info("Audio metadata file found but no entries parsed")
 
         return lookup
+
+    def _parse_metadata_file(self, metadata_file: Path) -> dict[str, dict[str, Any]]:
+        import csv
+
+        lookup: dict[str, dict[str, Any]] = {}
+        with metadata_file.open("r", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            for row in reader:
+                normalized = self._normalize_metadata_row(row)
+                if not normalized:
+                    continue
+                audio_name = normalized["audio_file"].lower()
+                lookup[audio_name] = normalized
+        return lookup
+
+    def _normalize_metadata_row(self, row: dict[str, Any]) -> dict[str, Any] | None:
+        audio_name = row.get("audio_file")
+        if not audio_name:
+            return None
+
+        cleaned_row = dict(row)
+
+        timestamp_value = cleaned_row.get("timestamp")
+        parsed_timestamp = self._parse_metadata_timestamp(timestamp_value)
+        if parsed_timestamp is not None:
+            cleaned_row["timestamp"] = parsed_timestamp
+
+        # Coerce timestamp and numeric fields if present.
+        self._coerce_numeric_fields(cleaned_row)
+        return cleaned_row
+
+    def _parse_metadata_timestamp(self, timestamp_value: Any) -> datetime | str | None:
+        if not timestamp_value or isinstance(timestamp_value, datetime):
+            return timestamp_value
+
+        if isinstance(timestamp_value, str):
+            try:
+                return datetime.fromisoformat(timestamp_value)
+            except ValueError:
+                return timestamp_value
+
+        return None
+
+    def _coerce_numeric_fields(self, row: dict[str, Any]) -> None:
+        numeric_fields = [
+            "duration",
+            "duration_seconds",
+            "duration_minutes",
+            "handle_time_seconds",
+            "after_call_work_seconds",
+            "revenue",
+        ]
+
+        for field in numeric_fields:
+            value = row.get(field)
+            if value in (None, ""):
+                continue
+
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+
+            row[field] = int(numeric) if numeric.is_integer() else numeric
 
     def _process_zip_file(self, zip_file: Any) -> None:
         """
@@ -1139,20 +1166,3 @@ def render_upload_page(storage_manager: StorageManager, config: dict[str, Any]) 
     """
     upload_page = UploadPage(storage_manager, config)
     upload_page.render()
-
-    def _prepare_batch_mapping(self, file_path: Path) -> Callable[[], None]:
-        """Prepare CSV processor mappings for batch processing."""
-        previous_mapping = dict(getattr(self.csv_processor, "field_mapping", {}))
-
-        try:
-            headers = pd.read_csv(file_path, nrows=0).columns.tolist()
-            mapping = self.csv_processor.auto_map_fields(headers)
-            if not mapping and previous_mapping:
-                self.csv_processor.field_mapping = previous_mapping
-        except Exception as header_error:
-            logger.warning(f"Unable to auto-map fields for {file_path.name}: {header_error}")
-
-        def restore() -> None:
-            self.csv_processor.field_mapping = previous_mapping
-
-        return restore

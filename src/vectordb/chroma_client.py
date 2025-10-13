@@ -104,8 +104,9 @@ class EmbeddingGenerator:
         hash_bytes = hasher.digest()
 
         # Convert to fixed-dimension vector
-        np.random.seed(int.from_bytes(hash_bytes[:4], "little"))
-        embedding = np.random.randn(self.dimension)
+        seed = int.from_bytes(hash_bytes[:4], "little")
+        rng = np.random.default_rng(seed)
+        embedding = rng.standard_normal(self.dimension)
 
         # Normalize if requested
         if self.normalize:
