@@ -80,69 +80,110 @@ class MetricsCalculator:
         if df is None or df.empty:
             return {"overview": {"total_calls": 0, "connected_calls": 0, "connection_rate": 0.0}}
 
-        grouped_metrics: dict[str, dict[str, Any]] = {}
         basic_metrics = self.calculate_basic_metrics(df)
+        grouped_metrics: dict[str, dict[str, Any]] = {}
 
-        overview_keys = ["total_calls", "connected_calls", "connection_rate"]
-        overview = {key: basic_metrics[key] for key in overview_keys if key in basic_metrics}
-        if overview:
-            grouped_metrics["overview"] = overview
+        self._add_group(grouped_metrics, "overview", self._build_overview_metrics(basic_metrics))
+        self._add_group(
+            grouped_metrics,
+            "duration_metrics",
+            self._build_duration_metrics(df, basic_metrics),
+        )
+        self._add_group(
+            grouped_metrics,
+            "revenue_metrics",
+            self._build_revenue_metrics(basic_metrics),
+        )
 
-        duration_metrics: dict[str, Any] = {}
-        for key in ["avg_duration", "median_duration", "total_duration"]:
-            if key in basic_metrics:
-                duration_metrics[key] = basic_metrics[key]
-        percentiles = self.calculate_percentiles(df, "duration")
-        if percentiles:
-            duration_metrics.update(percentiles)
-        if duration_metrics:
-            grouped_metrics["duration_metrics"] = duration_metrics
-
-        revenue_metrics: dict[str, Any] = {}
-        for key in ["total_revenue", "avg_revenue", "revenue_per_minute"]:
-            if key in basic_metrics:
-                revenue_metrics[key] = basic_metrics[key]
-        if revenue_metrics:
-            grouped_metrics["revenue_metrics"] = revenue_metrics
-
-        outcome_distribution = self.calculate_outcome_distribution(df)
-        if not outcome_distribution.empty:
-            total_outcomes = outcome_distribution.sum()
-            grouped_metrics["outcome_distribution"] = {
-                f"{outcome}_calls": int(count) for outcome, count in outcome_distribution.items()
-            }
-            if total_outcomes > 0:
-                grouped_metrics["outcome_distribution_percentage"] = {
-                    f"{outcome}_pct": (count / total_outcomes) * 100
-                    for outcome, count in outcome_distribution.items()
-                }
-
-        if "timestamp" in df.columns and not df["timestamp"].isna().all():
-            temporal_metrics: dict[str, Any] = {}
-            timestamps = pd.to_datetime(df["timestamp"], errors="coerce").dropna()
-            if not timestamps.empty:
-                span_days = max((timestamps.max() - timestamps.min()).days, 0) + 1
-                temporal_metrics["active_days"] = span_days
-                per_day = (
-                    basic_metrics["total_calls"] / span_days
-                    if span_days
-                    else basic_metrics["total_calls"]
-                )
-                temporal_metrics["calls_per_day"] = per_day
-                temporal_metrics["first_call"] = timestamps.min().strftime("%Y-%m-%d")
-                temporal_metrics["last_call"] = timestamps.max().strftime("%Y-%m-%d")
-            if temporal_metrics:
-                grouped_metrics["time_metrics"] = temporal_metrics
-
-        entity_metrics: dict[str, Any] = {}
-        if "agent_id" in df.columns:
-            entity_metrics["unique_agents"] = int(df["agent_id"].nunique())
-        if "campaign" in df.columns:
-            entity_metrics["active_campaigns"] = int(df["campaign"].nunique())
-        if entity_metrics:
-            grouped_metrics["entity_metrics"] = entity_metrics
+        grouped_metrics.update(self._build_outcome_groups(df))
+        self._add_group(
+            grouped_metrics,
+            "time_metrics",
+            self._build_temporal_metrics(df, basic_metrics),
+        )
+        self._add_group(grouped_metrics, "entity_metrics", self._build_entity_metrics(df))
 
         return grouped_metrics
+
+    @staticmethod
+    def _add_group(
+        target: dict[str, dict[str, Any]], name: str, metrics: dict[str, Any] | None
+    ) -> None:
+        """Add metrics to the grouped dictionary when available."""
+        if metrics:
+            target[name] = metrics
+
+    @staticmethod
+    def _select_metrics(source: dict[str, Any], keys: list[str]) -> dict[str, Any]:
+        """Filter a metrics dictionary down to the requested keys."""
+        return {key: source[key] for key in keys if key in source}
+
+    def _build_overview_metrics(self, basic_metrics: dict[str, Any]) -> dict[str, Any]:
+        return self._select_metrics(
+            basic_metrics, ["total_calls", "connected_calls", "connection_rate"]
+        )
+
+    def _build_duration_metrics(
+        self, df: pd.DataFrame, basic_metrics: dict[str, Any]
+    ) -> dict[str, Any]:
+        metrics = self._select_metrics(
+            basic_metrics, ["avg_duration", "median_duration", "total_duration"]
+        )
+        percentile_metrics = self.calculate_percentiles(df, "duration")
+        if percentile_metrics:
+            metrics.update(percentile_metrics)
+        return metrics
+
+    def _build_revenue_metrics(self, basic_metrics: dict[str, Any]) -> dict[str, Any]:
+        return self._select_metrics(
+            basic_metrics, ["total_revenue", "avg_revenue", "revenue_per_minute"]
+        )
+
+    def _build_outcome_groups(self, df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+        outcome_distribution = self.calculate_outcome_distribution(df)
+        if outcome_distribution.empty:
+            return {}
+
+        total_outcomes = outcome_distribution.sum()
+        groups: dict[str, dict[str, Any]] = {
+            "outcome_distribution": {
+                f"{outcome}_calls": int(count) for outcome, count in outcome_distribution.items()
+            }
+        }
+        if total_outcomes > 0:
+            groups["outcome_distribution_percentage"] = {
+                f"{outcome}_pct": (count / total_outcomes) * 100
+                for outcome, count in outcome_distribution.items()
+            }
+        return groups
+
+    def _build_temporal_metrics(
+        self, df: pd.DataFrame, basic_metrics: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "timestamp" not in df.columns or df["timestamp"].isna().all():
+            return {}
+
+        timestamps = pd.to_datetime(df["timestamp"], errors="coerce").dropna()
+        if timestamps.empty:
+            return {}
+
+        span_days = max((timestamps.max() - timestamps.min()).days, 0) + 1
+        total_calls = basic_metrics.get("total_calls", 0)
+        calls_per_day = (total_calls / span_days) if span_days else total_calls
+        return {
+            "active_days": span_days,
+            "calls_per_day": calls_per_day,
+            "first_call": timestamps.min().strftime("%Y-%m-%d"),
+            "last_call": timestamps.max().strftime("%Y-%m-%d"),
+        }
+
+    def _build_entity_metrics(self, df: pd.DataFrame) -> dict[str, Any]:
+        metrics: dict[str, Any] = {}
+        if "agent_id" in df.columns:
+            metrics["unique_agents"] = int(df["agent_id"].nunique())
+        if "campaign" in df.columns:
+            metrics["active_campaigns"] = int(df["campaign"].nunique())
+        return metrics
 
     def calculate_agent_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
         """
