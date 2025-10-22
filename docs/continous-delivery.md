@@ -8,6 +8,7 @@
 - [Downstream Script Calls](#downstream-script-calls)
 - [What I Publish](#what-i-publish)
 - [How I Rehearse Locally](#how-i-rehearse-locally)
+- [Publishing Docs with GitHub Actions](#publishing-docs-with-github-actions)
 
 ## How I Run CD
 
@@ -33,9 +34,13 @@ I keep my continuous delivery setup simple by using one Jenkins pipeline script 
 
 Jenkins prints `CI passed ✅` when everything succeeds, and the archived outputs are ready for the next delivery step.
 
+![Jenkins CI/CD Pipeline Success](images/jenkins/jenkins-pipeline-success.jpeg)
+* Jenkins CI/CD Pipeline - All stages passed successfully (Checkout, Tool Install, Prepare Python, Ant tasks, Maven verification, Post Actions)*
+
+
 ## Downstream Script Calls
 
-My pipeline easily clears the “more than two script calls” bar. Here is the core excerpt from the `Jenkinsfile`:
+My pipeline have more than two script calls. Here is the core excerpt from the `Jenkinsfile`:
 
 ```groovy
 stage('Ant: Clean + Setup') {
@@ -83,3 +88,18 @@ mvn -B verify package
 ```
 
 Running these commands before I push gives me confidence that Jenkins will pass and my delivery artifacts are consistent.
+
+## Publishing Docs with GitHub Actions
+
+I also wanted my documentation on GitHub Pages so you can browse the latest guides without cloning the repo. I wired up a lightweight Actions workflow that does three things: install the docs extras, run `sphinx-build -b html docs docs/_build/documentation_v1`, and publish the output with the official Pages deploy action.
+
+![GitHub Actions workflow summary showing Publish Docs pipeline](images/github-actions/1.png)
+* Publish Docs workflow in two stages (`build` and `deploy`)
+
+![GitHub Actions build log highlighting sphinx-build and mermaid CLI setup](images/github-actions/2.png)
+* The first build got failed and I forget to mention `[docs]` extras (including `linkify-it-py`), add Mermaid CLI for diagrams, and run Sphinx.
+
+![GitHub Pages settings page after successful deployment](images/github-actions/3.png)
+* Pages settings – once the workflow succeeds, GitHub Pages reports the live URL where the docs are hosted.
+
+The workflow mirrors the steps I run locally, so if a docs build fails in CI I can reproduce it on my laptop. With this setup, every push to `main` refreshes the hosted documentation automatically.

@@ -41,6 +41,15 @@
   - `git branch -d sonar-issues/refactor`
   - `git push origin --delete sonar-issues/refactor`
 
+### Exploring history and time travelling
+
+- I keep a note of the commit I want to inspect: `git log --oneline | head`
+- I jump to that snapshot with `git checkout <commit>` so I can re-run tests against the old code
+- When I am done, I return to my branch with `git checkout sonar-issues/refactor`
+- If I spot a bug and want Git to undo it for me, I use `git revert <commit>` to add a safe rollback commit
+- For quick experiments I create a throwaway branch before time travelling: `git checkout -b debug/<topic>`
+- I clean up once I am finished: `git branch -D debug/<topic>`
+
 ![Git Graph Branch Merging](images/git-graph/git-graph-branch-merge.png)
 ---
 
@@ -92,12 +101,15 @@ git status --short > docs/evidence/git_status.txt
 # Per-branch logs
 mkdir -p docs/evidence/branch_logs
 rm -f docs/evidence/branch_logs/*.log
-while IFS= read -r ref; do
-  [ -z "$ref" ] && continue
-  safe=$(printf '%s' "$ref" | tr -cd '[:alnum:]_.-')
-  git --no-pager log --pretty=format:"%H|%h|%an|%ae|%ad|%ar|%s" --date=iso "$ref" \
-    > "docs/evidence/branch_logs/${safe}.log" 2>/dev/null || true
-done < <(git for-each-ref --format='%(refname:short)' refs/heads refs/remotes | sort -u | grep -v '/HEAD$')
+git for-each-ref --format='%(refname:short)' refs/heads refs/remotes |
+  sort -u |
+  grep -v '/HEAD$' |
+  while IFS= read -r ref; do
+    [ -z "$ref" ] && continue
+    safe=$(printf '%s' "$ref" | tr -cd '[:alnum:]_.-')
+    git --no-pager log --pretty=format:"%H|%h|%an|%ae|%ad|%ar|%s" --date=iso "$ref" \
+      > "docs/evidence/branch_logs/${safe}.log" 2>/dev/null || true
+  done
 
 # Commits as CSV
 echo "commit_hash,short_hash,author,email,date,relative_date,subject" > docs/evidence/commits.csv

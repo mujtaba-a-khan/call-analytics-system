@@ -1,6 +1,6 @@
 # UML
 
-This page have every UML diagram I rely on when I work on call analytics. I start with the high-level actors, ddives into components and data models, and ends with workflows, AI touchpoints, and UI wiring. If someone needs to understand the system fast, this is where I point them.
+This page collects the UML diagrams I use for the call analytics system. They move from high-level actors down to detailed flows, AI touchpoints, and UI wiring so the whole lifecycle stays clear.
 
 ## Table of Contents
 
@@ -18,52 +18,78 @@ This page have every UML diagram I rely on when I work on call analytics. I star
 
 ![Use Case Diagram](diagrams/usecase.svg)
 
-I use this view to remind myself who triggers the system. It keeps the call operators, analysts, and reporting tools front and center so I never lose track of the core outcomes we promise.
+- Call Operator starts call capture and pushes audio into the platform.
+- Call Analytics Platform records the session and exposes insights.
+- Analyst reviews transcripts, tags issues, and confirms outcomes.
+- Reporting Tool pulls metrics and summaries for downstream dashboards.
 
 ## Component Diagram
 
 ![Component Diagram](diagrams/high_level_architecture_diagram.svg)
 
-This diagram shows how I separate the ingestion pipeline, analytics core, storage, and dashboards. When I plan a change I check the interfaces here to avoid breaking cross-component contracts.
+- Ingestion Layer accepts raw audio, call metadata, and agent notes.
+- Analytics Core runs transcription, sentiment, topic extraction, and scoring.
+- Storage Services hold raw artifacts, processed features, and aggregates.
+- Visualization and API Layer serves dashboards, exports, and webhooks.
 
 ## Class Diagram
 
 ![Class Diagram](diagrams/data_schema.svg)
 
-These classes map to the entities I persist: calls, transcripts, metrics, aggregates. Seeing relationships and key fields on one canvas helps me shape migrations and DTOs without guesswork.
+- `Call` stores caller, agent, timestamps, and linkage to transcripts.
+- `Transcript` keeps the text, speaker turns, and sentiment tags.
+- `Metric` captures computed KPIs per call or time window.
+- `Aggregate` tracks rollups for teams, campaigns, and time periods.
 
 ## Activity Diagram
 
 ![Activity Diagram](diagrams/activity_diagram.svg)
 
-This flow walks me through a single call lifecycle. I follow it to confirm we capture audio, transcribe, enrich with sentiment/topics, and publish insights in the right order.
+- Receive inbound or outbound call audio and log metadata.
+- Transcribe the call and align speaker turns.
+- Enrich the transcript with sentiment, topics, and compliance checks.
+- Publish insights to the dashboard and alerting channels.
 
 ## Workflow Diagram
 
 ![Workflow Diagram](diagrams/workflow.svg)
 
-I lean on this when I explain the wider process. It shows where automation ends and human review begins, which is critical when I sync with stakeholders.
+- Automate ingestion, transcription, and first-pass analytics.
+- Route flagged calls to analysts for manual review.
+- Close the loop with feedback into coaching and reporting.
 
 ## LLM Interface Diagram
 
 ![LLM Interface Diagram](diagrams/llm_interface.svg)
 
-Here I track how I orchestrate prompts, guardrails, and responses. It keeps my integration with the LLM deterministic and easy to observe.
+- Construct prompts with context from the transcript, metrics, and policies.
+- Apply guardrails that enforce format and compliance instructions.
+- Send prompts to the LLM and capture responses with confidence scores.
+- Log requests, responses, and feedback for monitoring.
 
 ## Embeddings Diagram
 
 ![Embeddings Diagram](diagrams/embeddings.svg)
 
-This helps me tune semantic search. It outlines where I generate vectors, store them, and execute similarity queries so I can debug relevance quickly.
+- Generate embeddings for transcripts, snippets, and knowledge articles.
+- Store vectors alongside metadata in the embeddings index.
+- Run similarity queries to surface related calls or articles.
+- Feed matches into search results, coaching tips, and automation.
 
 ## Whisper STT Diagram
 
 ![Whisper STT Diagram](diagrams/whisper_stt.svg)
 
-I use this to follow the speech-to-text path. Each stage from audio preprocessing to decoding—stays visible, which is handy when I optimize latency.
+- Preprocess audio with normalization, chunking, and noise reduction.
+- Encode audio frames and decode text with Whisper.
+- Post-process the transcript for punctuation, diarization, and timestamps.
+- Return text to the analytics pipeline with status updates.
 
 ## UI Components Diagram
 
 ![UI Components Diagram](diagrams/ui_components.svg)
 
-This layout reminds me how the client renders insight. I can see which components fetch data, which ones own state, and how we compose the view layer.
+- Dashboard shell loads user context and shared filters.
+- Insights panel fetches metrics, highlights, and alerts.
+- Transcript viewer streams text, speaker labels, and annotations.
+- Coaching actions panel captures notes, tasks, and follow-ups.

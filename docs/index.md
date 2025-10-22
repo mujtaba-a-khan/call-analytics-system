@@ -1,10 +1,7 @@
 # Call Analytics System
 
-## Welcome
 
-Get up to speed quickly with the key guides below. Each link opens the document in a new browser tab.
-
-1. <a href="git-journal.html" target="_blank" rel="noopener noreferrer">Git Journal</a>
+1. <a href="git-journal.html" target="_blank" rel="noopener noreferrer">Git Commands & Journal</a>
 2. <a href="uml.html" target="_blank" rel="noopener noreferrer">UML</a>
 3. <a href="requirements.html" target="_blank" rel="noopener noreferrer">Requirements</a>
 4. <a href="analysis.html" target="_blank" rel="noopener noreferrer">Analysis</a>

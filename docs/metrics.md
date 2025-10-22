@@ -112,8 +112,7 @@ Cognitive Complexity measures how difficult code is for a human to understand. C
 
 I am using **pytest** for automated testing to ensure the application behaves as expected and to prevent regressions. Test results and coverage trends are monitored through our CI/CD pipeline in **Jenkins**.
 
-![Jenkins CI/CD Pipeline Success](images/jenkins/jenkins-pipeline-success.jpeg)
-*Figure 4: Jenkins CI/CD Pipeline - All stages passed successfully (Checkout, Tool Install, Prepare Python, Ant tasks, Maven verification, Post Actions)*
+![Test Coverage](images/jenkins/test-coverage.png)
 
 ### Test Result Trend
 

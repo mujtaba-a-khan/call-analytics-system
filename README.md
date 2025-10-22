@@ -2,10 +2,13 @@
 
 A professional, locally-hosted call analytics system with speech-to-text, semantic search, and natural language Q&A capabilities. Built with Python 3.11, Streamlit, and ChromaDB.
 
+📚 Documentation: https://mujtaba-a-khan.github.io/call-analytics-system/
+
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-informational?logo=python)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-app-informational?logo=streamlit)](https://streamlit.io/)
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-vectorDB-informational)](https://www.trychroma.com/)
 [![Whisper](https://img.shields.io/badge/Whisper-STT-informational?logo=openai)](https://github.com/openai/whisper)
+[![Docs](https://img.shields.io/badge/Docs-Latest-blue?logo=readthedocs)](https://mujtaba-a-khan.github.io/call-analytics-system/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-success)](LICENSE)
 
 ## Table of Contents
