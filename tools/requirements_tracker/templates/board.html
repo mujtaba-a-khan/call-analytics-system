@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Requirements Board{% endblock %}
+
+{% block content %}
+<section class="board">
+  {% for column in columns %}
+    <article class="board-column">
+      <header class="column-header">
+        <div class="column-title">
+          <h2>{{ column.status.value }}</h2>
+          <span class="column-total">{{ column.total }}</span>
+        </div>
+        <div class="priority-totals">
+          {% for option in priority_filters %}
+            <a
+              href="{{ column.filter_links[option] }}"
+              class="priority-pill priority-{{ option | lower | replace(' ', '-') }} {% if column.selected_priority == option %}active{% endif %}"
+            >
+              {{ option }} {{ column.filter_counts[option] }}
+            </a>
+          {% endfor %}
+        </div>
+        <div class="column-nav">
+          <a href="{{ column.prev_link or '#' }}" class="nav-btn prev {% if not column.prev_link %}disabled{% endif %}" aria-label="Previous page" {% if not column.prev_link %}aria-disabled="true"{% endif %}>&#x276E;</a>
+          <span class="nav-page">
+            {% if column.total %}
+              {{ column.page }}/{{ column.total_pages }}
+            {% else %}
+              0/0
+            {% endif %}
+          </span>
+          <a href="{{ column.next_link or '#' }}" class="nav-btn next {% if not column.next_link %}disabled{% endif %}" aria-label="Next page" {% if not column.next_link %}aria-disabled="true"{% endif %}>&#x276F;</a>
+        </div>
+      </header>
+      <div class="board-items">
+        {% if column.cards %}
+          {% for requirement in column.cards %}
+            <div class="board-card">
+              <header>
+                <span class="badge badge-priority badge-{{ requirement.priority.value | lower }}">{{ requirement.priority.value }}</span>
+                <span class="badge badge-category">{{ requirement.category }}</span>
+              </header>
+              <h3 title="{{ requirement.title }}">{{ requirement.title }}</h3>
+              <p class="card-description">{{ requirement.description }}</p>
+              <div class="meta-row">
+                <span class="chip chip-assignee" title="Assignee">{{ requirement.assignee }}</span>
+                <span class="chip chip-status">{{ requirement.status.value }}</span>
+              </div>
+              <p class="card-criteria">
+                <strong>Acceptance:</strong> {{ requirement.acceptance_criteria or "TBD" }}
+              </p>
+              {% if requirement.notes %}
+                <p class="card-notes">{{ requirement.notes }}</p>
+              {% endif %}
+              <footer>
+                <time datetime="{{ requirement.updated_at.isoformat() }}">
+                  Updated {{ requirement.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                </time>
+              </footer>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty-column">No items yet.</p>
+        {% endif %}
+      </div>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}

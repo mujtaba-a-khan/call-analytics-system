@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Requirements Tracker{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="container">
+        <h1>Call Analytics Requirements Tracker</h1>
+        <p class="subtitle">
+          FastAPI + SQLite board to show Kanban cards.
+        </p>
+      </div>
+    </header>
+
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+      <div class="container">
+        <small>
+          Powered by FastAPI &bull;
+          <a href="/docs">OpenAPI docs</a> &bull;
+          <a href="/requirements">JSON feed</a>
+        </small>
+      </div>
+    </footer>
+  </body>
+</html>

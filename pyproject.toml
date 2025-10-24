@@ -83,6 +83,10 @@ dev = [
     "pre-commit>=3.7.0,<4.0.0",
     "ipython>=8.24.0,<9.0.0",
     "ipdb>=0.13.13,<1.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "sqlmodel>=0.0.16,<0.0.17",
+    "jinja2>=3.1.0,<4.0.0",
 ]
 
 # Documentation dependencies
@@ -105,6 +109,14 @@ test = [
     "faker>=25.0.0,<26.0.0",
 ]
 
+# Tooling dependencies for local utilities (e.g., requirements tracker)
+tools = [
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "sqlmodel>=0.0.16,<0.0.17",
+    "jinja2>=3.1.0,<4.0.0",
+]
+
 [project.scripts]
 # CLI commands for easy execution
 call-analytics = "src.cli:main"
@@ -123,11 +135,11 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "scripts*", "config*"]
+include = ["src*", "scripts*", "config*", "tools*"]
 exclude = ["tests*", "docs*", "*.egg-info"]
 
 [tool.setuptools.package-data]
-"*" = ["*.toml", "*.yaml", "*.yml", "*.json", "*.md"]
+"*" = ["*.toml", "*.yaml", "*.yml", "*.json", "*.md", "*.html", "*.css"]
 
 [tool.black]
 line-length = 100

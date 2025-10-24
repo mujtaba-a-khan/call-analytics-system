@@ -20,7 +20,7 @@
       <arg value="-m"/><arg value="pip"/><arg value="install"/><arg value="-U"/><arg value="pip"/><arg value="build"/>
     </exec>
     <exec executable="${venv.bin}/pip" failonerror="true">
-      <arg value="install"/><arg value="-e"/><arg value=".[dev,docs]"/>
+      <arg value="install"/><arg value="-e"/><arg value=".[dev,docs,tools]"/>
     </exec>
   </target>
 
@@ -55,6 +55,13 @@
   <target name="wheel">
     <exec executable="${venv.bin}/python" failonerror="true">
       <arg value="-m"/><arg value="build"/><arg value="--wheel"/>
+    </exec>
+  </target>
+
+  <target name="run-requirements-tracker" depends="setup">
+    <exec executable="${venv.bin}/uvicorn" failonerror="true">
+      <arg value="tools.requirements_tracker.app:app"/>
+      <arg value="--reload"/>
     </exec>
   </target>
 
