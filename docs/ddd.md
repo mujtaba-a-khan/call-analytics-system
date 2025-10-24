@@ -44,9 +44,7 @@ In this project, DDD principles are applied to model the core domain of call pro
 ### Workflow Coordination
 - The Streamlit pages compose services imperatively, for example the upload flow calling CSV/audio processors before persisting and indexing (`src/ui/pages/upload.py:84`), and the analysis page chaining storage, metrics, and semantic search (`src/ui/pages/analysis.py:101`).
 
-## Visuals
-
-### Event-Storming
+## *(A)* Event-Storming
 
 This view captures how uploads, processing, storage, and querying are chained together when a user operates the app.
 
@@ -154,82 +152,57 @@ flowchart TB
 
 I use this flow to mirror how the Streamlit upload logic in `src/ui/pages/upload.py:84` chains together CSV and audio processing, and how the subsequent indexing happens through `src/vectordb/indexer.py:58` before results are surfaced in `src/ui/pages/analysis.py:101`.
 
-### Core Domain, Supporting Capabilities, and Infrastructure
+## *(B)* Core Domain Chart
 
-This chart highlights which features embody business-specific behaviour versus reusable plumbing.
+When I did the event storming I spotted five clear domains that already cover the whole product.The core-domain chart below to show how they connect.
+
+- **Call Analytics Core (Core Domain)** – the rules, scoring, and search logic that turns raw calls into insights (`src/core/labeling_engine.py`, `src/analysis/semantic_search.py`, `src/analysis/aggregations.py`).
+- **Ingestion & Normalisation (Supporting Domain)** – the upload flow plus CSV and audio processing that prepare the call data (`src/ui/pages/upload.py`, `src/core/csv_processor.py`, `src/core/audio_processor.py`).
+- **Knowledge Indexing (Supporting Domain)** – embedding generation and vector storage for fast semantic lookups (`src/vectordb/indexer.py`, `src/ml/embeddings.py`).
+- **Analyst Experience (Supporting Domain)** – Streamlit pages and helpers that let an analyst explore and query the calls (`src/ui/pages/analysis.py`, `src/analysis/query_interpreter.py`, `src/ui/components`).
+- **Platform Operations (Generic Domain)** – storage, logging, and config plumbing that keep the rest running (`src/core/storage_manager.py`, `src/core/logging.py`).
+
+## *(C)* Core Domain and Relationships 
+
+To make the core-domain chart explicit, the following view groups the discovered domains and highlights the mappings between them.
 
 ```{mermaid}
-flowchart TB
-    subgraph CORE["🎯 CORE DOMAIN - Unique Business Logic"]
+flowchart LR
+    subgraph CORE["🎯 Core Domain"]
         direction TB
-        C1["📋 Call Labeling<br/>Engine"]
-        C2["🔍 Semantic Search<br/>Logic"]
-        C3["📊 Call Analytics<br/>& KPIs"]
-        C4["🎙️ Transcription<br/>Pipeline"]
-        C5["💬 Query<br/>Interpretation"]
+        CAC["Call Analytics Core"]
     end
-    
-    subgraph SUPPORTING["⚙️ SUPPORTING DOMAIN - Technical Enablers"]
+
+    subgraph SUPPORTING["⚙️ Supporting Domains"]
         direction TB
-        S1["🗄️ Vector Store<br/>Management"]
-        S2["🧮 Embedding<br/>Generation"]
-        S3["📈 Data<br/>Aggregation"]
-        S4["💾 Storage<br/>Management"]
+        IN["Ingestion & Normalisation"]
+        KI["Knowledge Indexing"]
+        AX["Analyst Experience"]
     end
-    
-    subgraph GENERIC["🔧 GENERIC DOMAIN - Infrastructure"]
+
+    subgraph GENERIC["🔧 Generic Domain"]
         direction TB
-        G1["🎵 Audio<br/>Processing"]
-        G2["📄 CSV<br/>Processing"]
-        G3["🖥️ UI<br/>Framework"]
-        G4["📁 File<br/>Storage"]
-        G5["📝 Logging"]
+        PO["Platform Operations"]
     end
-    
-    %% Core to Supporting relationships
-    C1 ==>|requires| S4
-    C2 ==>|uses| S1
-    C2 ==>|uses| S2
-    C3 ==>|needs| S3
-    C5 ==>|relies on| S3
-    
-    %% Core to Generic relationships
-    C4 ==>|utilizes| G1
-    
-    %% Supporting to Generic relationships
-    S1 ==>|stores in| G4
-    S2 ==>|persists to| G4
-    S4 ==>|uses| G4
-    
-    %% Professional Corporate Theme - Core Domain (Dark Blue)
-    style C1 fill:#1E88E5,stroke:#0D47A1,stroke-width:3px,color:#FFFFFF,font-size:15px,font-weight:bold
-    style C2 fill:#1E88E5,stroke:#0D47A1,stroke-width:3px,color:#FFFFFF,font-size:15px,font-weight:bold
-    style C3 fill:#1E88E5,stroke:#0D47A1,stroke-width:3px,color:#FFFFFF,font-size:15px,font-weight:bold
-    style C4 fill:#1E88E5,stroke:#0D47A1,stroke-width:3px,color:#FFFFFF,font-size:15px,font-weight:bold
-    style C5 fill:#1E88E5,stroke:#0D47A1,stroke-width:3px,color:#FFFFFF,font-size:15px,font-weight:bold
-    
-    %% Supporting Domain (Teal)
-    style S1 fill:#26A69A,stroke:#00695C,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style S2 fill:#26A69A,stroke:#00695C,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style S3 fill:#26A69A,stroke:#00695C,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style S4 fill:#26A69A,stroke:#00695C,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    
-    %% Generic Domain (Gray)
-    style G1 fill:#78909C,stroke:#455A64,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style G2 fill:#78909C,stroke:#455A64,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style G3 fill:#78909C,stroke:#455A64,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style G4 fill:#78909C,stroke:#455A64,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    style G5 fill:#78909C,stroke:#455A64,stroke-width:3px,color:#FFFFFF,font-size:14px,font-weight:bold
-    
-    %% Subgraphs
-    style CORE fill:#F5F5F5,stroke:#0D47A1,stroke-width:2px,color:#0D47A1,font-size:16px,font-weight:bold
-    style SUPPORTING fill:#F5F5F5,stroke:#00695C,stroke-width:2px,color:#00695C,font-size:16px,font-weight:bold
-    style GENERIC fill:#F5F5F5,stroke:#455A64,stroke-width:2px,color:#455A64,font-size:16px,font-weight:bold
-    
-    linkStyle default stroke:#37474F,stroke-width:3px
+
+    IN --> M1["Normalised call data"]
+    M1 --> CAC
+    KI --> M2["Semantic vectors"]
+    M2 --> CAC
+    CAC --> M3["Insights and intents"]
+    M3 --> AX
+    AX --> M4["Analyst feedback"]
+    M4 --> CAC
+
+    PO --> M5["Storage and logging"]
+    M5 --> IN
+    PO --> M6["Vector infrastructure"]
+    M6 --> KI
+    PO --> M7["Cached datasets"]
+    M7 --> AX
 ```
 
-I think of the dark-blue boxes as the bespoke logic in `src/core/labeling_engine.py:24`, `src/analysis/semantic_search.py:16`, and `src/analysis/aggregations.py:1`, while the teal and grey layers correspond to reusable helpers like `src/core/storage_manager.py:19` and the framework glue in `src/ui/pages/analysis.py:74`.
+Ingestion hands normalised call data into the call analytics core, indexing pushes semantic vectors there, the analytics page surfaces insights and loops analyst feedback back in, and platform operations keeps storage, logging, and vector infrastructure alive for every other domain.
 
 ### Relationships Between Data and Services
 
@@ -242,7 +215,7 @@ erDiagram
     CALL_RECORD ||--o{ LABELING_RESULT : produces
     
     CALL_RECORD {
-        string call_id PK
+        string call_id 
         datetime start_time
         float duration_seconds
         string transcript

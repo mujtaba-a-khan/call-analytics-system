@@ -1,6 +1,37 @@
 # Requirements
 
-This document outlines the detailed functional and non-functional requirements for the Call Analytics System, a locally-hosted solution designed to process, analyze, and query call data using Python 3.11, Streamlit, and ChromaDB. The requirements ensure the system delivers robust audio transcription, semantic search, natural language querying, and comprehensive analytics while prioritizing performance, privacy, and maintainability.
+This document outlines the detailed functional and non-functional requirements for this project, it also includes the tracker for showcasing the requirements in Kanban cards through FastAPI and SQLlite Board.
+
+I have created the tracker with the help of AI and little bit of my past experience with FastAPI which can be found in `call-analytics-system/tools/requirements_tracker` section. 
+
+![FastAPI Backend](images/tool-tracker/backend-for-board.png) 
+
+Currently requirements which are stated in `requirements.md` are generated through the command.
+
+```bash
+
+python -m tools.requirements_tracker.seed
+
+```
+This command creates `requirements.db` and then I can make changes in it through sqlite viewer.
+
+![SQL Lite Viewer](images/tool-tracker/sqlite-db-viewer.png)
+
+![Add new requirements](images/tool-tracker/adding-new-requirements.png)
+
+It is also possible to manage those Kanban cards through Swagger UI by executing queries.
+
+![Rendering as Kanban cards](images/tool-tracker/Requirement-board.png)
+
+Finally it renders as Kanban cards, I used pagination here and labelling for the requirements as per priority, easy to read and track.
+
+The below commands runs the tracker in `127.0.0.1:8000/board` for frontend and `127.0.0.1:8000/docs` for backend
+
+```bash
+mvn -P tracker validate   
+```
+After running this command it serves the application via Uvicorn
+![Running in Unicorn](images/tool-tracker/uvicorn.png)
 
 ## Functional Requirements
 

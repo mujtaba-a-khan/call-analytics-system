@@ -46,6 +46,7 @@ These clean code guidelines help keep my project readable, maintainable, and sca
   - [Refactoring Guidelines](#refactoring-guidelines)
 - [Code Examples Index](#code-examples-index)
   - [By Topic](#by-topic)
+- [Personal CCD Cheat Sheet](#personal-ccd-cheat-sheet)
 
 ### Build Management
 
@@ -609,7 +610,7 @@ def _prepare_documents(
     """
 ```
 
-Type hints show exactly what the function returns.
+Type annotations show exactly what the function returns.
 
 ### Comments for Complex Logic
 
@@ -630,7 +631,7 @@ def _determine_connection_status(self, transcript: str, duration: float):
             return "Disconnected", confidence, matched_keywords
 ```
 
-Comments explain the "why" not the "what".
+Habbits of commenting in any logics
 
 ## Testing
 
@@ -807,7 +808,7 @@ Before submitting code:
 
 **Build System**:
 - Ant Workflow: `build.xml`
-- Maven Workflow: `pom.xl`
+- Maven Workflow: `pom.xml`
 
 **Naming**:
 - Email/Phone validation: `src/utils/validators.py:27-36`
@@ -830,3 +831,46 @@ Before submitting code:
 **Refactoring**:
 - Extracted functions: `scripts/rebuild_index.py:308-334`
 - Reduced nesting: `src/core/labeling_engine.py:145-156`
+
+## Personal CCD Cheat Sheet
+
+**Naming & Intent**
+- I name for the reader, not the compiler: verbs for actions, nouns for things.
+- I avoid abbreviations unless project-wide (e.g., `df` only inside data utilities).
+- If a function name needs "and", I probably split it.
+
+**Functions & Flow**
+- One screen, one purpose: functions stay in the 15–43 line window.
+- Guard clause first: handle empties or invalids up top, then let the path read straight.
+- Parameters default; optional args get safe, explicit defaults.
+
+**Structure & Dependencies**
+- One responsibility per module (`core/`, `analysis/`, `ui/`, etc.).
+- Inject dependencies (clients, DBs, LLMs) via constructors or parameters.
+- Prefer composition ("have-a") over inheritance unless a clear hierarchy exists.
+- Provide seams around AI calls (adapters) so I can stub them in tests.
+
+**Data & State**
+- Immutable by default: copy incoming DataFrames before mutating.
+- No magic numbers: thresholds live in config (TOML/YAML), never inline.
+- Favour pure functions—inputs in, outputs out, no hidden I/O.
+
+**Types, Docs, Comments**
+- Type-annotate public APIs and return types.
+- Docstrings explain the why; comments document non-obvious trade-offs.
+- Delete stale comments—the code is the source of truth.
+
+**Errors & Logging**
+- Fail fast when there is nothing useful to do.
+- Log once, precisely (who/what/where) to avoid noisy loops.
+- Catch specific exceptions `except Exception`.
+
+**Testing**
+- Parametrised edge-case tests for empty, mixed, and invalid inputs.
+- Unit tests rely on DI/mocks—not live external services.
+- Measure coverage and runtime deltas after refactors to prove gains.
+
+**Tooling & Process**
+- Autoclean via CI: `ruff`, `black --check`, `mypy`, `pytest -q` on every PR.
+- Refactor in small steps, keep tests green, and explain intent in commit messages.
+- Review like a user: run the flow in the UI or CLI before merging.

@@ -41,16 +41,28 @@
   - `git branch -d sonar-issues/refactor`
   - `git push origin --delete sonar-issues/refactor`
 
+![Git Graph Branch Merging](images/git-graph/git-graph-branch-merge.png)
+
 ### Exploring history and time travelling
 
 - I keep a note of the commit I want to inspect: `git log --oneline | head`
 - I jump to that snapshot with `git checkout <commit>` so I can re-run tests against the old code
+
+![Detached HEAD checkout](images/git-graph/git-checkout-commitID.png)
+
 - When I am done, I return to my branch with `git checkout sonar-issues/refactor`
 - If I spot a bug and want Git to undo it for me, I use `git revert <commit>` to add a safe rollback commit
+
+![Git Revert](images/git-graph/git-revert.png)
+
 - For quick experiments I create a throwaway branch before time travelling: `git checkout -b debug/<topic>`
+
+![Git Creating Branch](images/git-graph/git-creating-new-branch-and-debug.png)
+
 - I clean up once I am finished: `git branch -D debug/<topic>`
 
-![Git Graph Branch Merging](images/git-graph/git-graph-branch-merge.png)
+![Git Deleting Branch](images/git-graph/git-deleting-new-branch-debug.png)
+
 ---
 
 ## Purpose
@@ -118,6 +130,8 @@ git --no-pager log --all --pretty=format:'"%H","%h","%an","%ae","%ad","%ar","%s"
 # Author contribution statistics
 git shortlog -sne --all > docs/evidence/author_stats.txt
 ```
+
+![git nopager branch logs](images/github-copilot/git-nopager-branch-logs.png)  ![Git nopager log and CSV](images/github-copilot/git-nopager-log-and-csv.png) ![git shortlog for author stats](images/github-copilot/git-shortlog-authors-stats.png)
 
 ---
 
@@ -831,5 +845,3 @@ git shortlog -sne --all > docs/evidence/author_stats.txt
 - **Add/Added:** 11 commits - New features and components
 - **Update/Updated:** 9 commits - Enhancements and improvements
 - **Merge:** 2 commits - Branch integrations
-
----

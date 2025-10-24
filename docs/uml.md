@@ -25,30 +25,162 @@ This page collects the UML diagrams I use for the call analytics system. They mo
 
 ## Component Diagram
 
-![Component Diagram](diagrams/high_level_architecture_diagram.svg)
+```{mermaid}
+flowchart LR
+    subgraph UI["Analytics & Experience"]
+        Upload["Upload Page"]
+        Analysis["Analysis Page"]
+    end
 
-- Ingestion Layer accepts raw audio, call metadata, and agent notes.
-- Analytics Core runs transcription, sentiment, topic extraction, and scoring.
-- Storage Services hold raw artifacts, processed features, and aggregates.
-- Visualization and API Layer serves dashboards, exports, and webhooks.
+    subgraph Ingestion["Ingestion & Normalisation"]
+        CSV["CSVProcessor"]
+        Audio["AudioProcessor"]
+    end
+
+    subgraph STT["Speech-to-Text & Labeling"]
+        Whisper["Whisper STT"]
+        Labeler["LabelingEngine"]
+    end
+
+    subgraph Persistence["Persistence & Indexing"]
+        Storage["StorageManager"]
+        Indexer["DocumentIndexer"]
+    end
+
+    subgraph Search["Semantic Search & LLM"]
+        SearchEngine["SemanticSearchEngine"]
+        Interpreter["QueryInterpreter"]
+        LLM["LLM Gateway"]
+    end
+
+    Upload --> CSV
+    Upload --> Audio
+    Audio --> Whisper
+    Whisper --> Labeler
+    CSV --> Labeler
+    Labeler --> Storage
+    Storage --> Indexer
+    Indexer --> SearchEngine
+    Analysis --> Storage
+    Analysis --> SearchEngine
+    SearchEngine --> Interpreter
+    Interpreter --> LLM
+    LLM --> Analysis
+    SearchEngine -.-> Storage
+```
+
+- I send uploads through `CSVProcessor` and `AudioProcessor` so the raw files get normalised before anything else.
+- I pipe audio into `Whisper STT` and then into `LabelingEngine` so transcripts and labels stay together.
+- I store the enriched `CallRecord` with `StorageManager` and push vectors through `DocumentIndexer` for search.
+- I let `SemanticSearchEngine` and `QueryInterpreter` feed the analysis page (and the LLM gateway) so queries land on the right calls.
 
 ## Class Diagram
 
-![Class Diagram](diagrams/data_schema.svg)
+```{mermaid}
+classDiagram
+    class CallRecord {
+        +str call_id
+        +datetime start_time
+        +float duration_seconds
+        +TranscriptionResult transcription
+        +LabelingResult labels
+        +list~MetricPoint~ metrics
+    }
 
-- `Call` stores caller, agent, timestamps, and linkage to transcripts.
-- `Transcript` keeps the text, speaker turns, and sentiment tags.
-- `Metric` captures computed KPIs per call or time window.
-- `Aggregate` tracks rollups for teams, campaigns, and time periods.
+    class TranscriptionResult {
+        +str transcript
+        +str language
+        +float confidence
+    }
+
+    class LLMResponse {
+        +str answer
+        +float confidence
+        +dict metadata
+    }
+
+    class LabelingResult {
+        +CallOutcome outcome
+        +CallType call_type
+        +CallConnectionStatus connection_status
+    }
+
+    class MetricPoint {
+        +str name
+        +float value
+        +datetime captured_at
+    }
+
+    class LabelingEngine {
+        +apply_rules(call: CallRecord) LabelingResult
+        +score(call: CallRecord) float
+    }
+
+    class StorageManager {
+        +save(call: CallRecord)
+        +load(call_id: str) CallRecord
+        +snapshot() list~CallRecord~
+    }
+
+    class DocumentIndexer {
+        +index(call: CallRecord)
+        +search(query: str) list~DocumentHit~
+    }
+
+    class SemanticSearchEngine {
+        +retrieve(query: str) list~CallRecord~
+        +rank(results: list~DocumentHit~) list~CallRecord~
+    }
+
+    CallRecord --> TranscriptionResult : embeds
+    CallRecord --> LabelingResult : derives
+    CallRecord --> MetricPoint : aggregates
+    LabelingEngine --> LabelingResult : creates
+    LabelingEngine --> CallRecord : enriches
+    StorageManager --> CallRecord : persists
+    DocumentIndexer --> CallRecord : indexes
+    DocumentIndexer --> SemanticSearchEngine : serves
+    SemanticSearchEngine --> LLMResponse : packages context
+```
+
+- `CallRecord` as the aggregate so transcripts, labels, and metrics stay together.
+- `TranscriptionResult` and `LLMResponse` as value objects to keep the language work predictable.
+- `LabelingEngine`, `StorageManager`, and `DocumentIndexer` as services for rules, storage, and search.
+- `SemanticSearchEngine` connects to `LLMResponse` to show how query context flows into the LLM.
 
 ## Activity Diagram
 
-![Activity Diagram](diagrams/activity_diagram.svg)
+<div align="center">
 
-- Receive inbound or outbound call audio and log metadata.
-- Transcribe the call and align speaker turns.
-- Enrich the transcript with sentiment, topics, and compliance checks.
-- Publish insights to the dashboard and alerting channels.
+```{mermaid}
+stateDiagram-v2
+    [*] --> CaptureUpload
+    CaptureUpload: Capture upload and metadata
+    CaptureUpload --> CleanCSV: Normalize tabular data
+    CaptureUpload --> PrepAudio: Prepare audio stream
+    CleanCSV --> LabelCall: Provide call facts
+    PrepAudio --> Whisper: Transcribe via Whisper STT
+    Whisper --> LabelCall: Attach transcript
+    LabelCall: Apply rules with LabelingEngine
+    LabelCall --> Persist: Store CallRecord with StorageManager
+    Persist --> Embed: Publish embeddings with DocumentIndexer
+    Embed --> Search: Feed SemanticSearchEngine
+    Search --> InsightView: Surface insights on analysis page
+    Search --> LLMHub: Provide context for LLM gateway
+    LLMHub --> InsightView: Return summaries
+    InsightView --> AnalystFeedback: Collect analyst feedback and tags
+    AnalystFeedback --> TuneRules: Adjust rules or metrics
+    TuneRules --> LabelCall: Feed improved rules
+    InsightView --> [*]
+```
+
+</div>
+
+- Capture the upload, normalise the CSV fields, and prep the audio together.
+- Transcribe the call with Whisper and apply the labeling rules before persisting the `CallRecord`.
+- Publish embeddings so semantic search and the LLM gateway can reuse the same context.
+- Surface insights in the analysis view and feed analyst feedback into the next rules pass.
+
 
 ## Workflow Diagram
 
