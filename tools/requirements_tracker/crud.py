@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Sequence
 
 from sqlmodel import Session, select
@@ -57,7 +57,7 @@ def update_requirement(
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(requirement, field, value)
-    requirement.updated_at = datetime.utcnow()
+    requirement.updated_at = datetime.now(timezone.utc)
     session.add(requirement)
     session.commit()
     session.refresh(requirement)

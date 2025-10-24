@@ -1,3 +1,5 @@
+> 📘 Read the docs on GitHub Pages: https://mujtaba-a-khan.github.io/call-analytics-system/
+
 # 📞 Call Analytics System
 
 A professional, locally-hosted call analytics system with speech-to-text, semantic search, and natural language Q&A capabilities. Built with Python 3.11, Streamlit, and ChromaDB.
@@ -26,6 +28,7 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
 - **📊 Rich Analytics**: Interactive dashboards with metrics and visualizations  
 - **🔒 Privacy-First**: All processing happens locally—no data leaves your machine  
 - **⚡ High Performance**: Efficient caching and batch processing capabilities  
+- **✅ Requirements Tracker**: FastAPI-powered backlog manager.
 
 [↑ Back to top](#readme)
 </details>
@@ -77,10 +80,11 @@ A professional, locally-hosted call analytics system with speech-to-text, semant
    ```bash
    pip install -e .
    # For development
-   pip install -e ".[dev]"
+   pip install -e ".[dev,tools]"
    # For documentation
    pip install -e ".[docs]"
    ```
+   The `tools` extra installs FastAPI, SQLModel, and Jinja so the embedded requirements tracker and its tests run out of the box.
 5. **Run scripts to bootstrap assets**
    ```bash
    python scripts/setup_environment.py
@@ -114,6 +118,8 @@ ant -noinput -buildfile build.xml ci      # run the full clean→wheel pipeline
 ```
 
 Outputs land in `dist/`, `docs/_build`, and `test-reports/`.
+
+Need a clean Codespaces setup? The dev container (`.devcontainer/devcontainer.json`) pulls in system packages via apt-get and auto-launches the Streamlit UI once the workspace is ready.
 
 ### Apache Maven (`pom.xml`)
 ```bash
@@ -306,6 +312,12 @@ complaint = ["unhappy", "disappointed", "poor service"]
 ```bash
 python scripts/rebuild_index.py --batch-size 50
 ```
+
+**Requirements Tracker API**
+```bash
+uvicorn tools.requirements_tracker.app:app
+```
+Seeds default backlog items even if the JSON fixture is missing and exposes CRUD endpoints at `http://localhost:8000/requirements`.
 
 [↑ Back to top](#readme)
 </details>

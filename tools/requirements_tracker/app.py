@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from math import ceil
 from pathlib import Path
 from typing import Dict, List
@@ -27,10 +28,17 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> None:
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="Requirements Tracker",
     description="FastAPI-based tracker used to document project requirements in a professional tool.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -84,13 +92,6 @@ def _build_url(
 
     query = urlencode(new_params)
     return f"/board?{query}" if query else "/board"
-
-
-@app.on_event("startup")
-def startup() -> None:
-    init_db()
-
-
 @app.get("/health", tags=["System"])
 def health() -> dict[str, str]:
     return {"status": "ok"}

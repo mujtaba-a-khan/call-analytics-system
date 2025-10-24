@@ -840,7 +840,7 @@ Before submitting code:
 - If a function name needs "and", I probably split it.
 
 **Functions & Flow**
-- One screen, one purpose: functions stay in the 15–43 line window.
+- One screen, one purpose: functions stay in the 15–30 line window.
 - Guard clause first: handle empties or invalids up top, then let the path read straight.
 - Parameters default; optional args get safe, explicit defaults.
 
@@ -852,13 +852,13 @@ Before submitting code:
 
 **Data & State**
 - Immutable by default: copy incoming DataFrames before mutating.
-- No magic numbers: thresholds live in config (TOML/YAML), never inline.
+- Thresholds are available in config (TOML/YAML), never used inline.
 - Favour pure functions—inputs in, outputs out, no hidden I/O.
 
 **Types, Docs, Comments**
 - Type-annotate public APIs and return types.
 - Docstrings explain the why; comments document non-obvious trade-offs.
-- Delete stale comments—the code is the source of truth.
+- Delete stale comments, the code is the source of truth.
 
 **Errors & Logging**
 - Fail fast when there is nothing useful to do.
